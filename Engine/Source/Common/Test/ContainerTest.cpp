@@ -323,12 +323,43 @@ TEST(ContainerTest, TrunkBasic)
     ASSERT_EQ(t0[v2], 3);
 }
 
+TEST(ContainerTest, TrunkEachTest)
+{
+    Trunk<int, 4> t0;
+    constexpr auto count = 2;
+    for (auto i = 0; i < count; i++) {
+        t0.Emplace(i + 1);
+    }
+
+    int i = 0;
+    t0.Each([&](auto elem) -> void {
+        ASSERT_EQ(elem, ++i);
+    });
+    ASSERT_EQ(i, 2);
+}
+
 TEST(ContainerTest, TrunkCopyAndMove)
+{
+    Trunk<CopyAndMoveTest, 4> t0;
+    t0.Emplace();
+    t0.Emplace();
+    ASSERT_EQ(t0[0].constructType, ConstructType::cDefault);
+    ASSERT_EQ(t0[1].constructType, ConstructType::cDefault);
+
+    // TODO
+}
+
+TEST(ContainerTest, TrunkListBasic)
 {
     // TODO
 }
 
-TEST(ContainerTest, TrunkListTest)
+TEST(ContainerTest, TrunkListEach)
+{
+    // TODO
+}
+
+TEST(ContainerTest, TrunkListCopyAndMove)
 {
     // TODO
 }
