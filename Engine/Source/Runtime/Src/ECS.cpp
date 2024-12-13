@@ -31,13 +31,13 @@ namespace Runtime::Internal {
         offset = inOffset;
     }
 
-    Mirror::Any CompRtti::MoveConstruct(ElemPtr inElem, const Mirror::Argument& inOther) const
+    Mirror::Any CompRtti::MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const
     {
         auto* compBegin = static_cast<uint8_t*>(inElem) + offset;
         return clazz->InplaceNewDyn(compBegin, { inOther });
     }
 
-    Mirror::Any CompRtti::MoveAssign(ElemPtr inElem, const Mirror::Argument& inOther) const
+    Mirror::Any CompRtti::MoveAssign(ElemPtr inElem, const Mirror::Any& inOther) const
     {
         auto* compBegin = static_cast<uint8_t*>(inElem) + offset;
         auto compRef = clazz->InplaceGetObject(compBegin);
@@ -142,7 +142,7 @@ namespace Runtime::Internal {
         return newElem;
     }
 
-    Mirror::Any Archetype::EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Argument& inCompRef) // NOLINT
+    Mirror::Any Archetype::EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Any& inCompRef) // NOLINT
     {
         ElemPtr elem = ElemAt(entityMap.at(inEntity));
         return GetCompRtti(inCompClass).MoveConstruct(elem, inCompRef);
@@ -162,6 +162,7 @@ namespace Runtime::Internal {
         entityMap.erase(inEntity);
         elemMap.at(elemIndex) = entityToLastElem;
         elemMap.erase(lastElemIndex);
+        size--;
     }
 
     ElemPtr Archetype::GetElem(Entity inEntity) const
@@ -706,19 +707,15 @@ namespace Runtime {
         const Internal::ArchetypeId newArchetypeId = archetypeId + inClass->GetTypeInfo()->id;
         entities.SetArchetype(inEntity, newArchetypeId);
 
-        Internal::Archetype* newArchetype;
-        if (archetypes.contains(newArchetypeId)) {
-            newArchetype = &archetypes.at(newArchetypeId);
-            newArchetype->EmplaceElem(inEntity, archetype.GetElem(inEntity), archetype.GetRttiVec());
-            archetype.EraseElem(inEntity);
-        } else {
+        if (!archetypes.contains(newArchetypeId)) {
             archetypes.emplace(newArchetypeId, Internal::Archetype(archetype.NewRttiVecByAdd(Internal::CompRtti(inClass))));
-            newArchetype = &archetypes.at(newArchetypeId);
-            newArchetype->EmplaceElem(inEntity);
         }
+        Internal::Archetype& newArchetype = archetypes.at(newArchetypeId);
+        newArchetype.EmplaceElem(inEntity, archetype.GetElem(inEntity), archetype.GetRttiVec());
+        archetype.EraseElem(inEntity);
 
         Mirror::Any tempObj = inClass->ConstructDyn(inArgs);
-        Mirror::Any compRef = newArchetype->EmplaceComp(inEntity, inClass, tempObj.Ref());
+        Mirror::Any compRef = newArchetype.EmplaceComp(inEntity, inClass, tempObj.Ref());
         NotifyConstructedDyn(inClass, inEntity);
         return compRef;
     }

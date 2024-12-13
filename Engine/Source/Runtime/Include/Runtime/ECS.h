@@ -12,6 +12,7 @@
 #include <Common/Memory.h>
 #include <Mirror/Mirror.h>
 #include <Mirror/Meta.h>
+#include <Runtime/Api.h>
 
 namespace Runtime {
     using Entity = size_t;
@@ -41,14 +42,15 @@ namespace Runtime::Internal {
     using ElemPtr = void*;
 
     template <typename T> const Mirror::Class* GetClass();
-    template <typename T> struct LambdaTraits;
+    template <typename T> struct StdFuncTraits;
+    template <typename T> struct MemberFuncPtrTraits;
 
     class CompRtti {
     public:
         explicit CompRtti(CompClass inClass);
         void Bind(size_t inOffset);
-        Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Argument& inOther) const;
-        Mirror::Any MoveAssign(ElemPtr inElem, const Mirror::Argument& inOther) const;
+        Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
+        Mirror::Any MoveAssign(ElemPtr inElem, const Mirror::Any& inOther) const;
         void Destruct(ElemPtr inElem) const;
         Mirror::Any Get(ElemPtr inElem) const;
         CompClass Class() const;
@@ -76,7 +78,7 @@ namespace Runtime::Internal {
         bool NotContainsAny(const std::vector<CompClass>& inCompClasses) const;
         ElemPtr EmplaceElem(Entity inEntity);
         ElemPtr EmplaceElem(Entity inEntity, ElemPtr inSrcElem, const std::vector<CompRtti>& inSrcRttiVec);
-        Mirror::Any EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Argument& inCompRef);
+        Mirror::Any EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Any& inCompRef);
         void EraseElem(Entity inEntity);
         ElemPtr GetElem(Entity inEntity) const;
         Mirror::Any GetComp(Entity inEntity, CompClass inCompClass);
@@ -304,6 +306,7 @@ namespace Runtime {
         template <typename C> void ObConstructed();
         template <typename C> void ObUpdated();
         template <typename C> void ObRemove();
+        // TODO dynamic version
         void Each(const EntityTraverseFunc& inFunc) const;
         void Clear();
         void Reset();
@@ -321,7 +324,7 @@ namespace Runtime {
         std::vector<Entity> entities;
     };
 
-    class MIRROR_API ECRegistry {
+    class RUNTIME_API ECRegistry {
     public:
         using EntityTraverseFunc = Internal::EntityPool::EntityTraverseFunc;
         using DynUpdateFunc = std::function<void(const Mirror::Any&)>;
@@ -374,7 +377,8 @@ namespace Runtime {
         template <typename C> const C* Find(Entity inEntity) const;
         template <typename C> C& Get(Entity inEntity);
         template <typename C> const C& Get(Entity inEntity) const;
-        template <typename... C, typename... E> View<Exclude<E...>, C...> View(Exclude<E...>);
+        template <typename... C, typename... E> View<Exclude<E...>, C...> View(Exclude<E...> = {});
+        // TODO const view
         template <typename C> CompEvents& Events();
         Observer Observer();
 
@@ -391,6 +395,7 @@ namespace Runtime {
         Mirror::Any GetDyn(CompClass inClass, Entity inEntity) const;
         CompEvents& EventsDyn(CompClass inClass);
         RuntimeView RuntimeView(const RuntimeViewRule& inRule);
+        // TODO const runtime view
 
         // global component static
         template <typename G, typename... Args> G& GEmplace(Args&&... inArgs);
@@ -514,10 +519,24 @@ namespace Runtime::Internal {
         return &Mirror::Class::Get<T>();
     }
 
-    template <typename Ret, typename... T>
-    struct LambdaTraits<std::function<Ret(T...)>> {
-        static constexpr auto ArgSize = sizeof...(T);
-        using ArgsTupleType = std::tuple<T...>;
+    template <typename Ret, typename... Args>
+    struct StdFuncTraits<std::function<Ret(Args...)>> {
+        static constexpr auto ArgSize = sizeof...(Args);
+        using ArgsTupleType = std::tuple<Args...>;
+    };
+
+    template <typename Class, typename Ret, typename... Args>
+    struct MemberFuncPtrTraits<Ret(Class::*)(Args...)> {
+        static constexpr auto ArgSize = sizeof...(Args);
+        using ClassType = Class;
+        using ArgsTupleType = std::tuple<Args...>;
+    };
+
+    template <typename Class, typename Ret, typename... Args>
+    struct MemberFuncPtrTraits<Ret(Class::*)(Args...) const> {
+        static constexpr auto ArgSize = sizeof...(Args);
+        using ClassType = const Class;
+        using ArgsTupleType = std::tuple<Args...>;
     };
 
     inline auto Archetype::All() const
@@ -588,8 +607,12 @@ namespace Runtime {
     template <typename F>
     void View<Exclude<E...>, C...>::Each(F&& inFunc) const
     {
-        for (const auto& entity : result) {
-            std::apply(inFunc, entity);
+        for (const auto& entityAndComps : result) {
+            if constexpr (Internal::MemberFuncPtrTraits<decltype(&F::operator())>::ArgSize == 1) {
+                inFunc(std::get<0>(entityAndComps));
+            } else {
+                std::apply(inFunc, entityAndComps);
+            }
         }
     }
 
@@ -672,7 +695,7 @@ namespace Runtime {
     void RuntimeView::Each(F&& inFunc) const
     {
         for (const auto& pair : result) {
-            InvokeTraverseFuncInternal<F, Internal::LambdaTraits<F>::ArgsTupleType>(std::forward<F>(inFunc), pair, std::make_index_sequence<Internal::LambdaTraits<F>::ArgSize> {});
+            InvokeTraverseFuncInternal<F, Internal::StdFuncTraits<F>::ArgsTupleType>(std::forward<F>(inFunc), pair, std::make_index_sequence<Internal::StdFuncTraits<F>::ArgSize> {});
         }
     }
 
@@ -784,7 +807,7 @@ namespace Runtime {
     template <typename... C, typename... E>
     View<Exclude<E...>, C...> ECRegistry::View(Exclude<E...>)
     {
-        return { *this };
+        return Runtime::View<Exclude<E...>, C...>(*this);
     }
 
     template <typename C>
