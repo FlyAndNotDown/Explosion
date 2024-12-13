@@ -18,3 +18,14 @@ struct EClass() CompA {
 
     int value;
 };
+
+struct EClass() CompB {
+    EClassBody(CompB)
+
+    explicit CompB(float inValue)
+        : value(inValue)
+    {
+    }
+
+    float value;
+};
