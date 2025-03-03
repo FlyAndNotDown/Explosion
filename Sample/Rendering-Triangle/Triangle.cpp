@@ -166,6 +166,7 @@ void TriangleApplication::OnDrawFrame()
     BufferPool::Get(*device).Forfeit();
     TexturePool::Get(*device).Forfeit();
     ResourceViewCache::Get(*device).Forfeit();
+    BindGroupCache::Get(*device).Forfeit();
     frameCount++;
 }
 
