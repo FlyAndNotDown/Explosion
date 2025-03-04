@@ -18,6 +18,7 @@ namespace Render {
     public:
         struct Params {
             const Scene* scene;
+            Common::UVec2 surfaceExtent;
             const RHI::Texture* surface;
             std::vector<const View*> views;
             RHI::Semaphore* waitSemaphore;
@@ -48,6 +49,4 @@ namespace Render {
 
     private:
     };
-
-    // TODO ScriptableRenderer
 }

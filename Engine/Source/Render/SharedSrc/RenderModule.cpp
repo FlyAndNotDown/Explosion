@@ -67,14 +67,9 @@ namespace Render {
         return RenderThread::Get();
     }
 
-    Common::UniquePtr<Render::Scene> RenderModule::NewScene() // NOLINT
+    Scene* RenderModule::NewScene() // NOLINT
     {
         return new Scene();
-    }
-
-    Common::UniquePtr<View> RenderModule::NewView() // NOLINT
-    {
-        return new View();
     }
 }
 

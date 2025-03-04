@@ -6,7 +6,8 @@
 
 namespace Runtime {
     Camera::Camera()
-        : perspective(true)
+        : viewIndex(viewIndexNull)
+        , perspective(true)
         , nearPlane(0.1f)
         , fov(90.0f)
     {
