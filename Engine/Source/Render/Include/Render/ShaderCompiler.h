@@ -8,7 +8,7 @@
 #include <string>
 
 #include <RHI/Common.h>
-#include <Render/Shader.h>
+#include <Render/ShaderType.h>
 #include <Common/Concurrent.h>
 
 namespace Render {

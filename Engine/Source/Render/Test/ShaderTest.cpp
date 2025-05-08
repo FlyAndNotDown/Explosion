@@ -4,9 +4,9 @@
 
 #include <Test/Test.h>
 
-#include <Render/Shader.h>
+#include <Render/ShaderType.h>
 
-class TestGlobalShaderVS : public Render::GlobalShader {
+class TestGlobalShaderVS : public Render::StaticShaderType {
 public:
     ShaderInfo(
         "TestGlobalShader",

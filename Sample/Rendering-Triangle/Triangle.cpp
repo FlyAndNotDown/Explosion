@@ -16,7 +16,7 @@ struct Vertex {
     FVec3 position;
 };
 
-class TriangleVS : public GlobalShader {
+class TriangleVS : public StaticShaderType {
 public:
     ShaderInfo(
         "TriangleVS",
@@ -28,7 +28,7 @@ public:
     DefaultVariantFilter;
 };
 
-class TrianglePS : public GlobalShader {
+class TrianglePS : public StaticShaderType {
 public:
     ShaderInfo(
         "TrianglePS",

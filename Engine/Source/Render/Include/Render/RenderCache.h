@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include <RHI/RHI.h>
-#include <Render/Shader.h>
+#include <Render/ShaderType.h>
 
 namespace Render {
     class PipelineLayout;

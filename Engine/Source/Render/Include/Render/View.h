@@ -6,7 +6,7 @@
 
 #include <Common/Math/Matrix.h>
 #include <Common/Math/Rect.h>
-#include <Render/Shader.h>
+#include <Render/ShaderType.h>
 
 namespace Render {
     struct ViewData {
