@@ -6,46 +6,83 @@
 
 #include <Render/Shader.h>
 
-class TestGlobalShaderVS : public Render::GlobalShader {
-public:
-    ShaderInfo(
+class TestGlobalShaderVS final : public StaticShaderType<TestGlobalShaderVS> {
+    StaticShaderInfo(
+        TestGlobalShaderVS,
         "TestGlobalShader",
+        RHI::ShaderStageBits::sVertex,
         "Engine/Shader/Test/TestGlobalShader.esl",
-        "VSMain",
-        RHI::ShaderStageBits::sVertex);
+        "VSMain")
 
-    BoolShaderVariantField(TestBoolVariant, "TEST_BOOL");
-    RangedIntShaderVariantField(TestRangedIntVariant, "TEST_RANGED_INT", 0, 3);
-    VariantSet(TestBoolVariant, TestRangedIntVariant);
+    BoolVariantField(TestBool, TEST_BOOL, false);
+    RangedIntVariantField(TestRangedInt, TEST_RANGED_INT, 0, 0, 3);
+    MakeVariantFieldVec(TestBool, TestRangedInt);
 
-    DefaultVariantFilter
+    BeginIncludeDirectories
+        "Engine/Shader/Test"
+    EndIncludeDirectories
 };
-//RegisterGlobalShader(TestGlobalShaderVS);
 
-TEST(ShaderTest, StaticVariantSetTest)
+ImplementStaticShaderType(TestGlobalShaderVS)
+
+TEST(ShaderTest, StaticIncludePathAndVariantFieldsTest)
 {
-    ASSERT_EQ(TestGlobalShaderVS::VariantSet::VariantNum(), 8);
+    const TestGlobalShaderVS shaderType;
 
-    const std::set<std::pair<bool, uint8_t>> expectVariants = {
-        { false, 0 },
-        { false, 1 },
-        { false, 2 },
-        { false, 3 },
-        { true, 0 },
-        { true, 1 },
-        { true, 2 },
-        { true, 3 }
+    const std::vector<std::string> aspectIncludes = { "Engine/Shader/Test" };
+    ASSERT_EQ(shaderType.GetIncludeDirectories(), aspectIncludes);
+
+    ShaderVariantFieldVec aspectVariantFields;
+    aspectVariantFields.emplace_back(ShaderBoolVariantField { "TEST_BOOL", false });
+    aspectVariantFields.emplace_back(ShaderRangedIntVariantField { "TEST_RANGED_INT", 0, { 0, 3 } });
+    ASSERT_EQ(shaderType.GetVariantFields(), aspectVariantFields);
+}
+
+TEST(ShaderTest, ComputeVariantKeyTest)
+{
+    const ShaderVariantFieldVec variantFields = {
+        ShaderBoolVariantField { "TEST_BOOL", false },
+        ShaderRangedIntVariantField { "TEST_RANGED_INT", 1, { 1, 4 } }
     };
-    std::vector<std::pair<bool, uint8_t>> actualVariants;
-    TestGlobalShaderVS::VariantSet::TraverseAll([&actualVariants](auto&& variantSet) -> void {
-        actualVariants.emplace_back(
-            variantSet.template Get<TestGlobalShaderVS::TestBoolVariant>(),
-            variantSet.template Get<TestGlobalShaderVS::TestRangedIntVariant>()
-        );
-    });
+    const ShaderVariantValueMap variantSet = {
+        { "TEST_BOOL", true },
+        { "TEST_RANGED_INT", 2 }
+    };
+    ASSERT_EQ(ShaderUtils::ComputeVariantKey(variantFields, variantSet), 3);
+}
 
-    ASSERT_EQ(expectVariants.size(), actualVariants.size());
-    for (const auto& variant : actualVariants) {
-        ASSERT_EQ(expectVariants.contains(variant), true);
-    }
+TEST(ShaderTest, GetAllVariantsTest)
+{
+    const ShaderVariantFieldVec variantFields = {
+        ShaderBoolVariantField { "TEST_BOOL", false },
+        ShaderRangedIntVariantField { "TEST_RANGED_INT", 1, { 1, 4 } }
+    };
+    const std::vector<ShaderVariantValueMap> variants = {
+        { { "TEST_BOOL", false }, { "TEST_RANGED_INT", 1 } },
+        { { "TEST_BOOL", true }, { "TEST_RANGED_INT", 1 } },
+        { { "TEST_BOOL", false }, { "TEST_RANGED_INT", 2 } },
+        { { "TEST_BOOL", true }, { "TEST_RANGED_INT", 2 } },
+        { { "TEST_BOOL", false }, { "TEST_RANGED_INT", 3 } },
+        { { "TEST_BOOL", true }, { "TEST_RANGED_INT", 3 } },
+        { { "TEST_BOOL", false }, { "TEST_RANGED_INT", 4 } },
+        { { "TEST_BOOL", true }, { "TEST_RANGED_INT", 4 } },
+    };
+    ASSERT_EQ(ShaderUtils::GetAllVariants(variantFields), variants);
+}
+
+TEST(ShaderTest, ComputeVariantDefinitionsTest)
+{
+    const ShaderVariantFieldVec variantFields = {
+        ShaderBoolVariantField { "TEST_BOOL", false },
+        ShaderRangedIntVariantField { "TEST_RANGED_INT", 1, { 1, 4 } }
+    };
+    const ShaderVariantValueMap variantSet = {
+        { "TEST_BOOL", true },
+        { "TEST_RANGED_INT", 2 }
+    };
+    const std::vector<std::string> definitions = {
+        "TEST_BOOL=1",
+        "TEST_RANGED_INT=2"
+    };
+    ASSERT_EQ(ShaderUtils::ComputeVariantDefinitions(variantFields, variantSet), definitions);
 }

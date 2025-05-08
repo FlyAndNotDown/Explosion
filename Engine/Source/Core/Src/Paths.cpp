@@ -145,8 +145,56 @@ namespace Core {
         return ENGINE_CMAKE_BINARY_DIRECTORY;
     }
 
+    bool Paths::IsEnginePath(const Common::Path& inPath)
+    {
+        return Common::StringUtils::RegexMatch(inPath.String(), R"(Engine/.*)");
+    }
+
+    bool Paths::IsGamePath(const Common::Path& inPath)
+    {
+        return Common::StringUtils::RegexMatch(inPath.String(), R"(Game/.*)");
+    }
+
+    bool Paths::IsEnginePluginPath(const Common::Path& inPath)
+    {
+        return Common::StringUtils::RegexMatch(inPath.String(), R"(Engine/Plugin/.*)");
+    }
+
+    bool Paths::IsGamePluginPath(const Common::Path& inPath)
+    {
+        return Common::StringUtils::RegexMatch(inPath.String(), R"(Game/Plugin/.*)");
+    }
+
+    bool Paths::IsEngineTestPath(const Common::Path& inPath)
+    {
+        return Common::StringUtils::RegexMatch(inPath.String(), R"(Engine/Test/.*)");
+    }
+
+    Common::Path Paths::Translate(const Common::Path& inPath)
+    {
+        Common::Path result;
 #if BUILD_TEST
-    Common::Path Paths::EngineTest()
+        if (IsEnginePath(inPath)) {
+            result = EngineTestDir() / Common::StringUtils::AfterFirst(inPath.String(), "Engine/Test/");
+        } else if (IsEnginePluginPath(inPath)) {
+#else
+        if (IsEnginePluginPath(inPath)) {
+#endif
+            const std::string pathWithPluginName = Common::StringUtils::AfterFirst(inPath.String(), "Engine/Plugin/");
+            result = EnginePluginAssetDir(Common::StringUtils::BeforeFirst(pathWithPluginName, "/")) / Common::StringUtils::AfterFirst(pathWithPluginName, "/");
+        } else if (IsGamePath(inPath)) {
+            const std::string pathWithPluginName = Common::StringUtils::AfterFirst(inPath.String(), "Game/Plugin/");
+            result = GamePluginAssetDir(Common::StringUtils::BeforeFirst(pathWithPluginName, "/")) / Common::StringUtils::AfterFirst(pathWithPluginName, "/");
+        } else if (IsEnginePath(inPath)) {
+            result = EngineAssetDir() / Common::StringUtils::AfterFirst(inPath.String(), "Engine/");
+        } else if (IsGamePath(inPath)) {
+            result = Paths::GameAssetDir() / Common::StringUtils::AfterFirst(inPath.String(), "Game/");
+        }
+        return result;
+    }
+
+    #if BUILD_TEST
+    Common::Path Paths::EngineTestDir()
     {
         return EngineRootDir() / "Test";
     }
