@@ -7,15 +7,15 @@
 #include <Render/Shader.h>
 
 class TestGlobalShaderVS final : public Render::StaticShaderType<TestGlobalShaderVS> {
-    StaticShaderInfo(
+    ShaderTypeInfo(
         TestGlobalShaderVS,
         "TestGlobalShader",
         RHI::ShaderStageBits::sVertex,
         "Engine/Shader/Test/TestGlobalShader.esl",
         "VSMain")
 
-    BoolVariantField(TestBool, TEST_BOOL, false);
-    RangedIntVariantField(TestRangedInt, TEST_RANGED_INT, 0, 0, 3);
+    DeclBoolVariantField(TestBool, TEST_BOOL, false);
+    DeclRangedIntVariantField(TestRangedInt, TEST_RANGED_INT, 0, 0, 3);
     MakeVariantFieldVec(TestBool, TestRangedInt);
 
     BeginIncludeDirectories
@@ -86,4 +86,9 @@ TEST(ShaderTest, ComputeVariantDefinitionsTest)
         "TEST_RANGED_INT=2"
     };
     ASSERT_EQ(Render::ShaderUtils::ComputeVariantDefinitions(variantFields, variantSet), definitions);
+}
+
+TEST(ShaderTest, VertexFactoryTest)
+{
+    // TODO
 }

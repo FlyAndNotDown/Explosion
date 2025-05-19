@@ -9,6 +9,13 @@
 #include <Render/Shader.h>
 #include <Common/Container.h>
 
+namespace Render::Internal {
+    uint64_t MakeTypeKeyFromName(const std::string& inName)
+    {
+        return Common::HashUtils::CityHash(inName.data(), inName.size());
+    }
+}
+
 namespace Render {
     bool ShaderBoolVariantField::operator==(const ShaderBoolVariantField& inRhs) const
     {
@@ -164,13 +171,16 @@ namespace Render {
         }
     }
 
+    VertexFactoryType::VertexFactoryType(VertexFactoryTypeKey inKey)
+        : key(inKey)
+    {
+    }
+
     VertexFactoryType::~VertexFactoryType() = default;
 
-    VertexFactoryType::VertexFactoryType() = default;
-
-    ShaderTypeKey ShaderType::MakeTypeKeyFromName(const std::string& inName)
+    VertexFactoryTypeKey VertexFactoryType::GetKey() const
     {
-        return Common::HashUtils::CityHash(inName.data(), inName.size());
+        return key;
     }
 
     ShaderType::ShaderType(ShaderTypeKey inKey)

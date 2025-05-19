@@ -17,7 +17,7 @@ struct Vertex {
 };
 
 class TriangleVS final : public StaticShaderType<TriangleVS> {
-    StaticShaderInfo(
+    ShaderTypeInfo(
         TriangleVS,
         "TriangleVS",
         RHI::ShaderStageBits::sVertex,
@@ -30,7 +30,7 @@ class TriangleVS final : public StaticShaderType<TriangleVS> {
 
 class TrianglePS final : public StaticShaderType<TrianglePS> {
 public:
-    StaticShaderInfo(
+    ShaderTypeInfo(
         TrianglePS,
         "TrianglePS",
         RHI::ShaderStageBits::sPixel,
