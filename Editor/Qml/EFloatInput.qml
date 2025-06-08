@@ -8,6 +8,8 @@ ETextField {
 
     id: root
     implicitWidth: 100
+    withHintBar: true
+    hintBarColor: ETheme.floatInputHintBarColor
 
     validator: DoubleValidator {
         bottom: root.from

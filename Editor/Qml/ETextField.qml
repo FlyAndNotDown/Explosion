@@ -8,6 +8,8 @@ Item {
     property int wrapMode: TextInput.NoWrap
     property string text: textField.text
     property bool readOnly: textField.readOnly
+    property bool withHintBar: false
+    property color hintBarColor: ETheme.primaryColor
     property var validator: null
 
     signal accepted()
@@ -37,5 +39,15 @@ Item {
             radius: 5
             color: ETheme.primaryBgColor
         }
+    }
+
+    Rectangle {
+        id: hintBar
+        anchors.bottom: textField.bottom
+        width: root.width
+        height: 3
+        radius: 500
+        visible: withHintBar
+        color: hintBarColor
     }
 }

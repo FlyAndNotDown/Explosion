@@ -339,6 +339,8 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
                     ETextField {
                         Layout.preferredWidth: 300
                         placeHolderText: 'Hello World'
@@ -351,6 +353,8 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
                     ETextField {
                         id: textFieldWithValidator
                         Layout.preferredWidth: 300
@@ -371,6 +375,23 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
+                    ETextField {
+                        Layout.preferredWidth: 300
+
+                        withHintBar: true
+                    }
+
+                    EText {
+                        Layout.leftMargin: 5
+                        text: 'With Hint Bar'
+                    }
+                }
+
+                RowLayout {
+                    Layout.topMargin: 5
+
                     ETextField {
                         Layout.preferredWidth: 300
                         wrapMode: TextInput.Wrap
@@ -384,6 +405,8 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
                     ETextField {
                         Layout.fillWidth: true
                         placeHolderText: 'Block Input'
@@ -413,6 +436,8 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
                     EIntegerInput {
                         from: 0
                         to: 10
@@ -425,6 +450,8 @@ Rectangle {
                 }
 
                 RowLayout {
+                    Layout.topMargin: 5
+
                     EIntegerInput {
                         editable: true
                     }
@@ -458,6 +485,22 @@ Rectangle {
                     EText {
                         Layout.leftMargin: 5
                         text: 'Default'
+                    }
+                }
+
+                RowLayout {
+                    Layout.topMargin: 5
+
+                    EFloatInput {
+                        onAccepted: {
+                            console.log('value accepted, value=' + text)
+                        }
+                        placeHolderText: '3.1415926'
+                    }
+
+                    EText {
+                        Layout.leftMargin: 5
+                        text: 'With Placeholder'
                     }
                 }
             }

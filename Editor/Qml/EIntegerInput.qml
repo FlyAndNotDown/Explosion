@@ -65,4 +65,14 @@ Item {
             color: ETheme.primaryBgColor
         }
     }
+
+    Rectangle {
+        id: downIndicatorHintBar
+        anchors.bottom: spinBox.bottom
+        width: root.width
+        height: 3
+        radius: 500
+        visible: true
+        color: ETheme.integerInputHintBarColor
+    }
 }
