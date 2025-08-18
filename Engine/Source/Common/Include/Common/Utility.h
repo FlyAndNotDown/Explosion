@@ -54,6 +54,9 @@ namespace Common {
 
     template <CppArithmetic T>
     T ToArithmetic(const std::string& inStr);
+
+    template <typename T>
+    struct TupleTypeTraverser {};
 }
 
 // ------------------------ FlagAndBits Begin ------------------------
@@ -137,6 +140,17 @@ namespace Common {
             return QuickFail(), T();
         }
     }
+
+    template <typename... T>
+    struct TupleTypeTraverser<std::tuple<T...>> {
+        template <typename F>
+        static void Each(F&& inFunc)
+        {
+            (void) std::initializer_list<int> { ([&]() -> void {
+                inFunc(T());
+            }, 0)... };
+        }
+    };
 
     template <typename E>
     void ForEachBits(BitsForEachFunc<E>&& func)

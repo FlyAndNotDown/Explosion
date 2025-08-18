@@ -10,86 +10,26 @@ import { Listbox, ListboxItem } from '@heroui/listbox';
 import { Avatar } from '@heroui/avatar';
 import { ScrollShadow } from "@heroui/scroll-shadow";
 
+interface RecentProjectInfo {
+  name: string;
+  path: string;
+}
+
 export default function ProjectHubPage() {
   const [engineVersion, setEngineVersion] = useState('');
-  // TODO fetch from c++
-  const [recentlyProjects] = useState([{
-    key: '1',
-    name: 'HelloExplosion1',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '2',
-    name: 'HelloExplosion2',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '3',
-    name: 'HelloExplosion3',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '4',
-    name: 'HelloExplosion4',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '5',
-    name: 'HelloExplosion5',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '6',
-    name: 'HelloExplosion6',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '7',
-    name: 'HelloExplosion7',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '8',
-    name: 'HelloExplosion8',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '9',
-    name: 'HelloExplosion9',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '10',
-    name: 'HelloExplosion10',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '11',
-    name: 'HelloExplosion11',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '12',
-    name: 'HelloExplosion12',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }, {
-    key: '13',
-    name: 'HelloExplosion13',
-    icon: '/logo.png',
-    path: '/path/to/HelloExplosion'
-  }]);
+  const [recentProjects, setRecentProjects] = useState(Array<RecentProjectInfo>);
 
   useEffect(() => {
     new QWebChannel(window.qt.webChannelTransport, (channel: QWebChannel) : void => {
-      window.bridge = channel.objects.bridge;
-      setEngineVersion(window.bridge.engineVersion);
+      window.backend = channel.objects.backend;
+      setEngineVersion(window.backend.engineVersion);
+      setRecentProjects(window.backend.recentProjects);
     })
   }, []);
 
   function onCreateProject(): void
   {
-    window.bridge.CreateProject();
+    window.backend.CreateProject();
   }
 
   return (
@@ -114,19 +54,19 @@ export default function ProjectHubPage() {
             className='h-[450px]'
             size={60}>
             <Listbox
-              items={recentlyProjects}
+              items={recentProjects}
               variant='flat'>
-              {(item) => (
-                <ListboxItem key={item.key} textValue={item.name}>
-                  <div className='flex gap-2 items-center'>
-                    <Avatar alt={item.name} className='shrink-0' size='sm' src={item.icon} />
-                    <div className='flex flex-col'>
-                      <span className='text-small'>{item.name}</span>
-                      <span className='text-tiny text-default-400'>{item.path}</span>
+              {recentProjects.map((item, i) => (
+                  <ListboxItem key={i} textValue={item.name}>
+                    <div className='flex gap-2 items-center'>
+                      <Avatar alt={item.name} className='shrink-0' size='sm' name={item.name} />
+                      <div className='flex flex-col'>
+                        <span className='text-small'>{item.name}</span>
+                        <span className='text-tiny text-default-400'>{item.path}</span>
+                      </div>
                     </div>
-                  </div>
-                </ListboxItem>
-              )}
+                  </ListboxItem>
+              ))}
             </Listbox>
           </ScrollShadow>
         </Tab>
