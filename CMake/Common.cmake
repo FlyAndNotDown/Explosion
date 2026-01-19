@@ -1,6 +1,3 @@
-include(ExternalProject)
-include(GenerateExportHeader)
-
 option(USE_UNITY_BUILD "Use unity build" ON)
 option(EXPORT_COMPILE_COMMANDS "Whether to export all compile commands" OFF)
 

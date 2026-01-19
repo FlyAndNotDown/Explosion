@@ -1,3 +1,5 @@
+include(GenerateExportHeader)
+
 option(BUILD_TEST "Build unit tests" ON)
 option(BUILD_SAMPLE "Build sample" ON)
 
@@ -546,17 +548,18 @@ function(exp_add_library)
             EXPORT ${SUB_PROJECT_NAME}Targets
             ARCHIVE DESTINATION ${SUB_PROJECT_NAME}/Target/${arg_NAME}/Lib
             LIBRARY DESTINATION ${SUB_PROJECT_NAME}/Target/${arg_NAME}/Lib
-            RUNTIME DESTINATION ${SUB_PROJECT_NAME}/Binaries
+            RUNTIME DESTINATION ${SUB_PROJECT_NAME}/Target/${arg_NAME}/Binaries
         )
         export(
             TARGETS ${arg_NAME}
             NAMESPACE ${SUB_PROJECT_NAME}::
             APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
         )
+
         if ("${arg_TYPE}" STREQUAL "SHARED")
             install(
                 FILES $<TARGET_FILE:${arg_NAME}>
-                DESTINATION ${SUB_PROJECT_NAME}/Target/${arg_NAME}/Binaries
+                DESTINATION ${SUB_PROJECT_NAME}/Binaries
             )
         endif ()
     endif ()
