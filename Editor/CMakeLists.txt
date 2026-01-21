@@ -9,7 +9,7 @@ qt_standard_project_setup()
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(platform_executable_hint MACOSX_BUNDLE)
-    set(bundle_install_dest BUNDLE DESTINATION ${CMAKE_INSTALL_PREFIX}/${ENGINE_SUB_PROJECT_NAME}/Binaries)
+    set(bundle_install_dest BUNDLE DESTINATION ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries)
     set(platform_fwk_dir ${QT_ROOT}/lib)
 endif ()
 
@@ -65,7 +65,7 @@ exp_process_runtime_dependencies(
 )
 install(
     TARGETS Editor
-    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/${ENGINE_SUB_PROJECT_NAME}/Binaries
+    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries
     ${bundle_install_dest}
 )
 export(
@@ -81,7 +81,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         COMMAND ${qt_win_deploy_executable} $<TARGET_FILE:Editor>
     )
     install(
-        CODE "execute_process(COMMAND ${qt_win_deploy_executable} ${CMAKE_INSTALL_PREFIX}/${ENGINE_SUB_PROJECT_NAME}/Binaries/$<TARGET_FILE_NAME:Editor>)"
+        CODE "execute_process(COMMAND ${qt_win_deploy_executable} ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries/$<TARGET_FILE_NAME:Editor>)"
     )
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(qt_mac_deploy_executable ${QT_ROOT}/bin/macdeployqt)
@@ -90,7 +90,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
         COMMAND ${qt_mac_deploy_executable} $<TARGET_PROPERTY:Editor,RUNTIME_OUTPUT_DIRECTORY>/Editor.app -no-strip
     )
     install(
-        CODE "execute_process(COMMAND ${qt_mac_deploy_executable} ${CMAKE_INSTALL_PREFIX}/${ENGINE_SUB_PROJECT_NAME}/Binaries/Editor.app -no-strip)"
+        CODE "execute_process(COMMAND ${qt_mac_deploy_executable} ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries/Editor.app -no-strip)"
     )
 endif ()
 
@@ -159,6 +159,6 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/Web/dist $<TARGET_FILE_DIR:Editor>/Web
 )
 if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-    install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/Web/dist ${CMAKE_INSTALL_PREFIX}/${ENGINE_SUB_PROJECT_NAME}/Binaries/Web)")
+    install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/Web/dist ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries/Web)")
 endif ()
 # ---- end web project -------------------------------------------------------------------------------

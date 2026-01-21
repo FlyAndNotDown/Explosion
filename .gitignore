@@ -8,6 +8,9 @@
 cmake-build*
 build*
 
+# Installed
+Installed
+
 # 3rd
 ThirdParty/Zip
 ThirdParty/Lib

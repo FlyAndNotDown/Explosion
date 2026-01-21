@@ -7,8 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ${EXPORT_COMPILE_COMMANDS})
 
 get_cmake_property(generator_is_multi_config GENERATOR_IS_MULTI_CONFIG)
 if (${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
-    # TODO support multi config generator for CMAKE_INSTALL_PREFIX
-    set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/Install CACHE PATH "" FORCE)
+    set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/Installed CACHE PATH "" FORCE)
 endif()
 
 add_definitions(-DBUILD_CONFIG_DEBUG=$<IF:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,1,0>)
