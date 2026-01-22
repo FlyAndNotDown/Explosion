@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+include(${CMAKE_CURRENT_LIST_DIR}/@SUB_PROJECT_NAME@Targets.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Common.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/Target.cmake)
+
+check_required_components(@SUB_PROJECT_NAME@)

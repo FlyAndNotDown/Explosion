@@ -1,9 +1,12 @@
 include(GenerateExportHeader)
+include(CMakePackageConfigHelpers)
 
 option(BUILD_TEST "Build unit tests" ON)
 option(BUILD_SAMPLE "Build sample" ON)
 
-set(API_HEADER_DIR ${CMAKE_BINARY_DIR}/Generated/Api CACHE PATH "" FORCE)
+set(GENERATED_DIR ${CMAKE_BINARY_DIR}/Generated CACHE PATH "" FORCE)
+set(GENERATED_API_HEADER_DIR ${GENERATED_DIR}/Api CACHE PATH "" FORCE)
+set(GENERATED_MIRROR_INFO_SRC_DIR ${GENERATED_DIR}/MirrorInfoSrc CACHE PATH "" FORCE)
 set(BASE_TARGETS_FOLDER "${SUB_PROJECT_NAME}" CACHE STRING "" FORCE)
 set(SAMPLE_TARGETS_FOLDER "${BASE_TARGETS_FOLDER}/Sample" CACHE STRING "" FORCE)
 set(AUX_TARGETS_FOLDER "${BASE_TARGETS_FOLDER}/Aux" CACHE STRING "" FORCE)
@@ -257,7 +260,7 @@ function(exp_add_mirror_info_source_generation_target)
             get_filename_component(dir ${temp} DIRECTORY)
             get_filename_component(filename ${temp} NAME_WE)
 
-            set(output_source "${CMAKE_BINARY_DIR}/Generated/MirrorInfoSource/${dir}/${filename}.generated.cpp")
+            set(output_source "${GENERATED_MIRROR_INFO_SRC_DIR}/${dir}/${filename}.generated.cpp")
             list(APPEND output_sources ${output_source})
 
             add_custom_command(
@@ -392,7 +395,7 @@ function(exp_add_library)
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if ("${arg_TYPE}" STREQUAL "SHARED")
-        list(APPEND arg_PUBLIC_INC ${API_HEADER_DIR}/${arg_NAME})
+        list(APPEND arg_PUBLIC_INC ${GENERATED_API_HEADER_DIR}/${arg_NAME})
     endif ()
 
     if (DEFINED arg_REFLECT)
@@ -519,7 +522,7 @@ function(exp_add_library)
         generate_export_header(
             ${arg_NAME}
             EXPORT_MACRO_NAME ${api_name}
-            EXPORT_FILE_NAME ${API_HEADER_DIR}/${arg_NAME}/${api_dir}/Api.h
+            EXPORT_FILE_NAME ${GENERATED_API_HEADER_DIR}/${arg_NAME}/${api_dir}/Api.h
         )
     endif()
 
@@ -646,5 +649,30 @@ install(
     EXPORT ${SUB_PROJECT_NAME}Targets
     FILE ${SUB_PROJECT_NAME}Targets.cmake
     NAMESPACE ${SUB_PROJECT_NAME}::
+    DESTINATION ${SUB_PROJECT_NAME}/CMake
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_LIST_DIR}/Config.cmake.in
+    ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Config.cmake
+    INSTALL_DESTINATION ${SUB_PROJECT_NAME}/CMake
+)
+
+write_basic_package_version_file(
+    ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}ConfigVersion.cmake
+    VERSION ${SUB_PROJECT_VERSION_MAJOR}.${SUB_PROJECT_VERSION_MINOR}.${SUB_PROJECT_VERSION_PATCH}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Config.cmake
+        ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}ConfigVersion.cmake
+    DESTINATION ${SUB_PROJECT_NAME}/CMake
+)
+
+file(GLOB all_cmake_libs ${CMAKE_CURRENT_LIST_DIR}/*)
+install(
+    FILES ${all_cmake_libs}
     DESTINATION ${SUB_PROJECT_NAME}/CMake
 )

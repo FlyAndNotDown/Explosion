@@ -8,6 +8,9 @@ project(Explosion)
 option(BUILD_EDITOR "Build Explosion editor" ON)
 
 set(SUB_PROJECT_NAME "Explosion" CACHE STRING "" FORCE)
+set(SUB_PROJECT_VERSION_MAJOR 0 CACHE STRING "" FORCE)
+set(SUB_PROJECT_VERSION_MINOR 0 CACHE STRING "" FORCE)
+set(SUB_PROJECT_VERSION_PATCH 1 CACHE STRING "" FORCE)
 
 set(CMAKE_MAP_IMPORTED_CONFIG_DEBUG "Release" CACHE STRING "" FORCE)
 set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release" CACHE STRING "" FORCE)
@@ -26,9 +29,3 @@ add_subdirectory(Sample)
 if (${BUILD_EDITOR})
     add_subdirectory(Editor)
 endif()
-
-file(GLOB engine_cmake_libs CMake/*.cmake)
-install(
-    FILES ${engine_cmake_libs}
-    DESTINATION ${SUB_PROJECT_NAME}/CMake
-)
