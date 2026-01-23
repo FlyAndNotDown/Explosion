@@ -18,6 +18,10 @@ else()
     add_definitions(-DBUILD_TEST=0)
 endif()
 
+if ("${SUB_PROJECT_NAME}" STREQUAL "")
+    message(FATAL_ERROR "SUB_PROJECT_NAME not defined, please set it in your project cmake")
+endif ()
+
 function(exp_gather_target_runtime_dependencies_recurse)
     set(options "")
     set(singleValueArgs NAME OUT_RUNTIME_DEP OUT_DEP_TARGET)
@@ -379,7 +383,7 @@ function(exp_add_executable)
         export(
             TARGETS ${arg_NAME}
             NAMESPACE ${SUB_PROJECT_NAME}::
-            APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
+            APPEND FILE ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}Targets.cmake
         )
 
         if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
@@ -556,7 +560,7 @@ function(exp_add_library)
         export(
             TARGETS ${arg_NAME}
             NAMESPACE ${SUB_PROJECT_NAME}::
-            APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
+            APPEND FILE ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}Targets.cmake
         )
 
         if ("${arg_TYPE}" STREQUAL "SHARED")
@@ -654,24 +658,27 @@ install(
 
 configure_package_config_file(
     ${CMAKE_CURRENT_LIST_DIR}/Config.cmake.in
-    ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Config.cmake
+    ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}Config.cmake
     INSTALL_DESTINATION ${SUB_PROJECT_NAME}/CMake
 )
 
 write_basic_package_version_file(
-    ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}ConfigVersion.cmake
+    ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}ConfigVersion.cmake
     VERSION ${SUB_PROJECT_VERSION_MAJOR}.${SUB_PROJECT_VERSION_MINOR}.${SUB_PROJECT_VERSION_PATCH}
     COMPATIBILITY SameMajorVersion
 )
 
 install(
     FILES
-        ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Config.cmake
-        ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}ConfigVersion.cmake
+        ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}Config.cmake
+        ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}ConfigVersion.cmake
     DESTINATION ${SUB_PROJECT_NAME}/CMake
 )
 
 file(GLOB all_cmake_libs ${CMAKE_CURRENT_LIST_DIR}/*)
+foreach (cmake_lib ${all_cmake_libs})
+    file(COPY ${cmake_lib} DESTINATION ${CMAKE_BINARY_DIR}/CMake)
+endforeach ()
 install(
     FILES ${all_cmake_libs}
     DESTINATION ${SUB_PROJECT_NAME}/CMake

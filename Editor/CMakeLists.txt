@@ -71,7 +71,7 @@ install(
 export(
     TARGETS Editor
     NAMESPACE ${SUB_PROJECT_NAME}::
-    APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
+    APPEND FILE ${CMAKE_BINARY_DIR}/CMake/${SUB_PROJECT_NAME}Targets.cmake
 )
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
