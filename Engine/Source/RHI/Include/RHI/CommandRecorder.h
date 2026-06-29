@@ -108,6 +108,12 @@ namespace RHI {
         uint32_t firstInstance = 0;
     };
 
+    struct DispatchIndirectArguments {
+        uint32_t groupCountX = 0;
+        uint32_t groupCountY = 0;
+        uint32_t groupCountZ = 0;
+    };
+
     template <typename Derived>
     struct ColorAttachmentBase {
         LoadOp loadOp;
@@ -229,6 +235,7 @@ namespace RHI {
         virtual void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) = 0;
         virtual void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) = 0;
         virtual void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) = 0;
+        virtual void DispatchIndirect(Buffer* indirectBuffer, size_t offset) = 0;
         virtual void EndPass() = 0;
 
     protected:

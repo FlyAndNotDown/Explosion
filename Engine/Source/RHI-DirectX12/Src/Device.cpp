@@ -153,7 +153,7 @@ namespace RHI::DirectX12 {
         CreateNativeQueues(inCreateInfo);
         QueryNativeDescriptorSize();
         CreateDescriptorPools();
-        CreateDrawIndirectCommandSignatures();
+        CreateIndirectCommandSignatures();
 #if BUILD_CONFIG_DEBUG
         RegisterNativeDebugLayerExceptionHandler();
 #endif
@@ -299,6 +299,11 @@ namespace RHI::DirectX12 {
         return drawIndexedIndirectCommandSignature.Get();
     }
 
+    ID3D12CommandSignature* DX12Device::GetDispatchIndirectCommandSignature() const
+    {
+        return dispatchIndirectCommandSignature.Get();
+    }
+
     Common::UniquePtr<DescriptorAllocation> DX12Device::AllocateRtvDescriptor() const
     {
         return rtvDescriptorPool->Allocate();
@@ -368,7 +373,7 @@ namespace RHI::DirectX12 {
         dsvDescriptorPool = Common::MakeUnique<DescriptorPool>(*this, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, nativeDsvDescriptorSize, 16);
     }
 
-    void DX12Device::CreateDrawIndirectCommandSignatures()
+    void DX12Device::CreateIndirectCommandSignatures()
     {
         const auto createSignature = [this](const D3D12_INDIRECT_ARGUMENT_TYPE inArgumentType, const uint32_t inStride) -> ComPtr<ID3D12CommandSignature> {
             D3D12_INDIRECT_ARGUMENT_DESC argumentDesc {};
@@ -388,6 +393,7 @@ namespace RHI::DirectX12 {
 
         drawIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DRAW, sizeof(DrawIndirectArguments));
         drawIndexedIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED, sizeof(DrawIndexedIndirectArguments));
+        dispatchIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH, sizeof(DispatchIndirectArguments));
     }
 
 #if BUILD_CONFIG_DEBUG

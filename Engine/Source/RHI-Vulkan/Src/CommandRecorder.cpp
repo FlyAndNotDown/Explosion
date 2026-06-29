@@ -377,6 +377,12 @@ namespace RHI::Vulkan {
         vkCmdDispatch(commandBuffer.GetNative(), inGroupCountX, inGroupCountY, inGroupCountZ);
     }
 
+    void VulkanComputePassCommandRecorder::DispatchIndirect(Buffer* inIndirectBuffer, const size_t inOffset)
+    {
+        const auto* indirectBuffer = static_cast<VulkanBuffer*>(inIndirectBuffer);
+        vkCmdDispatchIndirect(commandBuffer.GetNative(), indirectBuffer->GetNative(), inOffset);
+    }
+
     void VulkanComputePassCommandRecorder::EndPass()
     {
 

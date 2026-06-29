@@ -236,6 +236,12 @@ namespace RHI::DirectX12 {
         commandBuffer.GetNativeCmdList()->Dispatch(inGroupCountX, inGroupCountY, inGroupCountZ);
     }
 
+    void DX12ComputePassCommandRecorder::DispatchIndirect(Buffer* inIndirectBuffer, const size_t inOffset)
+    {
+        const auto* indirectBuffer = static_cast<DX12Buffer*>(inIndirectBuffer);
+        commandBuffer.GetNativeCmdList()->ExecuteIndirect(device.GetDispatchIndirectCommandSignature(), 1, indirectBuffer->GetNative(), inOffset, nullptr, 0);
+    }
+
     void DX12ComputePassCommandRecorder::EndPass()
     {
     }

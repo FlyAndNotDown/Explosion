@@ -74,6 +74,7 @@ namespace RHI::Vulkan {
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
         void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ) override;
+        void DispatchIndirect(Buffer* inIndirectBuffer, size_t inOffset) override;
         void EndPass() override;
 
     private:

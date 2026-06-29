@@ -79,6 +79,10 @@ namespace RHI::Dummy {
     {
     }
 
+    void DummyComputePassCommandRecorder::DispatchIndirect(Buffer* indirectBuffer, size_t offset)
+    {
+    }
+
     void DummyComputePassCommandRecorder::EndPass()
     {
     }

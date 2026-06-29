@@ -62,9 +62,10 @@ namespace RHI::Dummy {
         void SetBindGroup(uint8_t layoutIndex, BindGroup *bindGroup) override;
         void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) override;
         void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) override;
+        void DispatchIndirect(Buffer* indirectBuffer, size_t offset) override;
         void EndPass() override;
     };
-    
+
     class DummyRasterPassCommandRecorder final : public RasterPassCommandRecorder {
     public:
         NonCopyable(DummyRasterPassCommandRecorder)
