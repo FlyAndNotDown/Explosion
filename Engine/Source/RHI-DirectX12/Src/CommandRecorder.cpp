@@ -224,6 +224,13 @@ namespace RHI::DirectX12 {
         }
     }
 
+    void DX12ComputePassCommandRecorder::SetPipelineConstants(const uint32_t inPipelineConstantIndex, const void* inData, const uint32_t inSize)
+    {
+        Assert(inSize % 4 == 0);
+        const auto rootParameterIndex = computePipeline->GetPipelineLayout().QueryRootConstantParameterIndex(inPipelineConstantIndex);
+        commandBuffer.GetNativeCmdList()->SetComputeRoot32BitConstants(rootParameterIndex, inSize / 4, inData, 0);
+    }
+
     void DX12ComputePassCommandRecorder::Dispatch(const size_t inGroupCountX, const size_t inGroupCountY, const size_t inGroupCountZ)
     {
         commandBuffer.GetNativeCmdList()->Dispatch(inGroupCountX, inGroupCountY, inGroupCountZ);
@@ -315,6 +322,13 @@ namespace RHI::DirectX12 {
             }
             commandBuffer.GetNativeCmdList()->SetGraphicsRootDescriptorTable(t.value().second, commandBuffer.GetRuntimeDescriptorHeaps()->NewGpuDescriptorHandle(hlslBinding.rangeType, cpuDescriptorHandle));
         }
+    }
+
+    void DX12RasterPassCommandRecorder::SetPipelineConstants(const uint32_t inPipelineConstantIndex, const void* inData, const uint32_t inSize)
+    {
+        Assert(inSize % 4 == 0);
+        const auto rootParameterIndex = rasterPipeline->GetPipelineLayout().QueryRootConstantParameterIndex(inPipelineConstantIndex);
+        commandBuffer.GetNativeCmdList()->SetGraphicsRoot32BitConstants(rootParameterIndex, inSize / 4, inData, 0);
     }
 
     void DX12RasterPassCommandRecorder::SetIndexBuffer(BufferView* inBufferView)

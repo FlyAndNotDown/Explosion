@@ -5,17 +5,28 @@
 #include <RHI/PipelineLayout.h>
 
 namespace RHI {
-    PipelineConstantLayout::PipelineConstantLayout()
-        : stageFlags(ShaderStageFlags::null)
-        , offset(0)
-        , size(0)
+    HlslPipelineConstantBinding::HlslPipelineConstantBinding(const uint8_t inBinding, const uint8_t inBindingSpace)
+        : binding(inBinding)
+        , bindingSpace(inBindingSpace)
     {
     }
 
-    PipelineConstantLayout::PipelineConstantLayout(const ShaderStageFlags inStageFlags, const uint32_t inOffset, const uint32_t inSize)
+    GlslPipelineConstantBinding::GlslPipelineConstantBinding(const uint32_t inOffset)
+        : offset(inOffset)
+    {
+    }
+
+    PipelineConstantLayout::PipelineConstantLayout()
+        : stageFlags(ShaderStageFlags::null)
+        , size(0)
+        , platformBinding(HlslPipelineConstantBinding(0, 0))
+    {
+    }
+
+    PipelineConstantLayout::PipelineConstantLayout(const ShaderStageFlags inStageFlags, const uint32_t inSize, const std::variant<HlslPipelineConstantBinding, GlslPipelineConstantBinding>& inPlatformBinding)
         : stageFlags(inStageFlags)
-        , offset(inOffset)
         , size(inSize)
+        , platformBinding(inPlatformBinding)
     {
     }
 
@@ -25,15 +36,15 @@ namespace RHI {
         return *this;
     }
 
-    PipelineConstantLayout& PipelineConstantLayout::SetOffset(const uint32_t inOffset)
-    {
-        offset = inOffset;
-        return *this;
-    }
-
     PipelineConstantLayout& PipelineConstantLayout::SetSize(const uint32_t inSize)
     {
         size = inSize;
+        return *this;
+    }
+
+    PipelineConstantLayout& PipelineConstantLayout::SetPlatformBinding(const std::variant<HlslPipelineConstantBinding, GlslPipelineConstantBinding>& inPlatformBinding)
+    {
+        platformBinding = inPlatformBinding;
         return *this;
     }
 

@@ -227,6 +227,7 @@ namespace RHI {
 
         virtual void SetPipeline(ComputePipeline* pipeline) = 0;
         virtual void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) = 0;
+        virtual void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) = 0;
         virtual void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) = 0;
         virtual void EndPass() = 0;
 
@@ -241,6 +242,7 @@ namespace RHI {
 
         virtual void SetPipeline(RasterPipeline* pipeline) = 0;
         virtual void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) = 0;
+        virtual void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) = 0;
         virtual void SetIndexBuffer(BufferView* bufferView) = 0;
         virtual void SetVertexBuffer(size_t slot, BufferView* bufferView) = 0;
         virtual void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) = 0;

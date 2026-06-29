@@ -71,6 +71,10 @@ namespace RHI::Dummy {
     {
     }
 
+    void DummyComputePassCommandRecorder::SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size)
+    {
+    }
+
     void DummyComputePassCommandRecorder::Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ)
     {
     }
@@ -102,6 +106,10 @@ namespace RHI::Dummy {
     }
 
     void DummyRasterPassCommandRecorder::SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup)
+    {
+    }
+
+    void DummyRasterPassCommandRecorder::SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size)
     {
     }
 

@@ -365,6 +365,13 @@ namespace RHI::Vulkan {
         vkCmdBindDescriptorSets(commandBuffer.GetNative(), VK_PIPELINE_BIND_POINT_COMPUTE, layout, inLayoutIndex, 1, &descriptorSet, 0, nullptr);
     }
 
+    void VulkanComputePassCommandRecorder::SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize)
+    {
+        const auto* pipelineLayout = computePipeline->GetPipelineLayout();
+        const auto& range = pipelineLayout->GetPushConstantRange(inPipelineConstantIndex);
+        vkCmdPushConstants(commandBuffer.GetNative(), pipelineLayout->GetNative(), range.stageFlags, range.offset, inSize, inData);
+    }
+
     void VulkanComputePassCommandRecorder::Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ)
     {
         vkCmdDispatch(commandBuffer.GetNative(), inGroupCountX, inGroupCountY, inGroupCountZ);
@@ -473,6 +480,13 @@ namespace RHI::Vulkan {
         const VkPipelineLayout layout = rasterPipeline->GetPipelineLayout()->GetNative();
 
         vkCmdBindDescriptorSets(commandBuffer.GetNative(), VK_PIPELINE_BIND_POINT_GRAPHICS, layout, inLayoutIndex, 1, &descriptorSet, 0, nullptr);
+    }
+
+    void VulkanRasterPassCommandRecorder::SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize)
+    {
+        const auto* pipelineLayout = rasterPipeline->GetPipelineLayout();
+        const auto& range = pipelineLayout->GetPushConstantRange(inPipelineConstantIndex);
+        vkCmdPushConstants(commandBuffer.GetNative(), pipelineLayout->GetNative(), range.stageFlags, range.offset, inSize, inData);
     }
 
     void VulkanRasterPassCommandRecorder::SetIndexBuffer(BufferView *inBufferView)

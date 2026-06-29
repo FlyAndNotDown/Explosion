@@ -70,6 +70,7 @@ namespace RHI::DirectX12 {
         // ComputePassCommandRecorder
         void SetPipeline(ComputePipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ) override;
         void EndPass() override;
 
@@ -94,6 +95,7 @@ namespace RHI::DirectX12 {
         // RasterPassCommandRecorder
         void SetPipeline(RasterPipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void SetIndexBuffer(BufferView* inBufferView) override;
         void SetVertexBuffer(size_t inSlot, BufferView* inBufferView) override;
         void Draw(size_t inVertexCount, size_t inInstanceCount, size_t inFirstVertex, size_t inFirstInstance) override;

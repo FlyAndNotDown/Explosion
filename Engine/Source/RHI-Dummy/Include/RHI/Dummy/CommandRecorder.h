@@ -60,6 +60,7 @@ namespace RHI::Dummy {
         // ComputePassCommandRecorder
         void SetPipeline(ComputePipeline* pipeline) override;
         void SetBindGroup(uint8_t layoutIndex, BindGroup *bindGroup) override;
+        void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) override;
         void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) override;
         void EndPass() override;
     };
@@ -78,6 +79,7 @@ namespace RHI::Dummy {
         // RasterPassCommandRecorder
         void SetPipeline(RasterPipeline* pipeline) override;
         void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) override;
+        void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) override;
         void SetIndexBuffer(BufferView* bufferView) override;
         void SetVertexBuffer(size_t slot, BufferView* bufferView) override;
         void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) override;

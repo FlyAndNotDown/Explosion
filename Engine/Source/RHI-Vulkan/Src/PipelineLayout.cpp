@@ -28,6 +28,11 @@ namespace RHI::Vulkan {
         return nativePipelineLayout;
     }
 
+    const VkPushConstantRange& VulkanPipelineLayout::GetPushConstantRange(const uint32_t inPipelineConstantIndex) const
+    {
+        return pushConstantRanges[inPipelineConstantIndex];
+    }
+
     void VulkanPipelineLayout::CreateNativePipelineLayout(const PipelineLayoutCreateInfo& inCreateInfo)
     {
         std::vector<VkDescriptorSetLayout> setLayouts(inCreateInfo.bindGroupLayouts.size());
@@ -36,20 +41,20 @@ namespace RHI::Vulkan {
             setLayouts[i] = vulkanBindGroup->GetNative();
         }
 
-        std::vector<VkPushConstantRange> pushConstants(inCreateInfo.pipelineConstantLayouts.size());
+        pushConstantRanges.resize(inCreateInfo.pipelineConstantLayouts.size());
         for (uint32_t i = 0; i < inCreateInfo.pipelineConstantLayouts.size(); ++i) {
             const auto& constantInfo = inCreateInfo.pipelineConstantLayouts[i];
-            pushConstants[i].stageFlags = FlagsCast<ShaderStageFlags, VkShaderStageFlags>(constantInfo.stageFlags);
-            pushConstants[i].offset = constantInfo.offset;
-            pushConstants[i].size = constantInfo.size;
+            pushConstantRanges[i].stageFlags = FlagsCast<ShaderStageFlags, VkShaderStageFlags>(constantInfo.stageFlags);
+            pushConstantRanges[i].offset = std::get<GlslPipelineConstantBinding>(constantInfo.platformBinding).offset;
+            pushConstantRanges[i].size = constantInfo.size;
         }
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = setLayouts.size();
         pipelineLayoutInfo.pSetLayouts = setLayouts.data();
-        pipelineLayoutInfo.pushConstantRangeCount = pushConstants.size();
-        pipelineLayoutInfo.pPushConstantRanges = pushConstants.data();
+        pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
+        pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
         Assert(vkCreatePipelineLayout(device.GetNative(), &pipelineLayoutInfo, nullptr, &nativePipelineLayout) == VK_SUCCESS);
 
 #if BUILD_CONFIG_DEBUG

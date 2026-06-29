@@ -5,22 +5,37 @@
 #pragma once
 
 #include <cstdint>
+#include <variant>
+
 #include <Common/Utility.h>
 #include <RHI/RHI.h>
 
 namespace RHI {
     class BindGroupLayout;
 
+    struct HlslPipelineConstantBinding {
+        uint8_t binding;
+        uint8_t bindingSpace;
+
+        HlslPipelineConstantBinding(uint8_t inBinding, uint8_t inBindingSpace);
+    };
+
+    struct GlslPipelineConstantBinding {
+        uint32_t offset;
+
+        explicit GlslPipelineConstantBinding(uint32_t inOffset);
+    };
+
     struct PipelineConstantLayout {
         ShaderStageFlags stageFlags;
-        uint32_t offset;
         uint32_t size;
+        std::variant<HlslPipelineConstantBinding, GlslPipelineConstantBinding> platformBinding;
 
         PipelineConstantLayout();
-        PipelineConstantLayout(ShaderStageFlags inStageFlags, uint32_t inOffset, uint32_t inSize);
+        PipelineConstantLayout(ShaderStageFlags inStageFlags, uint32_t inSize, const std::variant<HlslPipelineConstantBinding, GlslPipelineConstantBinding>& inPlatformBinding);
         PipelineConstantLayout& SetStageFlags(ShaderStageFlags inStageFlags);
-        PipelineConstantLayout& SetOffset(uint32_t inOffset);
         PipelineConstantLayout& SetSize(uint32_t inSize);
+        PipelineConstantLayout& SetPlatformBinding(const std::variant<HlslPipelineConstantBinding, GlslPipelineConstantBinding>& inPlatformBinding);
     };
 
     struct PipelineLayoutCreateInfo {
