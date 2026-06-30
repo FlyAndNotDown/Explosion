@@ -34,6 +34,7 @@ namespace RHI {
 
         virtual void Submit(CommandBuffer* commandBuffer, const QueueSubmitInfo& submitInfo) = 0;
         virtual void Flush(Fence* fenceToSignal) = 0;
+        virtual float GetTimestampPeriod() = 0;
 
     protected:
         Queue();

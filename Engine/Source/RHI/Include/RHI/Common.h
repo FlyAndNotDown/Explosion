@@ -408,6 +408,12 @@ namespace RHI {
         present,
         max
     };
+
+    enum class QueryType : uint8_t {
+        occlusion,
+        timestamp,
+        max
+    };
 }
 
 namespace RHI {

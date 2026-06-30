@@ -22,6 +22,7 @@
 #include <RHI/Vulkan/CommandBuffer.h>
 #include <RHI/Vulkan/Synchronous.h>
 #include <RHI/Vulkan/Surface.h>
+#include <RHI/Vulkan/QuerySet.h>
 
 namespace RHI::Vulkan {
     const std::vector requiredExtensions = {
@@ -147,6 +148,11 @@ namespace RHI::Vulkan {
         return { new VulkanSemaphore(*this) };
     }
 
+    Common::UniquePtr<QuerySet> VulkanDevice::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
+    {
+        return { new VulkanQuerySet(*this, inCreateInfo) };
+    }
+
     bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat)
     {
         const auto* vkSurface = static_cast<VulkanSurface*>(inSurface);
@@ -248,6 +254,7 @@ namespace RHI::Vulkan {
 
         VkPhysicalDeviceFeatures deviceFeatures = {};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
+        deviceFeatures.occlusionQueryPrecise = VK_TRUE;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

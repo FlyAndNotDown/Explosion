@@ -33,6 +33,7 @@ namespace RHI::Dummy {
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
         Common::UniquePtr<Fence> CreateFence(bool bInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
+        Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) override;
 
         bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;

@@ -90,6 +90,7 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
         Common::UniquePtr<Fence> CreateFence(bool inInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
+        Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;
 
         bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;

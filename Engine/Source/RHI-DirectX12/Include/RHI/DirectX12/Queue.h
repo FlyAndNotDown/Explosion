@@ -20,6 +20,7 @@ namespace RHI::DirectX12 {
 
         void Submit(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo) override;
         void Flush(Fence* inFenceToSignal) override;
+        float GetTimestampPeriod() override;
 
         ID3D12CommandQueue* GetNative() const;
 

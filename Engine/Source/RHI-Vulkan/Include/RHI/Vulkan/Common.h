@@ -264,6 +264,11 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(PresentMode::max,         VK_PRESENT_MODE_IMMEDIATE_KHR) // TODO Set the default present mode to immediate?
     ECIMPL_END(VkPresentModeKHR)
 
+    ECIMPL_BEGIN(QueryType, VkQueryType)
+        ECIMPL_ITEM(QueryType::occlusion, VK_QUERY_TYPE_OCCLUSION)
+        ECIMPL_ITEM(QueryType::timestamp, VK_QUERY_TYPE_TIMESTAMP)
+    ECIMPL_END(VkQueryType)
+
     ECIMPL_BEGIN(TextureAspect, VkImageAspectFlags)
         ECIMPL_ITEM(TextureAspect::color,   VK_IMAGE_ASPECT_COLOR_BIT)
         ECIMPL_ITEM(TextureAspect::depth,   VK_IMAGE_ASPECT_DEPTH_BIT)
@@ -289,6 +294,7 @@ namespace RHI::Vulkan {
         FCIMPL_ITEM(BufferUsageBits::storage,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
         FCIMPL_ITEM(BufferUsageBits::rwStorage,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
         FCIMPL_ITEM(BufferUsageBits::indirect, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
+        FCIMPL_ITEM(BufferUsageBits::queryResolve, VK_BUFFER_USAGE_TRANSFER_DST_BIT)
     FCIMPL_END(VkBufferUsageFlagBits)
 
     FCIMPL_BEGIN(TextureUsageFlags, VkImageUsageFlags)

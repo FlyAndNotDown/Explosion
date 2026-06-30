@@ -24,6 +24,7 @@
 #include <RHI/BindGroup.h>
 #include <RHI/BindGroupLayout.h>
 #include <RHI/Synchronous.h>
+#include <RHI/QuerySet.h>
 
 #if PLATFORM_WINDOWS
 #undef CreateSemaphore

@@ -15,5 +15,6 @@ namespace RHI::Dummy {
 
         void Submit(RHI::CommandBuffer* commandBuffer, const RHI::QueueSubmitInfo& submitInfo) override;
         void Flush(RHI::Fence* fenceToSignal) override;
+        float GetTimestampPeriod() override;
     };
 }

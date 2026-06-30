@@ -17,6 +17,7 @@
 #include <RHI/DirectX12/BufferView.h>
 #include <RHI/DirectX12/Texture.h>
 #include <RHI/DirectX12/TextureView.h>
+#include <RHI/DirectX12/QuerySet.h>
 #include <RHI/Synchronous.h>
 
 namespace RHI::DirectX12 {
@@ -251,6 +252,8 @@ namespace RHI::DirectX12 {
         , commandRecorder(inCmdRecorder)
         , rasterPipeline(nullptr)
         , commandBuffer(inCmdBuffer)
+        , activeOcclusionQuerySet(nullptr)
+        , activeOcclusionQueryIndex(0)
     {
         // set render targets
         std::vector<CD3DX12_CPU_DESCRIPTOR_HANDLE> rtvHandles(inBeginInfo.colorAttachments.size());
@@ -409,6 +412,19 @@ namespace RHI::DirectX12 {
         commandBuffer.GetNativeCmdList()->ExecuteIndirect(device.GetDrawIndexedIndirectCommandSignature(), inDrawCount, indirectBuffer->GetNative(), inOffset, nullptr, 0);
     }
 
+    void DX12RasterPassCommandRecorder::BeginOcclusionQuery(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        activeOcclusionQuerySet = static_cast<DX12QuerySet*>(inQuerySet);
+        activeOcclusionQueryIndex = inQueryIndex;
+        commandBuffer.GetNativeCmdList()->BeginQuery(activeOcclusionQuerySet->GetNative(), D3D12_QUERY_TYPE_OCCLUSION, inQueryIndex);
+    }
+
+    void DX12RasterPassCommandRecorder::EndOcclusionQuery()
+    {
+        Assert(activeOcclusionQuerySet != nullptr);
+        commandBuffer.GetNativeCmdList()->EndQuery(activeOcclusionQuerySet->GetNative(), D3D12_QUERY_TYPE_OCCLUSION, activeOcclusionQueryIndex);
+    }
+
     void DX12RasterPassCommandRecorder::EndPass()
     {
     }
@@ -490,6 +506,26 @@ namespace RHI::DirectX12 {
     Common::UniquePtr<RasterPassCommandRecorder> DX12CommandRecorder::BeginRasterPass(const RasterPassBeginInfo& inBeginInfo)
     {
         return Common::UniquePtr<RasterPassCommandRecorder>(new DX12RasterPassCommandRecorder(device, *this, commandBuffer, inBeginInfo));
+    }
+
+    void DX12CommandRecorder::WriteTimestamp(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        const auto* querySet = static_cast<DX12QuerySet*>(inQuerySet);
+        const auto queryType = EnumCast<QueryType, D3D12_QUERY_TYPE>(querySet->GetCreateInfo().type);
+        commandBuffer.GetNativeCmdList()->EndQuery(querySet->GetNative(), queryType, inQueryIndex);
+    }
+
+    void DX12CommandRecorder::ResetQuerySet(QuerySet* inQuerySet, uint32_t inFirstQuery, uint32_t inQueryCount)
+    {
+        // DirectX12 query heaps need no reset before reuse.
+    }
+
+    void DX12CommandRecorder::ResolveQuery(QuerySet* inQuerySet, const uint32_t inFirstQuery, const uint32_t inQueryCount, Buffer* inDstBuffer, const size_t inDstOffset)
+    {
+        const auto* querySet = static_cast<DX12QuerySet*>(inQuerySet);
+        const auto* dstBuffer = static_cast<DX12Buffer*>(inDstBuffer);
+        const auto queryType = EnumCast<QueryType, D3D12_QUERY_TYPE>(querySet->GetCreateInfo().type);
+        commandBuffer.GetNativeCmdList()->ResolveQueryData(querySet->GetNative(), queryType, inFirstQuery, inQueryCount, dstBuffer->GetNative(), inDstOffset);
     }
 
     void DX12CommandRecorder::End()

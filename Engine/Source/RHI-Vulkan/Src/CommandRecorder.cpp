@@ -15,6 +15,7 @@
 #include <RHI/Vulkan/Instance.h>
 #include <RHI/Vulkan/BindGroup.h>
 #include <RHI/Vulkan/PipelineLayout.h>
+#include <RHI/Vulkan/QuerySet.h>
 #include <RHI/Synchronous.h>
 
 namespace RHI::Vulkan {
@@ -244,6 +245,28 @@ namespace RHI::Vulkan {
         return Common::UniquePtr<RasterPassCommandRecorder>(new VulkanRasterPassCommandRecorder(device, *this, commandBuffer, inBeginInfo));
     }
 
+    void VulkanCommandRecorder::WriteTimestamp(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        vkCmdWriteTimestamp(commandBuffer.GetNative(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, querySet->GetNative(), inQueryIndex);
+    }
+
+    void VulkanCommandRecorder::ResetQuerySet(QuerySet* inQuerySet, const uint32_t inFirstQuery, const uint32_t inQueryCount)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        vkCmdResetQueryPool(commandBuffer.GetNative(), querySet->GetNative(), inFirstQuery, inQueryCount);
+    }
+
+    void VulkanCommandRecorder::ResolveQuery(QuerySet* inQuerySet, const uint32_t inFirstQuery, const uint32_t inQueryCount, Buffer* inDstBuffer, const size_t inDstOffset)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        const auto* dstBuffer = static_cast<VulkanBuffer*>(inDstBuffer);
+        vkCmdCopyQueryPoolResults(
+            commandBuffer.GetNative(), querySet->GetNative(), inFirstQuery, inQueryCount,
+            dstBuffer->GetNative(), inDstOffset, sizeof(uint64_t),
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+    }
+
     void VulkanCommandRecorder::End()
     {
         vkEndCommandBuffer(commandBuffer.GetNative());
@@ -393,6 +416,8 @@ namespace RHI::Vulkan {
         , commandRecorder(inCmdRecorder)
         , commandBuffer(inCmdBuffer)
         , rasterPipeline(nullptr)
+        , activeOcclusionQuerySet(nullptr)
+        , activeOcclusionQueryIndex(0)
     {
         std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos(inBeginInfo.colorAttachments.size());
         for (size_t i = 0; i < inBeginInfo.colorAttachments.size(); i++)
@@ -586,6 +611,19 @@ namespace RHI::Vulkan {
     {
         const auto* indirectBuffer = static_cast<VulkanBuffer*>(inIndirectBuffer);
         vkCmdDrawIndexedIndirect(commandBuffer.GetNative(), indirectBuffer->GetNative(), inOffset, inDrawCount, sizeof(DrawIndexedIndirectArguments));
+    }
+
+    void VulkanRasterPassCommandRecorder::BeginOcclusionQuery(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        activeOcclusionQuerySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        activeOcclusionQueryIndex = inQueryIndex;
+        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, VK_QUERY_CONTROL_PRECISE_BIT);
+    }
+
+    void VulkanRasterPassCommandRecorder::EndOcclusionQuery()
+    {
+        Assert(activeOcclusionQuerySet != nullptr);
+        vkCmdEndQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), activeOcclusionQueryIndex);
     }
 
     void VulkanRasterPassCommandRecorder::EndPass()

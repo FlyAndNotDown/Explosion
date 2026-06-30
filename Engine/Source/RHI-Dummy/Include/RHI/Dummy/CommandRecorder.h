@@ -21,6 +21,9 @@ namespace RHI::Dummy {
         Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() override;
         Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() override;
         Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& beginInfo) override;
+        void WriteTimestamp(QuerySet* querySet, uint32_t queryIndex) override;
+        void ResetQuerySet(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount) override;
+        void ResolveQuery(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount, Buffer* dstBuffer, size_t dstOffset) override;
         void End() override;
 
     private:
@@ -94,6 +97,8 @@ namespace RHI::Dummy {
         void DrawIndexedIndirect(Buffer* indirectBuffer, size_t offset) override;
         void MultiDrawIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) override;
         void MultiDrawIndexedIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) override;
+        void BeginOcclusionQuery(QuerySet* querySet, uint32_t queryIndex) override;
+        void EndOcclusionQuery() override;
         void EndPass() override;
     };
 }

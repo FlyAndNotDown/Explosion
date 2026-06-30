@@ -26,9 +26,11 @@ namespace RHI {
     struct RasterPipelineCreateInfo;
     struct SwapChainCreateInfo;
     struct SurfaceCreateInfo;
+    struct QuerySetCreateInfo;
     struct TextureSubResourceCopyFootprint;
     struct TextureSubResourceInfo;
     class Queue;
+    class QuerySet;
     class Buffer;
     class Texture;
     class Sampler;
@@ -80,6 +82,7 @@ namespace RHI {
         virtual Common::UniquePtr<CommandBuffer> CreateCommandBuffer() = 0;
         virtual Common::UniquePtr<Fence> CreateFence(bool bInitAsSignaled) = 0;
         virtual Common::UniquePtr<Semaphore> CreateSemaphore() = 0;
+        virtual Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) = 0;
 
         virtual bool CheckSwapChainFormatSupport(Surface* surface, PixelFormat format) = 0;
         virtual TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) = 0;

@@ -44,6 +44,13 @@ namespace RHI::DirectX12 {
         }
     }
 
+    float DX12Queue::GetTimestampPeriod()
+    {
+        UINT64 frequency;
+        Assert(SUCCEEDED(nativeCmdQueue->GetTimestampFrequency(&frequency)));
+        return 1.0e9f / static_cast<float>(frequency);
+    }
+
     ID3D12CommandQueue* DX12Queue::GetNative() const
     {
         return nativeCmdQueue.Get();

@@ -24,6 +24,7 @@
 #include <RHI/DirectX12/SwapChain.h>
 #include <RHI/DirectX12/Synchronous.h>
 #include <RHI/DirectX12/Surface.h>
+#include <RHI/DirectX12/QuerySet.h>
 #include <RHI/CommandRecorder.h>
 #include <Core/Log.h>
 
@@ -251,6 +252,11 @@ namespace RHI::DirectX12 {
     Common::UniquePtr<Semaphore> DX12Device::CreateSemaphore()
     {
         return { new DX12Semaphore(*this) };
+    }
+
+    Common::UniquePtr<QuerySet> DX12Device::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
+    {
+        return { new DX12QuerySet(*this, inCreateInfo) };
     }
 
     bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat)

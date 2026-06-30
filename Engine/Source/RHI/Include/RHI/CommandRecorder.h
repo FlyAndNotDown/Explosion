@@ -22,6 +22,7 @@ namespace RHI {
     class TextureView;
     class BindGroup;
     class SwapChain;
+    class QuerySet;
     struct Barrier;
 
     struct TextureSubResourceInfo {
@@ -263,6 +264,8 @@ namespace RHI {
         virtual void DrawIndexedIndirect(Buffer* indirectBuffer, size_t offset) = 0;
         virtual void MultiDrawIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) = 0;
         virtual void MultiDrawIndexedIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) = 0;
+        virtual void BeginOcclusionQuery(QuerySet* querySet, uint32_t queryIndex) = 0;
+        virtual void EndOcclusionQuery() = 0;
         virtual void EndPass() = 0;
 
     protected:
@@ -277,6 +280,9 @@ namespace RHI {
         virtual Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() = 0;
         virtual Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() = 0;
         virtual Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& beginInfo) = 0;
+        virtual void WriteTimestamp(QuerySet* querySet, uint32_t queryIndex) = 0;
+        virtual void ResetQuerySet(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount) = 0;
+        virtual void ResolveQuery(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount, Buffer* dstBuffer, size_t dstOffset) = 0;
         virtual void End() = 0;
 
     protected:
