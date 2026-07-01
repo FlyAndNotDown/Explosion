@@ -193,6 +193,7 @@ namespace RHI {
     enum class TextureViewType : uint8_t {
         textureBinding,
         storageBinding,
+        rwStorageBinding,
         colorAttachment,
         depthStencil,
         max
@@ -247,6 +248,7 @@ namespace RHI {
         sampler,
         texture,
         storageTexture,
+        rwStorageTexture,
         max
     };
 
@@ -263,11 +265,6 @@ namespace RHI {
         depth,
         sint,
         uint,
-        max
-    };
-
-    enum class StorageTextureAccess : uint8_t {
-        writeOnly,
         max
     };
 
@@ -403,6 +400,7 @@ namespace RHI {
         shaderReadOnly,
         renderTarget,
         storage,
+        rwStorage,
         depthStencilReadonly,
         depthStencilWrite,
         present,
@@ -439,9 +437,10 @@ namespace RHI {
         copyDst                 = 0x2,
         textureBinding          = 0x4,
         storageBinding          = 0x8,
-        renderAttachment        = 0x10,
-        depthStencilAttachment  = 0x20,
-        max                     = 0x40
+        rwStorageBinding        = 0x10,
+        renderAttachment        = 0x20,
+        depthStencilAttachment  = 0x40,
+        max                     = 0x80
     };
     using TextureUsageFlags = Common::Flags<TextureUsageBits>;
     DECLARE_FLAG_BITS_OP(TextureUsageFlags, TextureUsageBits)

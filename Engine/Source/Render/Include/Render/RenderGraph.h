@@ -218,6 +218,7 @@ namespace Render {
         RGBindGroupDesc& RwStorageBuffer(std::string inName, RGBufferViewRef bufferView);
         RGBindGroupDesc& Texture(std::string inName, RGTextureViewRef textureView);
         RGBindGroupDesc& StorageTexture(std::string inName, RGTextureViewRef textureView);
+        RGBindGroupDesc& RwStorageTexture(std::string inName, RGTextureViewRef textureView);
     };
 
     class RGBindGroup {

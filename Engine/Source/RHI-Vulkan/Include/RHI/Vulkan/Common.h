@@ -193,6 +193,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(BindingType::sampler,        VK_DESCRIPTOR_TYPE_SAMPLER)
         ECIMPL_ITEM(BindingType::texture,        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
         ECIMPL_ITEM(BindingType::storageTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+        ECIMPL_ITEM(BindingType::rwStorageTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
     ECIMPL_END(VkDescriptorType)
 
     ECIMPL_BEGIN(AddressMode, VkSamplerAddressMode)
@@ -302,6 +303,7 @@ namespace RHI::Vulkan {
         FCIMPL_ITEM(TextureUsageBits::copyDst,                VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         FCIMPL_ITEM(TextureUsageBits::textureBinding,         VK_IMAGE_USAGE_SAMPLED_BIT)
         FCIMPL_ITEM(TextureUsageBits::storageBinding,         VK_IMAGE_USAGE_STORAGE_BIT)
+        FCIMPL_ITEM(TextureUsageBits::rwStorageBinding,       VK_IMAGE_USAGE_STORAGE_BIT)
         FCIMPL_ITEM(TextureUsageBits::renderAttachment,       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
         FCIMPL_ITEM(TextureUsageBits::depthStencilAttachment, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
     FCIMPL_END(VkImageUsageFlagBits)

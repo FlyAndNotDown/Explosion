@@ -19,7 +19,8 @@ namespace RHI::DirectX12 {
             return bufferView->GetNativeCpuDescriptorHandle();
         }
         if (entry.binding.type == BindingType::texture ||
-            entry.binding.type == BindingType::storageTexture) {
+            entry.binding.type == BindingType::storageTexture ||
+            entry.binding.type == BindingType::rwStorageTexture) {
             const auto* textureView = static_cast<DX12TextureView*>(std::get<TextureView*>(entry.entity));
             return textureView->GetNativeCpuDescriptorHandle();
         }

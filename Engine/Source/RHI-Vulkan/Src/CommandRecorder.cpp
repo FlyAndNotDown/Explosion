@@ -72,7 +72,8 @@ namespace RHI::Vulkan {
             { TextureState::copyDst, VK_ACCESS_TRANSFER_WRITE_BIT },
             { TextureState::shaderReadOnly, VK_ACCESS_SHADER_READ_BIT },
             { TextureState::renderTarget, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT },
-            { TextureState::storage, VK_ACCESS_SHADER_WRITE_BIT },
+            { TextureState::storage, VK_ACCESS_SHADER_READ_BIT },
+            { TextureState::rwStorage, VK_ACCESS_SHADER_WRITE_BIT },
             { TextureState::depthStencilReadonly, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT },
             { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
             { TextureState::present, VK_ACCESS_MEMORY_READ_BIT }
@@ -89,6 +90,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::renderTarget, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
+            { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
@@ -105,6 +107,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::renderTarget, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
+            { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
@@ -121,6 +124,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
             { TextureState::renderTarget, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
             { TextureState::storage, VK_IMAGE_LAYOUT_GENERAL },
+            { TextureState::rwStorage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::depthStencilReadonly, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
             { TextureState::depthStencilWrite, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
             { TextureState::present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
