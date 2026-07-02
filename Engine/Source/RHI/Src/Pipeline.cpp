@@ -304,6 +304,7 @@ namespace RHI {
     ComputePipelineCreateInfo::ComputePipelineCreateInfo()
         : layout(nullptr)
         , computeShader(nullptr)
+        , pipelineCache(nullptr)
     {
     }
 
@@ -319,6 +320,12 @@ namespace RHI {
         return *this;
     }
 
+    ComputePipelineCreateInfo& ComputePipelineCreateInfo::SetPipelineCache(PipelineCache* inPipelineCache)
+    {
+        pipelineCache = inPipelineCache;
+        return *this;
+    }
+
     RasterPipelineCreateInfo::RasterPipelineCreateInfo(PipelineLayout* inLayout)
         : layout(inLayout)
         , vertexShader(nullptr)
@@ -326,6 +333,7 @@ namespace RHI {
         , geometryShader(nullptr)
         , domainShader(nullptr)
         , hullShader(nullptr)
+        , pipelineCache(nullptr)
     {
     }
 
@@ -394,6 +402,12 @@ namespace RHI {
     RasterPipelineCreateInfo& RasterPipelineCreateInfo::SetFragmentState(const FragmentState& inFragmentState)
     {
         fragmentState = inFragmentState;
+        return *this;
+    }
+
+    RasterPipelineCreateInfo& RasterPipelineCreateInfo::SetPipelineCache(PipelineCache* inPipelineCache)
+    {
+        pipelineCache = inPipelineCache;
         return *this;
     }
 

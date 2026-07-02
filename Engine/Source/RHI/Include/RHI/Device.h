@@ -24,6 +24,7 @@ namespace RHI {
     struct ShaderModuleCreateInfo;
     struct ComputePipelineCreateInfo;
     struct RasterPipelineCreateInfo;
+    struct PipelineCacheCreateInfo;
     struct SwapChainCreateInfo;
     struct SurfaceCreateInfo;
     struct QuerySetCreateInfo;
@@ -40,6 +41,7 @@ namespace RHI {
     class ShaderModule;
     class ComputePipeline;
     class RasterPipeline;
+    class PipelineCache;
     class CommandBuffer;
     class SwapChain;
     class Fence;
@@ -77,6 +79,7 @@ namespace RHI {
         virtual Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& createInfo) = 0;
+        virtual Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<CommandBuffer> CreateCommandBuffer() = 0;

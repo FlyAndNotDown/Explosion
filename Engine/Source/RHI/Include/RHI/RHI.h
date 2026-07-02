@@ -25,6 +25,7 @@
 #include <RHI/BindGroupLayout.h>
 #include <RHI/Synchronous.h>
 #include <RHI/QuerySet.h>
+#include <RHI/PipelineCache.h>
 
 #if PLATFORM_WINDOWS
 #undef CreateSemaphore

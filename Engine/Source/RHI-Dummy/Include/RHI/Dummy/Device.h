@@ -28,6 +28,7 @@ namespace RHI::Dummy {
         Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& createInfo) override;
         Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& createInfo) override;
         Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& createInfo) override;
+        Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& createInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& createInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& createInfo) override;
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;

@@ -23,6 +23,7 @@
 #include <RHI/Vulkan/Synchronous.h>
 #include <RHI/Vulkan/Surface.h>
 #include <RHI/Vulkan/QuerySet.h>
+#include <RHI/Vulkan/PipelineCache.h>
 
 namespace RHI::Vulkan {
     const std::vector requiredExtensions = {
@@ -151,6 +152,11 @@ namespace RHI::Vulkan {
     Common::UniquePtr<QuerySet> VulkanDevice::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
     {
         return { new VulkanQuerySet(*this, inCreateInfo) };
+    }
+
+    Common::UniquePtr<PipelineCache> VulkanDevice::CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo)
+    {
+        return { new VulkanPipelineCache(*this, inCreateInfo) };
     }
 
     bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat)

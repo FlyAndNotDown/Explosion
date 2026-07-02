@@ -85,6 +85,7 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& inCreateInfo) override;
         Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& inCreateInfo) override;
+        Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;

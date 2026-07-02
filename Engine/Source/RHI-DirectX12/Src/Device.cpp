@@ -25,6 +25,7 @@
 #include <RHI/DirectX12/Synchronous.h>
 #include <RHI/DirectX12/Surface.h>
 #include <RHI/DirectX12/QuerySet.h>
+#include <RHI/DirectX12/PipelineCache.h>
 #include <RHI/CommandRecorder.h>
 #include <Core/Log.h>
 
@@ -257,6 +258,11 @@ namespace RHI::DirectX12 {
     Common::UniquePtr<QuerySet> DX12Device::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
     {
         return { new DX12QuerySet(*this, inCreateInfo) };
+    }
+
+    Common::UniquePtr<PipelineCache> DX12Device::CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo)
+    {
+        return { new DX12PipelineCache(*this, inCreateInfo) };
     }
 
     bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat)
