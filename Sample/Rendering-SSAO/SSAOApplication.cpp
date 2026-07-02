@@ -569,7 +569,7 @@ private:
         };
 
         for (const auto format : swapChainFormatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+            if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
                 swapChainFormat = format;
                 break;
             }

@@ -43,7 +43,7 @@ namespace RHI::Vulkan {
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;
 
-        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat) override;
+        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
 
         VkDevice GetNative() const;

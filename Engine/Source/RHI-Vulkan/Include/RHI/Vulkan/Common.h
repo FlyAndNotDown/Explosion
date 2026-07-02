@@ -262,8 +262,14 @@ namespace RHI::Vulkan {
     ECIMPL_BEGIN(PresentMode, VkPresentModeKHR)
         ECIMPL_ITEM(PresentMode::immediately, VK_PRESENT_MODE_IMMEDIATE_KHR)
         ECIMPL_ITEM(PresentMode::vsync,       VK_PRESENT_MODE_FIFO_KHR)
-        ECIMPL_ITEM(PresentMode::max,         VK_PRESENT_MODE_IMMEDIATE_KHR) // TODO Set the default present mode to immediate?
+        ECIMPL_ITEM(PresentMode::mailbox,     VK_PRESENT_MODE_MAILBOX_KHR)
+        ECIMPL_ITEM(PresentMode::fifoRelaxed, VK_PRESENT_MODE_FIFO_RELAXED_KHR)
     ECIMPL_END(VkPresentModeKHR)
+
+    ECIMPL_BEGIN(ColorSpace, VkColorSpaceKHR)
+        ECIMPL_ITEM(ColorSpace::srgbNonLinear, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        ECIMPL_ITEM(ColorSpace::hdr10St2084,   VK_COLOR_SPACE_HDR10_ST2084_EXT)
+    ECIMPL_END(VkColorSpaceKHR)
 
     ECIMPL_BEGIN(QueryType, VkQueryType)
         ECIMPL_ITEM(QueryType::occlusion, VK_QUERY_TYPE_OCCLUSION)

@@ -53,6 +53,7 @@ namespace RHI::Vulkan {
         VkDebugUtilsMessengerEXT nativeDebugMessenger;
 #endif
         VkInstance nativeInstance;
+        std::vector<const char*> enabledExtensionNames;
         std::vector<VkPhysicalDevice> nativePhysicalDevices;
         std::vector<Common::UniquePtr<Gpu>> gpus;
         std::unordered_map<std::string, PFN_vkVoidFunction> dynamicFuncPointers;

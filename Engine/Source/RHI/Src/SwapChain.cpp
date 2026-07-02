@@ -10,6 +10,7 @@ namespace RHI {
         , surface(nullptr)
         , textureNum(0)
         , format(PixelFormat::max)
+        , colorSpace(ColorSpace::srgbNonLinear)
         , width(0)
         , height(0)
         , presentMode(PresentMode::max)
@@ -37,6 +38,12 @@ namespace RHI {
     SwapChainCreateInfo& SwapChainCreateInfo::SetFormat(const PixelFormat inFormat)
     {
         format = inFormat;
+        return *this;
+    }
+
+    SwapChainCreateInfo& SwapChainCreateInfo::SetColorSpace(const ColorSpace inColorSpace)
+    {
+        colorSpace = inColorSpace;
         return *this;
     }
 

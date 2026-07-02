@@ -265,14 +265,14 @@ namespace RHI::DirectX12 {
         return { new DX12PipelineCache(*this, inCreateInfo) };
     }
 
-    bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat)
+    bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace)
     {
-        static std::unordered_set supportedFormats = {
-            PixelFormat::rgba8Unorm,
-            PixelFormat::bgra8Unorm,
-            // TODO HDR
+        static std::unordered_map<ColorSpace, std::unordered_set<PixelFormat>> supportedFormats = {
+            { ColorSpace::srgbNonLinear, { PixelFormat::rgba8Unorm, PixelFormat::bgra8Unorm } },
+            { ColorSpace::hdr10St2084,   { PixelFormat::rgb10A2Unorm } }
         };
-        return supportedFormats.contains(inFormat);
+        const auto iter = supportedFormats.find(inColorSpace);
+        return iter != supportedFormats.end() && iter->second.contains(inFormat);
     }
 
     TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)

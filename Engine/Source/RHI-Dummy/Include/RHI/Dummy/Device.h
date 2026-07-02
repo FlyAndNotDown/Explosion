@@ -36,7 +36,7 @@ namespace RHI::Dummy {
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) override;
 
-        bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format) override;
+        bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format, ColorSpace colorSpace) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
 
     private:

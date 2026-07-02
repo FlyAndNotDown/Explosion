@@ -87,7 +87,7 @@ namespace RHI {
         virtual Common::UniquePtr<Semaphore> CreateSemaphore() = 0;
         virtual Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) = 0;
 
-        virtual bool CheckSwapChainFormatSupport(Surface* surface, PixelFormat format) = 0;
+        virtual bool CheckSwapChainFormatSupport(Surface* surface, PixelFormat format, ColorSpace colorSpace) = 0;
         virtual TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) = 0;
 
     protected:

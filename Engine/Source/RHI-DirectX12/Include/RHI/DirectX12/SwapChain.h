@@ -33,6 +33,7 @@ namespace RHI::DirectX12 {
         DX12Queue& queue;
         uint8_t textureNum;
         PresentMode presentMode;
+        bool allowTearing;
         ComPtr<IDXGISwapChain3> nativeSwapChain;
         std::vector<Common::UniquePtr<Texture>> textures;
     };

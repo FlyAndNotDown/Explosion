@@ -31,6 +31,12 @@ namespace RHI::Vulkan {
 #endif
     };
 
+    // Optional instance extensions: enabled only when the driver reports support. VK_EXT_swapchain_colorspace is what makes
+    // vkGetPhysicalDeviceSurfaceFormatsKHR report the HDR color spaces (e.g. HDR10 ST.2084) in addition to plain sRGB.
+    static std::vector optionalExtensionNames = {
+        "VK_EXT_swapchain_colorspace"
+    };
+
 #if BUILD_CONFIG_DEBUG
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -117,13 +123,22 @@ namespace RHI::Vulkan {
         std::vector<VkExtensionProperties> supportedExtensions(supportedExtensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, supportedExtensions.data());
 
+        const auto isExtensionSupported = [&supportedExtensions](const char* inName) -> bool {
+            return std::ranges::find_if(
+                supportedExtensions,
+                [inName](const auto& elem) -> bool { return std::string(inName) == elem.extensionName; }
+            ) != supportedExtensions.end();
+        };
+
         for (auto&& requiredExtensionName : requiredExtensionNames) {
-            if (const auto iter = std::ranges::find_if(
-                    supportedExtensions,
-                    [&requiredExtensionName](const auto& elem) -> bool { return std::string(requiredExtensionName) == elem.extensionName; }
-                );
-                iter == supportedExtensions.end()) {
+            if (!isExtensionSupported(requiredExtensionName)) {
                 QuickFailWithReason("required vulkan extensions is not support");
+            }
+            enabledExtensionNames.emplace_back(requiredExtensionName);
+        }
+        for (auto&& optionalExtensionName : optionalExtensionNames) {
+            if (isExtensionSupported(optionalExtensionName)) {
+                enabledExtensionNames.emplace_back(optionalExtensionName);
             }
         }
     }
@@ -140,8 +155,8 @@ namespace RHI::Vulkan {
         VkInstanceCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &applicationInfo;
-        createInfo.enabledExtensionCount = requiredExtensionNames.size();
-        createInfo.ppEnabledExtensionNames = requiredExtensionNames.data();
+        createInfo.enabledExtensionCount = enabledExtensionNames.size();
+        createInfo.ppEnabledExtensionNames = enabledExtensionNames.data();
 #if BUILD_CONFIG_DEBUG
         createInfo.enabledLayerCount = requiredLayerNames.size();
         createInfo.ppEnabledLayerNames = requiredLayerNames.data();

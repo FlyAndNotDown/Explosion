@@ -126,7 +126,7 @@ namespace RHI::Dummy {
         return { new DummyPipelineCache(createInfo) };
     }
 
-    bool DummyDevice::CheckSwapChainFormatSupport(Surface* surface, PixelFormat format)
+    bool DummyDevice::CheckSwapChainFormatSupport(Surface* surface, PixelFormat format, ColorSpace colorSpace)
     {
         return true;
     }

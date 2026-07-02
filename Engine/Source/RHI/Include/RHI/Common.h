@@ -367,11 +367,16 @@ namespace RHI {
     };
 
     enum class PresentMode : uint8_t {
-        // TODO check this
-        // 1. DirectX SwapEffect #see https://docs.microsoft.com/en-us/windows/win32/api/dxgi/ne-dxgi-dxgi_swap_effect
-        // 2. Vulkan VkPresentModeKHR #see https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkPresentModeKHR.html
-        immediately,
-        vsync,
+        immediately, // no synchronization, lowest latency, allows tearing
+        vsync,       // hard vertical sync, no tearing, always supported
+        mailbox,     // vertical sync without tearing, keeps only the latest frame (low latency)
+        fifoRelaxed, // vertical sync that allows tearing when the app misses a refresh
+        max
+    };
+
+    enum class ColorSpace : uint8_t {
+        srgbNonLinear, // standard SDR sRGB (gamma ~2.2)
+        hdr10St2084,   // HDR10: Rec.2020 primaries with the ST.2084 (PQ) transfer function
         max
     };
 

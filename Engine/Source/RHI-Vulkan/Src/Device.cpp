@@ -159,10 +159,9 @@ namespace RHI::Vulkan {
         return { new VulkanPipelineCache(*this, inCreateInfo) };
     }
 
-    bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat)
+    bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat, const ColorSpace inColorSpace)
     {
         const auto* vkSurface = static_cast<VulkanSurface*>(inSurface);
-        VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 
         uint32_t formatCount = 0;
         std::vector<VkSurfaceFormatKHR> surfaceFormats;
@@ -173,7 +172,7 @@ namespace RHI::Vulkan {
 
         const auto iter = std::ranges::find_if(
             surfaceFormats,
-            [format = EnumCast<PixelFormat, VkFormat>(inFormat), colorSpace](const VkSurfaceFormatKHR surfaceFormat) {
+            [format = EnumCast<PixelFormat, VkFormat>(inFormat), colorSpace = EnumCast<ColorSpace, VkColorSpaceKHR>(inColorSpace)](const VkSurfaceFormatKHR surfaceFormat) {
                 return format == surfaceFormat.format && colorSpace == surfaceFormat.colorSpace;
             });
         return iter != surfaceFormats.end();

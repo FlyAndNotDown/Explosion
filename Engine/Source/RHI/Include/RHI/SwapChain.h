@@ -21,6 +21,7 @@ namespace RHI {
         Surface* surface;
         uint8_t textureNum;
         PixelFormat format;
+        ColorSpace colorSpace;
         uint32_t width;
         uint32_t height;
         PresentMode presentMode;
@@ -30,6 +31,7 @@ namespace RHI {
         SwapChainCreateInfo& SetSurface(Surface* inSurface);
         SwapChainCreateInfo& SetTextureNum(uint8_t inTextureNum);
         SwapChainCreateInfo& SetFormat(PixelFormat inFormat);
+        SwapChainCreateInfo& SetColorSpace(ColorSpace inColorSpace);
         SwapChainCreateInfo& SetWidth(uint32_t inWidth);
         SwapChainCreateInfo& SetHeight(uint32_t inHeight);
         SwapChainCreateInfo& SetPresentMode(PresentMode inMode);
