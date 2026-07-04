@@ -24,6 +24,8 @@ namespace Runtime {
         virtual ~Viewport();
 
         virtual Client& GetClient() = 0;
+        // called on render thread after the previous frame's gpu work finished, acquires the next back texture and
+        // returns the semaphores guarding it
         virtual PresentInfo GetNextPresentInfo() = 0;
         virtual uint32_t GetWidth() const = 0;
         virtual uint32_t GetHeight() const = 0;

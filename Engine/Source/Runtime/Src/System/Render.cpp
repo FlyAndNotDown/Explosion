@@ -39,13 +39,12 @@ namespace Runtime {
                 views = BuildViews(),
                 scene = registry.GGet<SceneHolder>().scene.Get(),
                 surfaceExtent = Common::UVec2(clientViewport->GetWidth(), clientViewport->GetHeight()),
-                presentInfo = clientViewport->GetNextPresentInfo(),
                 viewport = clientViewport,
                 renderModule = &renderModule,
                 inDeltaTimeSeconds
             ]() -> void {
-                fence->Wait();
                 fence->Reset();
+                const auto presentInfo = viewport->GetNextPresentInfo();
 
                 Render::StandardRenderer::Params rendererParams;
                 rendererParams.device = renderModule->GetDevice();
@@ -60,6 +59,9 @@ namespace Runtime {
                 auto renderer = renderModule->CreateStandardRenderer(rendererParams);
                 renderer.Render(inDeltaTimeSeconds);
                 viewport->Present(presentInfo);
+                // this frame's gpu work must finish before the renderer (and its recorded command buffers /
+                // transient resources) goes out of scope, and it keeps the shared semaphores safe to reuse
+                fence->Wait();
             });
     }
 
