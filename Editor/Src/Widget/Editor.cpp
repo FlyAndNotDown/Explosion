@@ -35,9 +35,10 @@ namespace Editor {
     ExplosionEditor::~ExplosionEditor()
     {
         tickTimer->stop();
-        // the viewport must unregister from the client before the context (world/client) goes away with the
-        // remaining children
-        delete takeCentralWidget();
+        // deleted directly without takeCentralWidget(): reparenting would recreate the native window and trigger a
+        // pointless surface rebuild mid-teardown, and the viewport must unregister from the client before the
+        // context (world/client) goes away with the remaining children
+        delete viewport;
         viewport = nullptr;
     }
 
