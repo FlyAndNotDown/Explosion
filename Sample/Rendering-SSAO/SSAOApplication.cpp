@@ -227,7 +227,7 @@ protected:
             auto* ssaoKernelView = builder.CreateBufferView(ssaoKernelBuffer, RGBufferViewDesc(BufferViewType::uniformBinding, ssaoKernelSize * sizeof(FVec4)));
 
             // 1. G-Buffer Pass
-            auto* gBufferPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* gBufferPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(gBufferVS)
                     .SetPixelShader(gBufferPS)
@@ -288,7 +288,7 @@ protected:
                 });
 
             // 2. SSAO Pass
-            auto* ssaoPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* ssaoPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(ssaoVS)
                     .SetPixelShader(ssaoPS)
@@ -330,7 +330,7 @@ protected:
                 });
 
             // 3. SSAO Blur Pass
-            auto* ssaoBlurPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* ssaoBlurPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(blurVS)
                     .SetPixelShader(blurPS)
@@ -367,7 +367,7 @@ protected:
                 });
 
             // 4. Composition Pass
-            auto* compositionPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* compositionPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(compositionVS)
                     .SetPixelShader(compositionPS)
@@ -440,7 +440,7 @@ protected:
             fence->Wait();
 
             BindGroupCache::Get(*device).Invalidate();
-            PipelineCache::Get(*device).Invalidate();
+            Render::PipelineCache::Get(*device).Invalidate();
             BufferPool::Get(*device).Invalidate();
             TexturePool::Get(*device).Invalidate();
             ShaderMap::Get(*device).Invalidate();

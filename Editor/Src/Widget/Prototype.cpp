@@ -190,7 +190,7 @@ namespace Editor {
 
         std::optional<RHI::PixelFormat> pixelFormat = {};
         for (const auto format : formatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+            if (device->CheckSwapChainFormatSupport(surface.Get(), format, RHI::ColorSpace::srgbNonLinear)) {
                 pixelFormat = format;
                 break;
             }

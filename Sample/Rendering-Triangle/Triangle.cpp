@@ -114,7 +114,7 @@ void TriangleApplication::OnDrawFrame()
         frameFence->Reset();
         const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
 
-        auto* pso = PipelineCache::Get(*device).GetOrCreate(
+        auto* pso = Render::PipelineCache::Get(*device).GetOrCreate(
             RasterPipelineStateDesc()
                 .SetVertexShader(triangleVS)
                 .SetPixelShader(trianglePS)
@@ -195,7 +195,7 @@ void TriangleApplication::OnDestroy()
         fence->Wait();
 
         BindGroupCache::Get(*device).Invalidate();
-        PipelineCache::Get(*device).Invalidate();
+        Render::PipelineCache::Get(*device).Invalidate();
         BufferPool::Get(*device).Invalidate();
         TexturePool::Get(*device).Invalidate();
         ShaderMap::Get(*device).Invalidate();
