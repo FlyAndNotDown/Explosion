@@ -70,14 +70,16 @@ namespace Runtime {
     template <typename T>
     T* RenderThreadPtr<T>::operator->() const noexcept
     {
-        Assert(Core::ThreadContext::IsGameThread());
+        // systems are constructed and ticked on game worker threads by the system graph executor, both tags belong
+        // to the game-side frame timeline
+        Assert(Core::ThreadContext::IsGameThread() || Core::ThreadContext::IsGameWorkerThread());
         return ptr.Get();
     }
 
     template <typename T>
     T& RenderThreadPtr<T>::operator*() const noexcept
     {
-        Assert(Core::ThreadContext::IsGameThread());
+        Assert(Core::ThreadContext::IsGameThread() || Core::ThreadContext::IsGameWorkerThread());
         return *ptr;
     }
 
@@ -108,7 +110,7 @@ namespace Runtime {
     template <typename T>
     T* RenderThreadPtr<T>::Get() const
     {
-        Assert(Core::ThreadContext::IsGameThread());
+        Assert(Core::ThreadContext::IsGameThread() || Core::ThreadContext::IsGameWorkerThread());
         return ptr.Get();
     }
 

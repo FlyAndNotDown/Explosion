@@ -6,11 +6,12 @@
 
 #include <RHI/Texture.h>
 #include <RHI/Synchronous.h>
+#include <Runtime/Api.h>
 
 namespace Runtime {
     class Client;
 
-    struct PresentInfo {
+    struct RUNTIME_API PresentInfo {
         PresentInfo();
 
         RHI::Texture* backTexture;
@@ -18,7 +19,7 @@ namespace Runtime {
         RHI::Semaphore* renderFinishedSemaphore;
     };
 
-    class Viewport {
+    class RUNTIME_API Viewport {
     public:
         virtual ~Viewport();
 

@@ -2,9 +2,12 @@
 // Created by johnk on 2025/8/3.
 //
 
+#include <algorithm>
 #include <format>
 
+#include <QCoreApplication>
 #include <QFileDialog>
+#include <QProcess>
 
 #include <Editor/Widget/ProjectHub.h>
 #include <Editor/Widget/moc_ProjectHub.cpp>
@@ -127,10 +130,28 @@ namespace Editor {
         return Internal::ToJsonValue({ .success = true, .error = {}, .projectPath = projectDir.String() });
     }
 
-    void ProjectHubBackend::OpenProject(const QString& inProjectPath) // NOLINT
+    void ProjectHubBackend::OpenProject(const QString& inProjectPath)
     {
-        // TODO: launch the editor for the project at inProjectPath
-        LogInfo(ProjectHub, "open project '{}'", inProjectPath.toStdString());
+        const std::string projectPath = inProjectPath.toStdString();
+        if (const Common::Path projectDir(projectPath);
+            !projectDir.Exists() || !projectDir.IsDirectory()) {
+            LogWarning(ProjectHub, "project '{}' does not exist", projectPath);
+            return;
+        }
+
+        std::string projectName = Common::Path(projectPath).DirName();
+        if (const auto iter = std::ranges::find_if(recentProjects, [&](const RecentProjectInfo& info) -> bool { return info.path == projectPath; });
+            iter != recentProjects.end()) {
+            projectName = iter->name;
+            recentProjects.erase(iter);
+        }
+        recentProjects.emplace_back(RecentProjectInfo { projectName, projectPath });
+        Common::JsonSerializeToFile(recentProjectsFile.String(), recentProjects);
+        emit RecentProjectsChanged();
+
+        LogInfo(ProjectHub, "opening project '{}'", projectPath);
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), { "-project", inProjectPath });
+        QCoreApplication::quit();
     }
 
     QString ProjectHubBackend::BrowseDirectory() const // NOLINT

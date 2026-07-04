@@ -91,12 +91,13 @@ namespace Runtime {
         result.reserve(playerNum);
 
         for (auto i = 0; i < playerNum; i++) {
-            if (registry.Has<LocalPlayer>(i)) {
-                result.emplace_back(BuildViewForPlayer<LocalPlayer>(playersInfo.players[i], playerNum, i));
+            const auto playerEntity = playersInfo.players[i];
+            if (registry.Has<LocalPlayer>(playerEntity)) {
+                result.emplace_back(BuildViewForPlayer<LocalPlayer>(playerEntity, playerNum, i));
             }
     #if BUILD_EDITOR
-            if (registry.Has<EditorPlayer>(i)) {
-                result.emplace_back(BuildViewForPlayer<EditorPlayer>(playersInfo.players[i], playerNum, i));
+            if (registry.Has<EditorPlayer>(playerEntity)) {
+                result.emplace_back(BuildViewForPlayer<EditorPlayer>(playerEntity, playerNum, i));
             }
     #endif
         }

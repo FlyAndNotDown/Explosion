@@ -5,11 +5,12 @@
 #pragma once
 
 #include <Runtime/Viewport.h>
+#include <Runtime/Api.h>
 
 namespace Runtime {
     class World;
 
-    class Client {
+    class RUNTIME_API Client {
     public:
         virtual ~Client();
 
