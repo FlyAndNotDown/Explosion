@@ -36,6 +36,14 @@ namespace Runtime {
         void Resume();
         void Pause();
         void Stop();
+        // editor-only world lifecycle: builds/destroys the system executor while staying stopped, so an editor world
+        // ticks its systems (transform/scene/render) for editing without entering play
+        void Activate();
+        void Deactivate();
+        bool Activated() const;
+        bool ShouldTick() const;
+        ECRegistry& GetRegistry();
+        const ECRegistry& GetRegistry() const;
         void LoadFrom(AssetPtr<Level> inLevel);
         void SaveTo(AssetPtr<Level> inLevel);
 

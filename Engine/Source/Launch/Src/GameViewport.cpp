@@ -88,6 +88,11 @@ namespace Launch {
         glfwPollEvents();
     }
 
+    void GameViewport::Present(const Runtime::PresentInfo& inPresentInfo)
+    {
+        swapChain->Present(inPresentInfo.renderFinishedSemaphore);
+    }
+
     void GameViewport::RecreateSwapChain(uint32_t inWidth, uint32_t inHeight)
     {
         static std::vector<RHI::PixelFormat> formatQualifiers = {

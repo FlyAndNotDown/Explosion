@@ -75,6 +75,38 @@ namespace Runtime {
         executor.reset();
     }
 
+    void World::Activate()
+    {
+        Assert(systemSetupContext.playType == PlayType::editor && Stopped() && !executor.has_value());
+        executor.emplace(ecRegistry, systemGraph, systemSetupContext);
+    }
+
+    void World::Deactivate()
+    {
+        Assert(systemSetupContext.playType == PlayType::editor && Stopped() && executor.has_value());
+        executor.reset();
+    }
+
+    bool World::Activated() const
+    {
+        return executor.has_value();
+    }
+
+    bool World::ShouldTick() const
+    {
+        return executor.has_value() && !Paused();
+    }
+
+    ECRegistry& World::GetRegistry()
+    {
+        return ecRegistry;
+    }
+
+    const ECRegistry& World::GetRegistry() const
+    {
+        return ecRegistry;
+    }
+
     void World::LoadFrom(AssetPtr<Level> inLevel)
     {
         Assert(Stopped());

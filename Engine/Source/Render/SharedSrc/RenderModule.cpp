@@ -4,6 +4,8 @@
 
 #include <Core/Thread.h>
 #include <Render/RenderModule.h>
+#include <Render/RenderCache.h>
+#include <Render/ResourcePool.h>
 #include <Render/Scene.h>
 
 namespace Render {
@@ -55,6 +57,15 @@ namespace Render {
         rhiInstance = nullptr;
         rhiDevice = nullptr;
         initialized = false;
+    }
+
+    void RenderModule::ForfeitFrameResources() const
+    {
+        Assert(Core::ThreadContext::IsRenderThread());
+        BufferPool::Get(*rhiDevice).Forfeit();
+        TexturePool::Get(*rhiDevice).Forfeit();
+        ResourceViewCache::Get(*rhiDevice).Forfeit();
+        BindGroupCache::Get(*rhiDevice).Forfeit();
     }
 
     RHI::Device* RenderModule::GetDevice() const

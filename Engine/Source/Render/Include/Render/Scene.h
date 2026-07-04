@@ -27,7 +27,7 @@ namespace Render {
         template <typename SP> void Remove(EntityId inEntity);
 
     private:
-        template <typename SP> using SceneProxyContainer = std::unordered_map<EntityId, LightSceneProxy>;
+        template <typename SP> using SceneProxyContainer = std::unordered_map<EntityId, SP>;
 
         template <typename SP> SceneProxyContainer<SP>& GetSceneProxyContainer();
         template <typename SP> const SceneProxyContainer<SP>& GetSceneProxyContainer() const;

@@ -20,7 +20,7 @@ namespace Render {
         struct Params {
             RHI::Device* device;
             const Scene* scene;
-            const RHI::Texture* surface;
+            RHI::Texture* surface;
             Common::UVec2 surfaceExtent;
             std::vector<View> views;
             RHI::Semaphore* waitSemaphore;
@@ -36,7 +36,7 @@ namespace Render {
     protected:
         RHI::Device* device;
         const Scene* scene;
-        const RHI::Texture* surface;
+        RHI::Texture* surface;
         Common::UVec2 surfaceExtent;
         std::vector<View> views;
         RHI::Semaphore* waitSemaphore;

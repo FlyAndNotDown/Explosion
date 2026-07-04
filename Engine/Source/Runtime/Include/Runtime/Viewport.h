@@ -27,6 +27,9 @@ namespace Runtime {
         virtual uint32_t GetWidth() const = 0;
         virtual uint32_t GetHeight() const = 0;
         virtual void Resize(uint32_t inWidth, uint32_t inHeight) = 0;
+        // called on render thread after rendering finished, implementations present the back texture acquired by the
+        // matching GetNextPresentInfo() call, waiting inPresentInfo.renderFinishedSemaphore
+        virtual void Present(const PresentInfo& inPresentInfo) = 0;
         // TODO mouse keyboard inputs etc.
 
     protected:

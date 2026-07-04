@@ -15,7 +15,7 @@ namespace Launch {
         explicit GameClient(GameViewport& inViewport);
         ~GameClient() override;
 
-        Runtime::Viewport& GetViewport() override;
+        Runtime::Viewport* GetViewport() override;
         Runtime::World& GetWorld() override;
 
     private:

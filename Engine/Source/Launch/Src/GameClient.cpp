@@ -14,9 +14,9 @@ namespace Launch {
 
     GameClient::~GameClient() = default;
 
-    Runtime::Viewport& GameClient::GetViewport()
+    Runtime::Viewport* GameClient::GetViewport()
     {
-        return viewport;
+        return &viewport;
     }
 
     Runtime::World& GameClient::GetWorld()

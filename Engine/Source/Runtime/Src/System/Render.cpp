@@ -28,14 +28,19 @@ namespace Runtime {
 
     void RenderSystem::Tick(float inDeltaTimeSeconds)
     {
-        auto& clientViewport = client->GetViewport();
+        auto* clientViewport = client != nullptr ? client->GetViewport() : nullptr;
+        if (clientViewport == nullptr) {
+            return;
+        }
+
         renderModule.GetRenderThread().EmplaceTask(
             [
                 fence = lastFrameFence,
                 views = BuildViews(),
                 scene = registry.GGet<SceneHolder>().scene.Get(),
-                surfaceExtent = Common::UVec2(clientViewport.GetWidth(), clientViewport.GetHeight()),
-                presentInfo = clientViewport.GetNextPresentInfo(),
+                surfaceExtent = Common::UVec2(clientViewport->GetWidth(), clientViewport->GetHeight()),
+                presentInfo = clientViewport->GetNextPresentInfo(),
+                viewport = clientViewport,
                 renderModule = &renderModule,
                 inDeltaTimeSeconds
             ]() -> void {
@@ -54,6 +59,7 @@ namespace Runtime {
 
                 auto renderer = renderModule->CreateStandardRenderer(rendererParams);
                 renderer.Render(inDeltaTimeSeconds);
+                viewport->Present(presentInfo);
             });
     }
 

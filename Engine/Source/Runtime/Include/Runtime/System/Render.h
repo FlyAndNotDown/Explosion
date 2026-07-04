@@ -46,7 +46,7 @@ namespace Runtime {
         const auto& player = registry.Get<T>(inEntity);
         const auto& camera = registry.Get<Camera>(inEntity);
         const auto& worldTransform = registry.Get<WorldTransform>(inEntity);
-        const auto& clientViewport = client->GetViewport();
+        const auto& clientViewport = *client->GetViewport();
 
         const auto width = clientViewport.GetWidth();
         const auto height = clientViewport.GetHeight();

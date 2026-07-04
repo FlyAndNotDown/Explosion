@@ -19,10 +19,28 @@
 #define LogError(tag, ...) Core::Logger::Get().Log(#tag, Core::LogLevel::error, std::format(__VA_ARGS__))
 
 namespace Core {
-    class LogStream {
+    enum class LogLevel : uint8_t {
+        verbose,
+        info,
+        warning,
+        error,
+        max
+    };
+
+    struct LogEntry {
+        std::string time;
+        std::string tag;
+        LogLevel level;
+        std::string content;
+    };
+
+    class CORE_API LogStream {
     public:
         virtual ~LogStream() = default;
         virtual void Write(const std::string& inString) = 0;
+        // structured entry point used by Logger, the default implementation formats the entry and forwards to
+        // Write(string), override it when the stream wants the raw fields (e.g. the editor log panel)
+        virtual void Write(const LogEntry& inEntry);
         virtual void Flush() = 0;
     };
 
@@ -53,14 +71,6 @@ namespace Core {
         std::ofstream file;
     };
 
-    enum class LogLevel : uint8_t {
-        verbose,
-        info,
-        warning,
-        error,
-        max
-    };
-
     class CORE_API Logger {
     public:
         static Logger& Get();
@@ -76,7 +86,7 @@ namespace Core {
     private:
         Logger();
 
-        void LogInternal(const std::string& inString);
+        void LogInternal(const LogEntry& inEntry);
 
         float lastFlushTimeSec;
         std::vector<Common::UniquePtr<LogStream>> streams;

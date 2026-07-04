@@ -4,6 +4,10 @@
 
 #include <Render/Renderer.h>
 
+namespace Render::Internal {
+    const Common::LinearColor surfaceClearColor = { 0.1f, 0.1f, 0.12f, 1.0f };
+}
+
 namespace Render {
     Renderer::Renderer(const Params& inParams)
         : device(inParams.device)
@@ -29,7 +33,26 @@ namespace Render {
 
     void StandardRenderer::Render(float inDeltaTimeSeconds)
     {
-        // TODO
+        auto* backTexture = rgBuilder.ImportTexture(surface, RHI::TextureState::present);
+        auto* backTextureView = rgBuilder.CreateTextureView(backTexture, RGTextureViewDesc(RHI::TextureViewType::colorAttachment, RHI::TextureViewDimension::tv2D));
+
+        rgBuilder.AddRasterPass(
+            "BasePass",
+            RGRasterPassDesc()
+                .AddColorAttachment(RGColorAttachment(backTextureView, RHI::LoadOp::clear, RHI::StoreOp::store, Internal::surfaceClearColor)),
+            {},
+            [](const RGBuilder&, RHI::RasterPassCommandRecorder&) -> void {},
+            {},
+            [backTexture](const RGBuilder& rg, RHI::CommandRecorder& recorder) -> void {
+                recorder.ResourceBarrier(RHI::Barrier::Transition(rg.GetRHI(backTexture), RHI::TextureState::renderTarget, RHI::TextureState::present));
+            });
+
+        RGExecuteInfo executeInfo;
+        executeInfo.semaphoresToWait = { waitSemaphore };
+        executeInfo.semaphoresToSignal = { signalSemaphore };
+        executeInfo.inFenceToSignal = signalFence;
+        rgBuilder.Execute(executeInfo);
+
         FinalizeViews();
     }
 

@@ -66,14 +66,15 @@ namespace Runtime {
         Core::ThreadContext::IncFrameNumber();
 
         auto& renderThread = renderModule->GetRenderThread();
-        renderThread.EmplaceTask([]() -> void {
+        renderThread.EmplaceTask([renderModule = renderModule]() -> void {
             Core::ThreadContext::IncFrameNumber();
             Core::Console::Get().PerformRenderThreadSettingsCopy();
             Render::ShaderArtifactRegistry::Get().PerformThreadCopy();
+            renderModule->ForfeitFrameResources();
         });
 
         for (auto* world : worlds) {
-            if (!world->Playing()) {
+            if (!world->ShouldTick()) {
                 continue;
             }
             world->Tick(inDeltaTimeSeconds);

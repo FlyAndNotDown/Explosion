@@ -34,6 +34,7 @@ namespace Launch {
         uint32_t GetWidth() const override;
         uint32_t GetHeight() const override;
         void Resize(uint32_t inWidth, uint32_t inHeight) override;
+        void Present(const Runtime::PresentInfo& inPresentInfo) override;
 
         bool ShouldClose() const;
         void PollEvents() const;

@@ -11,6 +11,7 @@ namespace Runtime {
     PlayerSystem::PlayerSystem(ECRegistry& inRegistry, const SystemSetupContext& inContext)
         : System(inRegistry, inContext)
         , activeLocalPlayerNum(0)
+        , playType(inContext.playType)
         , renderModule(EngineHolder::Get().GetRenderModule())
     {
         auto& playersInfo = registry.GEmplace<PlayersInfo>();

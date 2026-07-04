@@ -28,6 +28,7 @@ namespace Runtime {
         template <typename T> void CreatePlayerSpecialPart(T& inPlayer);
 
         uint8_t activeLocalPlayerNum;
+        PlayType playType;
         Render::RenderModule& renderModule;
     };
 }
@@ -36,13 +37,19 @@ namespace Runtime {
     template <typename T>
     Entity PlayerSystem::CreatePlayer()
     {
+        // a game world requires exactly one player start, an editor world tolerates an empty level and falls back to
+        // spawning the player at the identity transform
         const auto& playerStartQuery = registry.View<PlayerStart, WorldTransform>().All();
-        Assert(playerStartQuery.size() == 1);
-        const auto& [playerStartEntity, playerStart, playerStartTransform] = playerStartQuery[0];
+        Assert(playType == PlayType::editor ? playerStartQuery.size() <= 1 : playerStartQuery.size() == 1);
 
         const auto playerEntity = registry.Create();
+        registry.Emplace<TransientTag>(playerEntity);
         registry.Emplace<Camera>(playerEntity);
-        registry.Emplace<WorldTransform>(playerEntity, playerStartTransform);
+        if (playerStartQuery.empty()) {
+            registry.Emplace<WorldTransform>(playerEntity);
+        } else {
+            registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStartQuery[0]));
+        }
 
         auto& player = registry.Emplace<T>(playerEntity);
         player.viewState = renderModule.NewViewState();

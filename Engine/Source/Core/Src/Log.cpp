@@ -6,7 +6,33 @@
 #include <Common/FileSystem.h>
 #include <Common/IO.h>
 
+namespace Core::Internal {
+    static std::string FormatLogEntry(const LogEntry& inEntry)
+    {
+        static std::unordered_map<LogLevel, std::string_view> logLevelStringMap = {
+            { LogLevel::verbose, "Verbose" },
+            { LogLevel::info, "Info" },
+            { LogLevel::warning, "Warning" },
+            { LogLevel::error, "Error" }
+        };
+
+        static std::unordered_map<LogLevel, std::string_view> logLevelColorStr = {
+            { LogLevel::verbose, "" },
+            { LogLevel::info, "" },
+            { LogLevel::warning, "\033[33m" },
+            { LogLevel::error, "\033[31m" }
+        };
+
+        return std::format("{}[{}][{}][{}] {}\033[0m", logLevelColorStr.at(inEntry.level), inEntry.time, inEntry.tag, logLevelStringMap.at(inEntry.level), inEntry.content);
+    }
+}
+
 namespace Core {
+    void LogStream::Write(const LogEntry& inEntry)
+    {
+        Write(Internal::FormatLogEntry(inEntry));
+    }
+
     COutLogStream::COutLogStream() = default;
 
     COutLogStream::~COutLogStream()
@@ -61,22 +87,12 @@ namespace Core {
 
     void Logger::Log(const std::string& inTag, LogLevel inLevel, const std::string& inContent)
     {
-        static std::unordered_map<LogLevel, std::string_view> LogLevelStringMap = {
-            { LogLevel::verbose, "Verbose" },
-            { LogLevel::info, "Info" },
-            { LogLevel::warning, "Warning" },
-            { LogLevel::error, "Error" }
-        };
-
-        static std::unordered_map<LogLevel, std::string_view> LogLevelColorStr = {
-            { LogLevel::verbose, "" },
-            { LogLevel::info, "" },
-            { LogLevel::warning, "\033[33m" },
-            { LogLevel::error, "\033[31m" }
-        };
-
-        const auto time = Common::AccurateTime(Common::TimePoint::Now());
-        LogInternal(std::format("{}[{}][{}][{}] {}\033[0m", LogLevelColorStr.at(inLevel), time.ToString("hh-mm-ss:mss"), inTag, LogLevelStringMap.at(inLevel), inContent));
+        LogEntry entry;
+        entry.time = Common::AccurateTime(Common::TimePoint::Now()).ToString("hh-mm-ss:mss");
+        entry.tag = inTag;
+        entry.level = inLevel;
+        entry.content = inContent;
+        LogInternal(entry);
     }
 
     void Logger::Attach(Common::UniquePtr<LogStream>&& inStream)
@@ -97,7 +113,7 @@ namespace Core {
         Attach(new COutLogStream());
     }
 
-    void Logger::LogInternal(const std::string& inString) // NOLINT
+    void Logger::LogInternal(const LogEntry& inEntry) // NOLINT
     {
 #if BUILD_CONFIG_DEBUG
         const bool needFlush = true; // NOLINT
@@ -108,7 +124,7 @@ namespace Core {
 #endif
 
         for (const auto& stream : streams) {
-            stream->Write(inString);
+            stream->Write(inEntry);
             if (needFlush) {
                 stream->Flush();
             }
