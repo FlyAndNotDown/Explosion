@@ -7,6 +7,7 @@
 
 #include <Core/Cmdline.h>
 #include <Runtime/Engine.h>
+#include <Editor/EditorLog.h>
 #include <Editor/Widget/Editor.h>
 #include <Editor/Widget/ProjectHub.h>
 #include <Editor/Widget/Prototype.h>
@@ -50,6 +51,7 @@ static bool NeedInitCore(EditorApplicationModel inModel)
 
 static void InitializePreQtApp(EditorApplicationModel inModel)
 {
+    Editor::EditorLogStream::Get();
     Editor::WebUIServer::Get().Start();
 
     if (!NeedInitCore(inModel)) {

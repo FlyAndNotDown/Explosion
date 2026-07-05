@@ -10,7 +10,7 @@
 #include <Runtime/Api.h>
 
 namespace Runtime {
-    struct RUNTIME_API EClass(transient) Camera final {
+    struct RUNTIME_API EClass(comp, transient) Camera final {
         EClassBody(Camera)
 
         Camera();

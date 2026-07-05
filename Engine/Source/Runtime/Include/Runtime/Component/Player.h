@@ -38,7 +38,7 @@ namespace Runtime {
     };
 #endif
 
-    struct RUNTIME_API EClass() PlayerStart {
+    struct RUNTIME_API EClass(comp) PlayerStart {
         EClassBody(PlayerStart)
 
         PlayerStart();

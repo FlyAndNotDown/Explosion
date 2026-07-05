@@ -9,7 +9,7 @@
 #include <Runtime/Api.h>
 
 namespace Runtime {
-    struct RUNTIME_API EClass() DirectionalLight final {
+    struct RUNTIME_API EClass(comp) DirectionalLight final {
         EClassBody(DirectionalLight)
 
         DirectionalLight();
@@ -19,7 +19,7 @@ namespace Runtime {
         EProperty() bool castShadows;
     };
 
-    struct RUNTIME_API EClass() PointLight final {
+    struct RUNTIME_API EClass(comp) PointLight final {
         EClassBody(PointLight)
 
         PointLight();
@@ -30,7 +30,7 @@ namespace Runtime {
         EProperty() float radius;
     };
 
-    struct RUNTIME_API EClass() SpotLight final {
+    struct RUNTIME_API EClass(comp) SpotLight final {
         EClassBody(SpotLight)
 
         SpotLight();

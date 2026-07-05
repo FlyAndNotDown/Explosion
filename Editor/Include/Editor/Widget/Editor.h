@@ -9,6 +9,7 @@
 #include <QTimer>
 
 #include <Editor/EditorContext.h>
+#include <Editor/Widget/Dock.h>
 
 namespace Editor {
     class EditorViewport;
@@ -20,12 +21,18 @@ namespace Editor {
         ExplosionEditor();
         ~ExplosionEditor() override;
 
+    protected:
+        void closeEvent(QCloseEvent* inEvent) override;
+
     private:
         void SetupWindow();
+        void SetupDocks();
+        void SetupMenus();
         void StartEngineTick();
         void TickEngine();
 
         EditorContext* context;
+        DockManager* dockManager;
         EditorViewport* viewport;
         QTimer* tickTimer;
         QElapsedTimer frameTimer;

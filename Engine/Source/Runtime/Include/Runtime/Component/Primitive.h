@@ -10,7 +10,7 @@
 #include <Runtime/Asset/Mesh.h>
 
 namespace Runtime {
-    struct RUNTIME_API EClass() StaticPrimitive final {
+    struct RUNTIME_API EClass(comp) StaticPrimitive final {
         EClassBody(StaticPrimitive)
 
         StaticPrimitive();
