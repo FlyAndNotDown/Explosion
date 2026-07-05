@@ -22,10 +22,6 @@ namespace Editor {
     {
     }
 
-    void EditorLogStream::Write(const std::string& inString)
-    {
-    }
-
     void EditorLogStream::Write(const Core::LogEntry& inEntry)
     {
         std::unique_lock lock(mutex);

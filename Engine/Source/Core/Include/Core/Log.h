@@ -37,10 +37,7 @@ namespace Core {
     class CORE_API LogStream {
     public:
         virtual ~LogStream() = default;
-        virtual void Write(const std::string& inString) = 0;
-        // structured entry point used by Logger, the default implementation formats the entry and forwards to
-        // Write(string), override it when the stream wants the raw fields (e.g. the editor log panel)
-        virtual void Write(const LogEntry& inEntry);
+        virtual void Write(const LogEntry& inEntry) = 0;
         virtual void Flush() = 0;
     };
 
@@ -52,7 +49,7 @@ namespace Core {
         NonCopyable(COutLogStream);
         NonMovable(COutLogStream);
 
-        void Write(const std::string& inString) override;
+        void Write(const LogEntry& inEntry) override;
         void Flush() override;
     };
 
@@ -64,7 +61,7 @@ namespace Core {
         NonCopyable(FileLogStream)
         NonMovable(FileLogStream)
 
-        void Write(const std::string& inString) override;
+        void Write(const LogEntry& inEntry) override;
         void Flush() override;
 
     private:

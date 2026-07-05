@@ -24,7 +24,6 @@ namespace Editor {
         // attaches the singleton stream to the engine logger on first use
         static EditorLogStream& Get();
 
-        void Write(const std::string& inString) override;
         void Write(const Core::LogEntry& inEntry) override;
         void Flush() override;
 

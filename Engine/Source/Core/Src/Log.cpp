@@ -28,11 +28,6 @@ namespace Core::Internal {
 }
 
 namespace Core {
-    void LogStream::Write(const LogEntry& inEntry)
-    {
-        Write(Internal::FormatLogEntry(inEntry));
-    }
-
     COutLogStream::COutLogStream() = default;
 
     COutLogStream::~COutLogStream()
@@ -40,9 +35,9 @@ namespace Core {
         Flush();
     }
 
-    void COutLogStream::Write(const std::string& inString)
+    void COutLogStream::Write(const LogEntry& inEntry)
     {
-        std::cout << inString << Common::newline;
+        std::cout << Internal::FormatLogEntry(inEntry) << Common::newline;
     }
 
     void COutLogStream::Flush()
@@ -64,9 +59,9 @@ namespace Core {
         Flush();
     }
 
-    void FileLogStream::Write(const std::string& inString)
+    void FileLogStream::Write(const LogEntry& inEntry)
     {
-        file << inString << Common::newline;
+        file << Internal::FormatLogEntry(inEntry) << Common::newline;
     }
 
     void FileLogStream::Flush()
