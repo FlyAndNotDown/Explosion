@@ -37,14 +37,13 @@ public:
     // all the calculation applies to camera is in world space
     // transform is the operations make camera from local to world
     // the inverse of transform is the operations make objects in world from world to view(the local of camera)
-    Camera(const FVec3& inPos, const FVec3& inRotEulerZYX, const ProjectionParams& inProjParams);
+    Camera(const FVec3& inPos, float inPitchDeg, float inYawDeg, const ProjectionParams& inProjParams);
 
     void SetPosition(const FVec3& inPosition);
-    void SetRotation(const FVec3& inRotEulerZYX);
-    void SetLookTarget(const FVec3& inTarget);
+    void SetRotation(float inPitchDeg, float inYawDeg);
     void SetTranslation(const FVec3& inTranslation);
     void Translate(const FVec3& inTransDelta);
-    void Rotate(const FVec3& inRotDelta);
+    void Rotate(float inPitchDeltaDeg, float inYawDeltaDeg);
     void PerformMove(MoveDirection direction);
     void PerformStop(MoveDirection direction);
     void SetMoveSpeed(float inSpeed);
@@ -57,11 +56,15 @@ public:
 
 private:
     bool Moving() const;
+    // rebuilds the orientation from the absolute pitch/yaw pair, composing yaw about the world up axis outermost,
+    // so the camera never accumulates roll no matter how rotations interleave
+    void RebuildRotation();
 
     // vt makes camera from local to world
     FViewTransform viewTransform;
     FReversedZPerspectiveProjection projection;
-    FVec3 lookTarget;
+    float pitchDeg;
+    float yawDeg;
     std::array<bool, static_cast<size_t>(MoveDirection::max)> movingStatus;
     std::unordered_map<MoveDirection, FVec3> moveVectorMap;
     float moveSpeed;

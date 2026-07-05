@@ -105,7 +105,8 @@ namespace Editor {
         auto& registry = world.GetRegistry();
 
         if (!cameraAnglesInitialized) {
-            const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(2);
+            // the entity forward axis is local +x, see Transform::UpdateRotation
+            const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(0);
             cameraYaw = std::atan2(forward.y, forward.x);
             cameraPitch = std::asin(std::clamp(forward.z, -1.0f, 1.0f));
             cameraAnglesInitialized = true;

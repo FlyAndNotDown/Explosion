@@ -151,14 +151,9 @@ void Application::OnCursorActionReceived(float x, float y)
     // screen space of glfw:
     // origin in left-top, x from left to rignt, y from top to bottom
     if (mouseButtonsStatus[static_cast<size_t>(MouseButton::left)]) {
-        // rotate camera with mouse's left button down (positive value represents counterclockwise rotation)
-        // before apply axisTransMat
-        //     x+ -> from screen outer to inner
-        //     y+ -> from left to right
-        //     z+ -> from bottom to top
-        // horizontal mouse moving(dx) causes rotation alng z axis
-        // vertical mouse moving(dy) causes rotation along y axis
-        camera->Rotate(FVec3(0.0, -dy * camera->GetRotateSpeed(), -dx * camera->GetRotateSpeed()));
+        // rotate camera with mouse's left button down: horizontal mouse moving(dx) yaws, vertical mouse moving(dy)
+        // pitches, the camera rebuilds its orientation from the absolute angles so no roll can accumulate
+        camera->Rotate(-dy * camera->GetRotateSpeed(), -dx * camera->GetRotateSpeed());
     }
 
     if (mouseButtonsStatus[static_cast<size_t>(MouseButton::right)]) {

@@ -873,6 +873,8 @@ TEST(MathTest, TransformLookAtTest)
     FTransform v0;
     v0.MoveAndLookTo(FVec3(1, 2, 3), FVec3(4, 2, 3));
     ASSERT_TRUE(v0.translation == FVec3(1, 2, 3));
+    // +x is the entity forward axis, so looking straight down +x is the identity orientation
+    ASSERT_TRUE(v0.rotation == FQuatConsts::identity);
 
     const FTransform v1 = FTransform::LookAt(FVec3(1, 2, 3), FVec3(4, 2, 3));
     ASSERT_TRUE(v0 == v1);
@@ -880,7 +882,15 @@ TEST(MathTest, TransformLookAtTest)
     FTransform v2(FQuatConsts::identity, FVec3(0, 0, 0));
     v2.LookTo(FVec3(1, 0, 0));
     ASSERT_TRUE(v2.translation == FVec3(0, 0, 0));
-    ASSERT_TRUE(v2.rotation == FQuat(0.5f, 0.5f, 0.5f, 0.5f));
+    ASSERT_TRUE(v2.rotation == FQuatConsts::identity);
+
+    // a yawed look direction must keep the local up axis on the world up: look-at never introduces roll
+    FTransform v3;
+    v3.LookTo(FVec3(1, 1, 0));
+    const FMat4x4 r3 = v3.GetRotationMatrix();
+    const float invSqrt2 = std::sqrt(0.5f);
+    ASSERT_TRUE((r3 * FVec4(1, 0, 0, 0)) == FVec4(invSqrt2, invSqrt2, 0, 0));
+    ASSERT_TRUE((r3 * FVec4(0, 0, 1, 0)) == FVec4(0, 0, 1, 0));
 }
 
 TEST(MathTest, TransformCastToTest)
@@ -1038,9 +1048,11 @@ TEST(MathTest, ViewMatrixTest)
     ASSERT_NEAR(camInView.y, 0.0f, 1e-4f);
     ASSERT_NEAR(camInView.z, 0.0f, 1e-4f);
 
+    // the looked-at target must sit straight ahead on the view space depth axis
     const FVec4 targetInView = vm1 * FVec4(0, 0, 0, 1);
-    const FVec3 targetXyz = targetInView.SubVec<0, 1, 2>();
-    ASSERT_NEAR(targetXyz.Model(), std::sqrt(50.0f), 1e-4f);
+    ASSERT_NEAR(targetInView.x, 0.0f, 1e-4f);
+    ASSERT_NEAR(targetInView.y, 0.0f, 1e-4f);
+    ASSERT_NEAR(targetInView.z, std::sqrt(50.0f), 1e-4f);
 }
 
 // ==================================== Projection ====================================

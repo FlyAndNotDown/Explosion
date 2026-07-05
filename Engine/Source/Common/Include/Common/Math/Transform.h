@@ -296,22 +296,17 @@ namespace Common {
     template <typename T>
     Transform<T>& Transform<T>::UpdateRotation(const Vec<T, 3>& forward, const Vec<T, 3>& side, const Vec<T, 3>& up)
     {
-        // Transform of an object(camera) is the inverse of transform represented in lookAtMatrix
-        // Mat<T, 4, 4> lookAtMat {
-        //     s.x, s.y, s.z, -s.Dot(inPosition),
-        //     u.x, u.y, u.z, -u.Dot(inPosition),
-        //     f.x, f.y. f.z, -f.Dot(inPosition),
-        //     0, 0, 0, 1
-        // };
-
-        // Rotaion Mat is orthogonal, its inverse equals to its transpose
-        // So, we get quaternion from the transposed rotation part of lookAtMatrix
+        // the resulting rotation must map the local axes onto the given frame following the engine convention
+        // (local +x -> forward, +y -> side, +z -> up), i.e. GetRotationMatrix() columns must be [forward, side, up];
+        // engine quaternions apply as the transpose of the textbook rotation matrix (see
+        // Quaternion::GetRotationMatrix), so the textbook extraction below runs on the transposed target, whose
+        // rows are forward/side/up
         // Algorithm: https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
 
         Mat<T, 3, 3> rotMat {
-            side.x, up.x, forward.x,
-            side.y, up.y, forward.y,
-            side.z, up.z, forward.z
+            forward.x, forward.y, forward.z,
+            side.x, side.y, side.z,
+            up.x, up.y, up.z
         };
 
         T trace = rotMat.At(0, 0) + rotMat.At(1, 1) + rotMat.At(2, 2);

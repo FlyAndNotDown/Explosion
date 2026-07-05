@@ -3,6 +3,7 @@
 //
 
 #include <Common/Math/Projection.h>
+#include <Common/Math/View.h>
 #include <Render/Renderer.h>
 #include <Runtime/Component/Camera.h>
 #include <Runtime/Component/Player.h>
@@ -110,7 +111,7 @@ namespace Runtime {
         Render::View view = renderModule.CreateView();
         view.state = camera.viewState.Get();
         view.data.viewport = viewportRect;
-        view.data.viewMatrix = worldTransform.localToWorld.GetTransformMatrixNoScale().Inverse();
+        view.data.viewMatrix = Common::FViewTransform(worldTransform.localToWorld).GetViewMatrix();
         view.data.origin = worldTransform.localToWorld.translation;
         if (camera.perspective) {
             const Common::FReversedZPerspectiveProjection projection(camera.fov.value(), static_cast<float>(width), static_cast<float>(height), camera.nearPlane, camera.farPlane);

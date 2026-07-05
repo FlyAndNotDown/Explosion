@@ -995,7 +995,7 @@ private:
     {
         auto* camera = new Camera(
             FVec3(.0f, -5.0f, 2.0f),
-            FVec3(.0f, .0f, -90.0f),
+            0.0f, -90.0f,
             Camera::ProjectionParams {
                 60.0f,
                 static_cast<float>(GetWindowWidth()),

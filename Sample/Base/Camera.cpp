@@ -2,16 +2,23 @@
 // Created by johnk on 2024/5/20.
 //
 
+#include <algorithm>
+
 #include <Camera.h>
 
-Camera::Camera(const FVec3& inPos, const FVec3& inRotEulerZYX, const ProjectionParams& inProjParams)
-    : viewTransform(FQuat::FromEulerZYX(inRotEulerZYX.x, inRotEulerZYX.y, inRotEulerZYX.z), inPos)
+static constexpr float maxPitchDeg = 89.0f;
+
+Camera::Camera(const FVec3& inPos, float inPitchDeg, float inYawDeg, const ProjectionParams& inProjParams)
+    : viewTransform(FQuatConsts::identity, inPos)
     , projection(inProjParams.fov, inProjParams.width, inProjParams.height, inProjParams.nearPlane, inProjParams.farPlane)
-    , lookTarget(FVec3Consts::unitZ)
+    , pitchDeg(inPitchDeg)
+    , yawDeg(inYawDeg)
     , movingStatus()
     , moveSpeed(1.0f)
     , rotateSpeed(1.0f)
 {
+    RebuildRotation();
+
     moveVectorMap = {
         { MoveDirection::front, FVec3Consts::unitX },
         { MoveDirection::back, FVec3Consts::negaUnitX },
@@ -27,15 +34,11 @@ void Camera::SetPosition(const FVec3& inPosition)
     viewTransform.translation = inPosition;
 }
 
-void Camera::SetRotation(const FVec3& inRotEulerZYX)
+void Camera::SetRotation(float inPitchDeg, float inYawDeg)
 {
-    viewTransform.rotation = FQuat::FromEulerZYX(inRotEulerZYX.x, inRotEulerZYX.y, inRotEulerZYX.z);
-}
-
-void Camera::SetLookTarget(const FVec3& inTarget)
-{
-    lookTarget = inTarget;
-    viewTransform.LookTo(lookTarget);
+    pitchDeg = inPitchDeg;
+    yawDeg = inYawDeg;
+    RebuildRotation();
 }
 
 void Camera::SetTranslation(const FVec3& inTranslation)
@@ -49,11 +52,11 @@ void Camera::Translate(const FVec3& inTransDelta)
     viewTransform.translation += viewTransform.rotation.RotateVector(inTransDelta);
 }
 
-void Camera::Rotate(const FVec3& inRotDelta)
+void Camera::Rotate(float inPitchDeltaDeg, float inYawDeltaDeg)
 {
-    // inRotDelta is also in camera's local, but we need't to change it to world, because previous rotation will be applied first, making the coords in camera local
-    // imagine putting a new camera from wolrd's origin to the position of old camera using old transform
-    viewTransform.rotation = FQuat::FromEulerZYX(inRotDelta.x, inRotDelta.y, inRotDelta.z) * viewTransform.rotation;
+    pitchDeg += inPitchDeltaDeg;
+    yawDeg += inYawDeltaDeg;
+    RebuildRotation();
 }
 
 void Camera::PerformMove(MoveDirection direction)
@@ -119,4 +122,10 @@ bool Camera::Moving() const
         result = result || movingStatus[i];
     }
     return result;
+}
+
+void Camera::RebuildRotation()
+{
+    pitchDeg = std::clamp(pitchDeg, -maxPitchDeg, maxPitchDeg);
+    viewTransform.rotation = FQuat(FVec3Consts::unitY, pitchDeg) * FQuat(FVec3Consts::unitZ, yawDeg);
 }
