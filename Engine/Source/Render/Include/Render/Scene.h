@@ -7,6 +7,7 @@
 #include <Common/Debug.h>
 #include <Core/Thread.h>
 #include <Render/SceneProxy/Light.h>
+#include <Render/SceneProxy/Primitive.h>
 
 namespace Render {
     // Render::Scene is a container of render-thread world data copy.
@@ -14,6 +15,7 @@ namespace Render {
     class Scene final {
     public:
         using EntityId = uint32_t;
+        template <typename SP> using SceneProxyContainer = std::unordered_map<EntityId, SP>;
 
         Scene();
         ~Scene();
@@ -25,14 +27,14 @@ namespace Render {
         template <typename SP> SP& Get(EntityId inEntity);
         template <typename SP> const SP& Get(EntityId inEntity) const;
         template <typename SP> void Remove(EntityId inEntity);
+        template <typename SP> const SceneProxyContainer<SP>& All() const;
 
     private:
-        template <typename SP> using SceneProxyContainer = std::unordered_map<EntityId, SP>;
-
         template <typename SP> SceneProxyContainer<SP>& GetSceneProxyContainer();
         template <typename SP> const SceneProxyContainer<SP>& GetSceneProxyContainer() const;
 
         SceneProxyContainer<LightSceneProxy> lightSceneProxies;
+        SceneProxyContainer<PrimitiveSceneProxy> primitiveSceneProxies;
     };
 }
 
@@ -66,6 +68,13 @@ namespace Render {
     }
 
     template <typename SP>
+    const Scene::SceneProxyContainer<SP>& Scene::All() const
+    {
+        Assert(Core::ThreadContext::IsRenderThread());
+        return GetSceneProxyContainer<SP>();
+    }
+
+    template <typename SP>
     Scene::SceneProxyContainer<SP>& Scene::GetSceneProxyContainer()
     {
         Unimplement();
@@ -91,5 +100,17 @@ namespace Render {
     inline const Scene::SceneProxyContainer<LightSceneProxy>& Scene::GetSceneProxyContainer<LightSceneProxy>() const
     {
         return lightSceneProxies;
+    }
+
+    template <>
+    inline Scene::SceneProxyContainer<PrimitiveSceneProxy>& Scene::GetSceneProxyContainer<PrimitiveSceneProxy>()
+    {
+        return primitiveSceneProxies;
+    }
+
+    template <>
+    inline const Scene::SceneProxyContainer<PrimitiveSceneProxy>& Scene::GetSceneProxyContainer<PrimitiveSceneProxy>() const
+    {
+        return primitiveSceneProxies;
     }
 }

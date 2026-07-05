@@ -2,7 +2,11 @@
 // Created by johnk on 2025/3/21.
 //
 
+#include <ranges>
+
+#include <Render/ShaderCompiler.h>
 #include <Runtime/Asset/Material.h>
+#include <Runtime/Engine.h>
 
 namespace Runtime::Internal {
     static std::string GetVariantFieldMacro(const std::string& inVariantFieldName)
@@ -230,8 +234,8 @@ namespace Runtime {
             RHI::ShaderStageBits::sVertex,
             RHI::ShaderStageBits::sPixel};
         static std::unordered_map<RHI::ShaderStageBits, std::string> stageEntrySourceFileMap = {
-            {RHI::ShaderStageBits::sVertex, "Engine/Shader/BasePassVS.esl"},
-            {RHI::ShaderStageBits::sPixel, "Engine/Shader/BasePassPS.esl"}};
+            {RHI::ShaderStageBits::sVertex, "Engine/Shader/Explosion/BasePassVS.esl"},
+            {RHI::ShaderStageBits::sPixel, "Engine/Shader/Explosion/BasePassPS.esl"}};
         static std::unordered_map<RHI::ShaderStageBits, std::string> stageSimpleNameMap = {
             {RHI::ShaderStageBits::sVertex, "VS"},
             {RHI::ShaderStageBits::sPixel, "PS"}};
@@ -272,10 +276,47 @@ namespace Runtime {
                         stage,
                         stageEntrySourceFileMap.at(stage),
                         stageEntryPointMap.at(stage),
-                        std::vector {materialRootCacheDir.String()},
+                        std::vector {materialRootCacheDir.String(), std::string("Engine/Shader/Explosion")},
                         Internal::BuildShaderVariantFieldVec(variantFields)));
             }
         }
+
+        CompileShaderTypes();
+    }
+
+    void Material::PostLoad()
+    {
+        Update();
+    }
+
+    const Render::MaterialShaderType* Material::FindShaderType(Render::VertexFactoryTypeKey inVertexFactoryTypeKey, RHI::ShaderStageBits inStage) const
+    {
+        const auto stageMapIter = shaderTypes.find(inVertexFactoryTypeKey);
+        if (stageMapIter == shaderTypes.end()) {
+            return nullptr;
+        }
+        const auto shaderTypeIter = stageMapIter->second.find(inStage);
+        return shaderTypeIter == stageMapIter->second.end() ? nullptr : shaderTypeIter->second.Get();
+    }
+
+    void Material::CompileShaderTypes() const
+    {
+        std::vector<const Render::ShaderType*> typesToCompile;
+        for (const auto& stageShaderTypeMap : shaderTypes | std::views::values) {
+            for (const auto& shaderType : stageShaderTypeMap | std::views::values) {
+                typesToCompile.emplace_back(shaderType.Get());
+            }
+        }
+        if (typesToCompile.empty()) {
+            return;
+        }
+
+        const RHI::RHIType rhiType = EngineHolder::Get().GetRenderModule().GetDevice()->GetGpu().GetInstance().GetRHIType();
+
+        Render::ShaderCompileOptions options;
+        options.byteCodeType = rhiType == RHI::RHIType::directX12 ? Render::ShaderByteCodeType::dxil : Render::ShaderByteCodeType::spirv;
+        options.withDebugInfo = static_cast<bool>(BUILD_CONFIG_DEBUG); // NOLINT
+        (void) Render::ShaderTypeCompiler::Get().Compile(typesToCompile, options);
     }
 
     MaterialInstance::MaterialInstance(Core::Uri inUri)

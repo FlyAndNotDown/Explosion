@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <Core/Uri.h>
 #include <Runtime/Client.h>
 #include <Runtime/World.h>
 
@@ -21,8 +22,13 @@ namespace Editor {
         Runtime::World& GetWorld() override;
         Runtime::Viewport* GetViewport() override;
         void SetViewport(Runtime::Viewport* inViewport);
+        // loads the project's main level when present, otherwise authors the default level content (player start,
+        // ground and a cube using engine-default unlit assets materialized into the project) and saves it
+        void OpenProjectLevel();
+        void SaveLevel();
 
     private:
+        Core::Uri levelUri;
         Runtime::World world;
         Runtime::Viewport* viewport;
     };

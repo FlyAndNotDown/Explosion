@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <unordered_set>
+
 #include <Editor/EditorClient.h>
 #include <Editor/Widget/GraphicsWidget.h>
 #include <Runtime/Viewport.h>
@@ -24,19 +26,36 @@ namespace Editor {
         uint32_t GetHeight() const override;
         void Resize(uint32_t inWidth, uint32_t inHeight) override;
         void Present(const Runtime::PresentInfo& inPresentInfo) override;
+        // applies wasd/right-mouse-look input to the editor player's camera entity, called on the game thread right
+        // before the engine tick
+        void TickEditorCamera(float inDeltaSeconds);
 
     protected:
         void resizeEvent(QResizeEvent* inEvent) override;
         bool event(QEvent* inEvent) override;
+        void keyPressEvent(QKeyEvent* inEvent) override;
+        void keyReleaseEvent(QKeyEvent* inEvent) override;
+        void mousePressEvent(QMouseEvent* inEvent) override;
+        void mouseMoveEvent(QMouseEvent* inEvent) override;
+        void mouseReleaseEvent(QMouseEvent* inEvent) override;
+        void focusOutEvent(QFocusEvent* inEvent) override;
 
     private:
         void RecreateSwapChain(uint32_t inWidth, uint32_t inHeight);
         void RecreateSurfaceAndSwapChain();
         void WaitRenderingIdle() const;
+        Common::FVec3 CameraMoveInput() const;
 
         EditorClient& client;
         Common::UniquePtr<RHI::Semaphore> imageReadySemaphore;
         Common::UniquePtr<RHI::Semaphore> renderFinishedSemaphore;
         Common::UniquePtr<RHI::SwapChain> swapChain;
+
+        std::unordered_set<int> pressedKeys;
+        bool cameraLooking;
+        bool cameraAnglesInitialized;
+        float cameraYaw;
+        float cameraPitch;
+        QPoint lastMousePos;
     };
 }

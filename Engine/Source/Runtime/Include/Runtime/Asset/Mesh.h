@@ -19,6 +19,7 @@ namespace Runtime {
         EProperty() std::vector<Common::FVec3> positions;
         EProperty() std::vector<Common::FVec3> tangents;
         EProperty() std::vector<Common::FVec2> uv0;
+        EProperty() std::vector<uint32_t> indices;
         // optional
         EProperty() std::vector<Common::FVec2> uv1;
         EProperty() std::vector<Common::FVec3> colors;
@@ -38,6 +39,12 @@ namespace Runtime {
     public:
         explicit StaticMesh(Core::Uri inUri);
         ~StaticMesh() override;
+
+        EFunc() const AssetPtr<MaterialInstance>& GetMaterial() const;
+        EFunc() void SetMaterial(const AssetPtr<MaterialInstance>& inMaterial);
+        EFunc() size_t GetLODCount() const;
+        EFunc() const StaticMeshLOD& GetLOD(size_t inIndex) const;
+        EFunc() StaticMeshLOD& EmplaceLOD();
 
     private:
         EProperty() AssetPtr<MaterialInstance> material;

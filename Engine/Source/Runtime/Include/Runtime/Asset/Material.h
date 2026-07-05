@@ -179,9 +179,13 @@ namespace Runtime {
         EFunc() ParameterField& EmplaceParameterField(const std::string& inName);
 
         EFunc() void Update();
+        void PostLoad() override;
+        const Render::MaterialShaderType* FindShaderType(Render::VertexFactoryTypeKey inVertexFactoryTypeKey, RHI::ShaderStageBits inStage) const;
 
     private:
         using StageShaderTypeMap = std::unordered_map<RHI::ShaderStageBits, Common::UniquePtr<Render::MaterialShaderType>>;
+
+        void CompileShaderTypes() const;
 
         EProperty() MaterialType type;
         EProperty() std::string source;

@@ -1,0 +1,25 @@
+#include <Platform.esh>
+#include <VertexFactory.esh>
+
+VkBinding(0, 0) cbuffer vsUniform : register(b0) {
+    row_major float4x4 localToWorld;
+    row_major float4x4 worldToClip;
+};
+
+struct FragmentInput {
+    float4 position : SV_POSITION;
+    float2 uv0 : TEXCOORD0;
+};
+
+FragmentInput VSMain(VertexFactoryInput vfInput)
+{
+    const float4 worldPosition = mul(localToWorld, float4(GetLocalPosition(vfInput), 1.0f));
+
+    FragmentInput output;
+    output.position = mul(worldToClip, worldPosition);
+#if VULKAN
+    output.position.y = - output.position.y;
+#endif
+    output.uv0 = GetUv0(vfInput);
+    return output;
+}

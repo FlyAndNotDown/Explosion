@@ -11,4 +11,29 @@ namespace Runtime {
     }
 
     StaticMesh::~StaticMesh() = default;
+
+    const AssetPtr<MaterialInstance>& StaticMesh::GetMaterial() const
+    {
+        return material;
+    }
+
+    void StaticMesh::SetMaterial(const AssetPtr<MaterialInstance>& inMaterial)
+    {
+        material = inMaterial;
+    }
+
+    size_t StaticMesh::GetLODCount() const
+    {
+        return lodVec.size();
+    }
+
+    const StaticMeshLOD& StaticMesh::GetLOD(size_t inIndex) const
+    {
+        return lodVec.at(inIndex);
+    }
+
+    StaticMeshLOD& StaticMesh::EmplaceLOD()
+    {
+        return lodVec.emplace_back();
+    }
 }
