@@ -131,8 +131,8 @@ namespace Editor {
 
     EditorClient::~EditorClient()
     {
-        if (world.Activated()) {
-            world.Deactivate();
+        if (!world.Stopped()) {
+            world.Stop();
         }
     }
 
@@ -153,16 +153,15 @@ namespace Editor {
 
     void EditorClient::OpenProjectLevel()
     {
-        Assert(!world.Activated());
+        Assert(world.Stopped());
         if (Internal::AssetExists(levelUri)) {
             const auto level = Runtime::AssetManager::Get().SyncLoad<Runtime::Level>(levelUri, Mirror::Class::Get<Runtime::Level>());
             world.LoadFrom(level);
-            world.Activate();
         } else {
             Internal::AuthorDefaultLevelContent(world.GetRegistry());
-            world.Activate();
             SaveLevel();
         }
+        world.Play();
     }
 
     void EditorClient::SaveLevel()

@@ -9,8 +9,9 @@
 #include <Runtime/World.h>
 
 namespace Editor {
-    // connects the edited world with the editor viewport: owns the editor-play-type world and keeps it activated
-    // (systems ticking without entering play), the viewport widget registers itself here on construction
+    // connects the edited world with the editor viewport: owns the editor-play-type world and keeps it playing so
+    // its systems (transform/scene/render) tick while editing, the viewport widget registers itself here on
+    // construction
     class EditorClient final : public Runtime::Client {
     public:
         EditorClient();

@@ -99,7 +99,7 @@ namespace Editor {
     void EditorViewport::TickEditorCamera(float inDeltaSeconds)
     {
         auto& world = client.GetWorld();
-        if (!world.Activated()) {
+        if (!world.Playing()) {
             return;
         }
         auto& registry = world.GetRegistry();
@@ -107,10 +107,10 @@ namespace Editor {
         if (players.empty()) {
             return;
         }
-        const auto playerEntity = std::get<0>(players[0]);
+        const auto cameraEntity = std::get<0>(players[0]);
 
         if (!cameraAnglesInitialized) {
-            const auto forward = registry.Get<Runtime::WorldTransform>(playerEntity).localToWorld.GetRotationMatrix().Col(2);
+            const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(2);
             cameraYaw = std::atan2(forward.y, forward.x);
             cameraPitch = std::asin(std::clamp(forward.z, -1.0f, 1.0f));
             cameraAnglesInitialized = true;
@@ -126,7 +126,7 @@ namespace Editor {
         Common::FVec3 right = Common::FVec3(0.0f, 0.0f, 1.0f).Cross(forward);
         right.Normalize();
 
-        registry.Update<Runtime::WorldTransform>(playerEntity, [&](Runtime::WorldTransform& transform) -> void {
+        registry.Update<Runtime::WorldTransform>(cameraEntity, [&](Runtime::WorldTransform& transform) -> void {
             const float moveDelta = Internal::cameraMoveSpeed * inDeltaSeconds;
             transform.localToWorld.translation += forward * (moveInput.x * moveDelta);
             transform.localToWorld.translation += right * (moveInput.y * moveDelta);
