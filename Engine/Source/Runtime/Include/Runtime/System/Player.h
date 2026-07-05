@@ -4,11 +4,7 @@
 
 #pragma once
 
-#include <Render/RenderModule.h>
 #include <Runtime/Api.h>
-#include <Runtime/Component/Camera.h>
-#include <Runtime/Component/Player.h>
-#include <Runtime/Component/Transform.h>
 #include <Runtime/ECS.h>
 #include <Runtime/Meta.h>
 
@@ -24,58 +20,8 @@ namespace Runtime {
         ~PlayerSystem() override;
 
     private:
-        template <typename T> Entity CreatePlayer();
-        template <typename T> void CreatePlayerSpecialPart(T& inPlayer);
+        Entity CreateLocalPlayer();
 
         uint8_t activeLocalPlayerNum;
-        PlayType playType;
-        Render::RenderModule& renderModule;
     };
 }
-
-namespace Runtime {
-    template <typename T>
-    Entity PlayerSystem::CreatePlayer()
-    {
-        // a game world requires exactly one player start, an editor world tolerates an empty level and falls back to
-        // spawning the player at the identity transform; the result is copied because View() returns a temporary the
-        // reference would dangle into
-        const auto playerStartQuery = registry.View<PlayerStart, WorldTransform>().All();
-        Assert(playType == PlayType::editor ? playerStartQuery.size() <= 1 : playerStartQuery.size() == 1);
-
-        const auto playerEntity = registry.Create();
-        registry.Emplace<TransientTag>(playerEntity);
-        registry.Emplace<Camera>(playerEntity);
-        // the registered reflected constructor takes an FTransform, passing a WorldTransform copy would silently
-        // match the wrong constructor and lose the data
-        if (playerStartQuery.empty()) {
-            registry.Emplace<WorldTransform>(playerEntity);
-        } else {
-            registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStartQuery[0]).localToWorld);
-        }
-
-        auto& player = registry.Emplace<T>(playerEntity);
-        player.viewState = renderModule.NewViewState();
-        CreatePlayerSpecialPart<T>(player);
-        return playerEntity;
-    }
-
-    template <typename T>
-    inline void PlayerSystem::CreatePlayerSpecialPart(T& inPlayer) // NOLINT
-    {
-        Unimplement();
-    }
-
-    template <>
-    inline void PlayerSystem::CreatePlayerSpecialPart<LocalPlayer>(LocalPlayer& inPlayer) // NOLINT
-    {
-        inPlayer.localPlayerIndex = activeLocalPlayerNum++;
-    }
-
-#if BUILD_EDITOR
-    template <>
-    inline void PlayerSystem::CreatePlayerSpecialPart<EditorPlayer>(EditorPlayer& inPlayer) // NOLINT
-    {
-    }
-#endif
-} // namespace Runtime

@@ -11,7 +11,6 @@
 
 #include <Editor/Widget/EditorViewport.h>
 #include <Editor/Widget/moc_EditorViewport.cpp> // NOLINT
-#include <Runtime/Component/Player.h>
 #include <Runtime/Component/Transform.h>
 #include <Runtime/Engine.h>
 
@@ -99,15 +98,11 @@ namespace Editor {
     void EditorViewport::TickEditorCamera(float inDeltaSeconds)
     {
         auto& world = client.GetWorld();
-        if (!world.Playing()) {
+        const auto cameraEntity = client.GetEditorCamera();
+        if (!world.Playing() || cameraEntity == Runtime::entityNull) {
             return;
         }
         auto& registry = world.GetRegistry();
-        const auto players = registry.View<Runtime::EditorPlayer, Runtime::WorldTransform>().All();
-        if (players.empty()) {
-            return;
-        }
-        const auto cameraEntity = std::get<0>(players[0]);
 
         if (!cameraAnglesInitialized) {
             const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(2);

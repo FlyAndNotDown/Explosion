@@ -4,11 +4,9 @@
 
 #pragma once
 
-#include <Render/View.h>
 #include <Runtime/Meta.h>
 #include <Runtime/ECS.h>
 #include <Runtime/Api.h>
-#include <Runtime/RenderThreadPtr.h>
 
 namespace Runtime {
     struct RUNTIME_API EClass(globalComp, transient) PlayersInfo {
@@ -25,18 +23,7 @@ namespace Runtime {
         LocalPlayer();
 
         uint8_t localPlayerIndex;
-        RenderThreadPtr<Render::ViewState> viewState;
     };
-
-#if BUILD_EDITOR
-    struct RUNTIME_API EClass(transient) EditorPlayer {
-        EClassBody(EditorVirtualPlayer)
-
-        EditorPlayer();
-
-        RenderThreadPtr<Render::ViewState> viewState;
-    };
-#endif
 
     struct RUNTIME_API EClass(comp) PlayerStart {
         EClassBody(PlayerStart)

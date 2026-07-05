@@ -9,6 +9,7 @@
 #include <Runtime/Asset/Level.h>
 #include <Runtime/Asset/Material.h>
 #include <Runtime/Asset/Mesh.h>
+#include <Runtime/Component/Camera.h>
 #include <Runtime/Component/Player.h>
 #include <Runtime/Component/Primitive.h>
 #include <Runtime/Component/Transform.h>
@@ -125,6 +126,7 @@ namespace Editor {
         : levelUri(Internal::mainLevelUri)
         , world("EditorWorld", this, Runtime::PlayType::editor)
         , viewport(nullptr)
+        , editorCamera(Runtime::entityNull)
     {
         world.SetSystemGraph(Runtime::SystemGraphPresets::Default3DWorld());
     }
@@ -161,6 +163,7 @@ namespace Editor {
             Internal::AuthorDefaultLevelContent(world.GetRegistry());
             SaveLevel();
         }
+        CreateEditorCamera();
         world.Play();
     }
 
@@ -169,5 +172,21 @@ namespace Editor {
         Runtime::AssetPtr<Runtime::Level> level = new Runtime::Level(levelUri);
         world.SaveTo(level);
         Internal::SaveAsset(level);
+    }
+
+    Runtime::Entity EditorClient::GetEditorCamera() const
+    {
+        return editorCamera;
+    }
+
+    void EditorClient::CreateEditorCamera()
+    {
+        auto& registry = world.GetRegistry();
+        editorCamera = registry.Create();
+        registry.Emplace<Runtime::TransientTag>(editorCamera);
+        registry.Emplace<Runtime::Camera>(editorCamera);
+        // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
+        const Common::FTransform cameraTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
+        registry.Emplace<Runtime::WorldTransform>(editorCamera, cameraTransform);
     }
 }

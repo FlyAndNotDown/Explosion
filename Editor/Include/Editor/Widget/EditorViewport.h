@@ -26,7 +26,7 @@ namespace Editor {
         uint32_t GetHeight() const override;
         void Resize(uint32_t inWidth, uint32_t inHeight) override;
         void Present(const Runtime::PresentInfo& inPresentInfo) override;
-        // applies wasd/right-mouse-look input to the editor player's camera entity, called on the game thread right
+        // applies wasd/right-mouse-look input to the editor camera entity, called on the game thread right
         // before the engine tick
         void TickEditorCamera(float inDeltaSeconds);
 

@@ -27,10 +27,16 @@ namespace Editor {
         // ground and a cube using engine-default unlit assets materialized into the project) and saves it
         void OpenProjectLevel();
         void SaveLevel();
+        // the transient camera entity the editor viewport renders through and moves, entityNull before the level
+        // is opened
+        Runtime::Entity GetEditorCamera() const;
 
     private:
+        void CreateEditorCamera();
+
         Core::Uri levelUri;
         Runtime::World world;
         Runtime::Viewport* viewport;
+        Runtime::Entity editorCamera;
     };
 }
