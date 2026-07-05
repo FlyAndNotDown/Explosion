@@ -15,10 +15,10 @@
 #include <Runtime/SystemGraphPresets.h>
 
 namespace Editor::Internal {
-    constexpr const char* mainLevelUri = "asset://Game/Maps/Main";
-    constexpr const char* defaultUnlitMaterialUri = "asset://Game/Materials/DefaultUnlit";
-    constexpr const char* defaultUnlitInstanceUri = "asset://Game/Materials/DefaultUnlitInstance";
-    constexpr const char* cubeMeshUri = "asset://Game/Meshes/Cube";
+    const Core::Uri mainLevelUri("asset://Game/Maps/Main");
+    const Core::Uri defaultUnlitMaterialUri("asset://Game/Materials/DefaultUnlit");
+    const Core::Uri defaultUnlitInstanceUri("asset://Game/Materials/DefaultUnlitInstance");
+    const Core::Uri cubeMeshUri("asset://Game/Meshes/Cube");
 
     static bool AssetExists(const Core::Uri& inUri)
     {
@@ -39,7 +39,7 @@ namespace Editor::Internal {
     {
         // 24 vertices (4 per face) so each face gets its own uv space, z-up unit cube centered at origin
         static constexpr float h = 0.5f;
-        static constexpr std::array<std::array<Common::FVec3, 4>, 6> facePositions = {{
+        static const std::array<std::array<Common::FVec3, 4>, 6> facePositions = {{
             {{ { -h, -h, h }, { h, -h, h }, { h, h, h }, { -h, h, h } }},     // +z
             {{ { -h, h, -h }, { h, h, -h }, { h, -h, -h }, { -h, -h, -h } }}, // -z
             {{ { h, -h, -h }, { h, h, -h }, { h, h, h }, { h, -h, h } }},     // +x
@@ -97,24 +97,24 @@ namespace Editor::Internal {
     {
         const Runtime::AssetPtr<Runtime::StaticMesh> cubeMesh = EnsureDefaultCubeMesh();
 
+        // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
         const auto ground = inRegistry.Create();
-        Runtime::WorldTransform groundTransform;
-        groundTransform.localToWorld.scale = Common::FVec3(10.0f, 10.0f, 0.2f);
-        groundTransform.localToWorld.translation = Common::FVec3(0.0f, 0.0f, -0.1f);
+        Common::FTransform groundTransform;
+        groundTransform.scale = Common::FVec3(10.0f, 10.0f, 0.2f);
+        groundTransform.translation = Common::FVec3(0.0f, 0.0f, -0.1f);
         inRegistry.Emplace<Runtime::WorldTransform>(ground, groundTransform);
         auto& groundPrimitive = inRegistry.Emplace<Runtime::StaticPrimitive>(ground);
         groundPrimitive.mesh = cubeMesh;
 
         const auto cube = inRegistry.Create();
-        Runtime::WorldTransform cubeTransform;
-        cubeTransform.localToWorld.translation = Common::FVec3(0.0f, 0.0f, 0.5f);
+        Common::FTransform cubeTransform;
+        cubeTransform.translation = Common::FVec3(0.0f, 0.0f, 0.5f);
         inRegistry.Emplace<Runtime::WorldTransform>(cube, cubeTransform);
         auto& cubePrimitive = inRegistry.Emplace<Runtime::StaticPrimitive>(cube);
         cubePrimitive.mesh = cubeMesh;
 
         const auto playerStart = inRegistry.Create();
-        Runtime::WorldTransform playerStartTransform;
-        playerStartTransform.localToWorld = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
+        const Common::FTransform playerStartTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
         inRegistry.Emplace<Runtime::WorldTransform>(playerStart, playerStartTransform);
         inRegistry.Emplace<Runtime::PlayerStart>(playerStart);
     }

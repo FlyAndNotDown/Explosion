@@ -4,11 +4,10 @@
 
 #pragma once
 
-#include <Render/Api.h>
 #include <Render/Shader.h>
 
 namespace Render {
-    class RENDER_API StaticMeshVertexFactory final : public StaticVertexFactoryType<StaticMeshVertexFactory> {
+    class StaticMeshVertexFactory final : public StaticVertexFactoryType<StaticMeshVertexFactory> {
     public:
         VertexFactoryTypeInfo(StaticMeshVertexFactory, "Engine/Shader/Explosion/VertexFactory/StaticMesh/VertexFactory.esh")
         DeclVertexInput(PositionInput, POSITION, RHI::VertexFormat::float32X3, 0)

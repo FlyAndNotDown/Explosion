@@ -24,7 +24,7 @@ namespace Render::Internal {
 
     struct BasePassDraw {
         size_t viewIndex;
-        RasterPipeline* pipeline;
+        RasterPipelineState* pipeline;
         RGBindGroupRef bindGroup;
         RGBufferViewRef vertexBufferView;
         RGBufferViewRef indexBufferView;
@@ -82,7 +82,9 @@ namespace Render {
                 .SetSamples(1)
                 .SetInitialState(RHI::TextureState::depthStencilWrite)
                 .SetDebugName("sceneDepth"));
-        auto* depthTextureView = rgBuilder.CreateTextureView(depthTexture, RGTextureViewDesc(RHI::TextureViewType::depthStencil, RHI::TextureViewDimension::tv2D));
+        // written but never sampled, keep the graph cull from dropping the depth attachment
+        depthTexture->MaskAsUsed();
+        auto* depthTextureView = rgBuilder.CreateTextureView(depthTexture, RGTextureViewDesc(RHI::TextureViewType::depthStencil, RHI::TextureViewDimension::tv2D, RHI::TextureAspect::depth));
 
         std::vector<Internal::BasePassDraw> draws;
         std::vector<RGBindGroupRef> passBindGroups;

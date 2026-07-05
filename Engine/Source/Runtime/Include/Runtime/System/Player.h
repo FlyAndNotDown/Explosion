@@ -38,17 +38,20 @@ namespace Runtime {
     Entity PlayerSystem::CreatePlayer()
     {
         // a game world requires exactly one player start, an editor world tolerates an empty level and falls back to
-        // spawning the player at the identity transform
-        const auto& playerStartQuery = registry.View<PlayerStart, WorldTransform>().All();
+        // spawning the player at the identity transform; the result is copied because View() returns a temporary the
+        // reference would dangle into
+        const auto playerStartQuery = registry.View<PlayerStart, WorldTransform>().All();
         Assert(playType == PlayType::editor ? playerStartQuery.size() <= 1 : playerStartQuery.size() == 1);
 
         const auto playerEntity = registry.Create();
         registry.Emplace<TransientTag>(playerEntity);
         registry.Emplace<Camera>(playerEntity);
+        // the registered reflected constructor takes an FTransform, passing a WorldTransform copy would silently
+        // match the wrong constructor and lose the data
         if (playerStartQuery.empty()) {
             registry.Emplace<WorldTransform>(playerEntity);
         } else {
-            registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStartQuery[0]));
+            registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStartQuery[0]).localToWorld);
         }
 
         auto& player = registry.Emplace<T>(playerEntity);

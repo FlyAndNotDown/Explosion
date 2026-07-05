@@ -8,7 +8,7 @@ VkBinding(1, 0) cbuffer materialUniform : register(b0) {
 
 struct FragmentInput {
     float4 position : SV_POSITION;
-    float2 uv0 : TEXCOORD0;
+    float2 uv0 : TEXCOORD;
 };
 
 float4 PSMain(FragmentInput input) : SV_TARGET

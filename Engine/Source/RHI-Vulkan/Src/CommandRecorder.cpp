@@ -467,7 +467,11 @@ namespace RHI::Vulkan {
 
             renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
-            if (!inBeginInfo.depthStencilAttachment->depthReadOnly) {
+            // depth-only formats must not present a stencil attachment, otherwise validation requires the
+            // pipeline's (undefined) stencil format to match the view format
+            const auto depthStencilFormat = depthStencilTextureView->GetTexture().GetCreateInfo().format;
+            const bool hasStencil = depthStencilFormat == PixelFormat::d32FloatS8Uint || depthStencilFormat == PixelFormat::d24UnormS8Uint;
+            if (hasStencil && !inBeginInfo.depthStencilAttachment->depthReadOnly) {
                 stencilAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
                 stencilAttachmentInfo.imageView = depthStencilTextureView->GetNative();
                 stencilAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;

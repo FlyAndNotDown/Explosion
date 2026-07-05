@@ -28,8 +28,6 @@ namespace Render {
 
         void Initialize(const RenderModuleInitParams& inParams);
         void DeInitialize();
-        // called on render thread once per frame, reclaims pooled resources/caches not used for several frames
-        void ForfeitFrameResources() const;
         RHI::Device* GetDevice() const;
         Render::RenderThread& GetRenderThread() const;
         Scene* NewScene() const;

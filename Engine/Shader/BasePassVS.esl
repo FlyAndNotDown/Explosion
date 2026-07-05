@@ -8,7 +8,7 @@ VkBinding(0, 0) cbuffer vsUniform : register(b0) {
 
 struct FragmentInput {
     float4 position : SV_POSITION;
-    float2 uv0 : TEXCOORD0;
+    float2 uv0 : TEXCOORD;
 };
 
 FragmentInput VSMain(VertexFactoryInput vfInput)

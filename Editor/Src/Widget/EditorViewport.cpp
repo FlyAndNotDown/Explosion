@@ -77,12 +77,13 @@ namespace Editor {
 
     uint32_t EditorViewport::GetWidth() const
     {
-        return static_cast<uint32_t>(std::max(width(), 1));
+        // physical pixels: the swapchain (and thus the render targets) live in device pixel space
+        return static_cast<uint32_t>(std::max(1.0, width() * devicePixelRatioF()));
     }
 
     uint32_t EditorViewport::GetHeight() const
     {
-        return static_cast<uint32_t>(std::max(height(), 1));
+        return static_cast<uint32_t>(std::max(1.0, height() * devicePixelRatioF()));
     }
 
     void EditorViewport::Resize(uint32_t inWidth, uint32_t inHeight)
@@ -139,7 +140,7 @@ namespace Editor {
         GraphicsWidget::resizeEvent(inEvent);
         if (const QSize size = inEvent->size();
             swapChain.Valid() && size.width() > 0 && size.height() > 0) {
-            RecreateSwapChain(static_cast<uint32_t>(size.width()), static_cast<uint32_t>(size.height()));
+            RecreateSwapChain(GetWidth(), GetHeight());
         }
     }
 
