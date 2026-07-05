@@ -23,15 +23,6 @@ namespace Editor::Internal {
     constexpr float cameraLookSpeedDegrees = 0.2f;
     constexpr float maxCameraPitchDegrees = 89.0f;
     constexpr float degToRad = 3.14159265358979323846f / 180.0f;
-
-    static Common::FVec3 DirectionFromYawPitch(float inYawRadians, float inPitchRadians)
-    {
-        return {
-            std::cos(inPitchRadians) * std::cos(inYawRadians),
-            std::cos(inPitchRadians) * std::sin(inYawRadians),
-            std::sin(inPitchRadians)
-        };
-    }
 }
 
 namespace Editor {
@@ -105,9 +96,10 @@ namespace Editor {
         auto& registry = world.GetRegistry();
 
         if (!cameraAnglesInitialized) {
-            // the entity forward axis is local +x, see Transform::UpdateRotation
+            // entity forward is local +x; the no-roll rig is Qy(pitch)*Qz(yaw) (yaw about world +z outermost) whose
+            // forward column is (cosP cosY, -cosP sinY, sinP), so recover the angles matching that sign convention
             const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(0);
-            cameraYaw = std::atan2(forward.y, forward.x);
+            cameraYaw = std::atan2(-forward.y, forward.x);
             cameraPitch = std::asin(std::clamp(forward.z, -1.0f, 1.0f));
             cameraAnglesInitialized = true;
         }
@@ -118,16 +110,20 @@ namespace Editor {
             return;
         }
 
-        const Common::FVec3 forward = Internal::DirectionFromYawPitch(cameraYaw, cameraPitch);
-        Common::FVec3 right = Common::FVec3(0.0f, 0.0f, 1.0f).Cross(forward);
-        right.Normalize();
+        // rebuild the orientation from the absolute pitch/yaw pair exactly like Sample/Base/Camera: composing yaw about
+        // the world up axis outermost keeps the right vector horizontal, so the view can never accumulate roll
+        const Common::FQuat orientation =
+            Common::FQuat(Common::FVec3Consts::unitY, Common::FRadian(cameraPitch))
+            * Common::FQuat(Common::FVec3Consts::unitZ, Common::FRadian(cameraYaw));
+        const Common::FVec3 forward = orientation.RotateVector(Common::FVec3Consts::unitX);
+        const Common::FVec3 right = orientation.RotateVector(Common::FVec3Consts::unitY);
 
         registry.Update<Runtime::WorldTransform>(cameraEntity, [&](Runtime::WorldTransform& transform) -> void {
             const float moveDelta = Internal::cameraMoveSpeed * inDeltaSeconds;
             transform.localToWorld.translation += forward * (moveInput.x * moveDelta);
             transform.localToWorld.translation += right * (moveInput.y * moveDelta);
             transform.localToWorld.translation += Common::FVec3(0.0f, 0.0f, 1.0f) * (moveInput.z * moveDelta);
-            transform.localToWorld.LookTo(transform.localToWorld.translation + forward);
+            transform.localToWorld.rotation = orientation;
         });
     }
 
