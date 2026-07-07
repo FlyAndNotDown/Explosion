@@ -47,6 +47,8 @@ namespace Render {
         , scene(inParams.scene)
         , surface(inParams.surface)
         , surfaceExtent(inParams.surfaceExtent)
+        , surfaceBeforeRenderState(inParams.surfaceBeforeRenderState)
+        , surfaceAfterRenderState(inParams.surfaceAfterRenderState)
         , views(inParams.views)
         , waitSemaphore(inParams.waitSemaphore)
         , signalSemaphore(inParams.signalSemaphore)
@@ -68,7 +70,7 @@ namespace Render {
     {
         const RHI::PixelFormat colorFormat = surface->GetCreateInfo().format;
 
-        auto* backTexture = rgBuilder.ImportTexture(surface, RHI::TextureState::present);
+        auto* backTexture = rgBuilder.ImportTexture(surface, surfaceBeforeRenderState);
         auto* backTextureView = rgBuilder.CreateTextureView(backTexture, RGTextureViewDesc(RHI::TextureViewType::colorAttachment, RHI::TextureViewDimension::tv2D));
         auto* depthTexture = rgBuilder.CreateTexture(
             RGTextureDesc()
@@ -174,7 +176,7 @@ namespace Render {
                     recorder.SetViewport(
                         static_cast<float>(viewport.min.x), static_cast<float>(viewport.min.y),
                         static_cast<float>(viewport.ExtentX()), static_cast<float>(viewport.ExtentY()), 0.0f, 1.0f);
-                    recorder.SetScissor(viewport.min.x, viewport.min.y, viewport.ExtentX(), viewport.ExtentY());
+                    recorder.SetScissor(viewport.min.x, viewport.min.y, viewport.max.x, viewport.max.y);
                     recorder.SetPrimitiveTopology(RHI::PrimitiveTopology::triangleList);
 
                     for (const auto& draw : draws) {
@@ -190,13 +192,17 @@ namespace Render {
                 }
             },
             {},
-            [backTexture](const RGBuilder& rg, RHI::CommandRecorder& recorder) -> void {
-                recorder.ResourceBarrier(RHI::Barrier::Transition(rg.GetRHI(backTexture), RHI::TextureState::renderTarget, RHI::TextureState::present));
+            [backTexture, surfaceAfterRenderState = surfaceAfterRenderState](const RGBuilder& rg, RHI::CommandRecorder& recorder) -> void {
+                recorder.ResourceBarrier(RHI::Barrier::Transition(rg.GetRHI(backTexture), RHI::TextureState::renderTarget, surfaceAfterRenderState));
             });
 
         RGExecuteInfo executeInfo;
-        executeInfo.semaphoresToWait = { waitSemaphore };
-        executeInfo.semaphoresToSignal = { signalSemaphore };
+        if (waitSemaphore != nullptr) {
+            executeInfo.semaphoresToWait.emplace_back(waitSemaphore);
+        }
+        if (signalSemaphore != nullptr) {
+            executeInfo.semaphoresToSignal.emplace_back(signalSemaphore);
+        }
         executeInfo.inFenceToSignal = signalFence;
         rgBuilder.Execute(executeInfo);
 

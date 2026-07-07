@@ -4,37 +4,32 @@
 
 #pragma once
 
-#include <QObject>
-
 #include <Common/Memory.h>
-#include <Editor/EditorClient.h>
+#include <Editor/SceneClient.h>
 
 namespace Editor {
-    // single source of truth for one open editor session: owns the edited world's client, the selection state and
-    // the change notifications shared across panels; all entity-level edits funnel through here so every panel
-    // observes the same signals
-    class EditorContext final : public QObject {
-        Q_OBJECT
-
+    class EditorContext final {
     public:
-        explicit EditorContext(QObject* inParent = nullptr);
-        ~EditorContext() override;
+        EditorContext();
+        ~EditorContext();
 
-        EditorClient& GetClient() const;
+        SceneClient& GetSceneClient() const;
         Runtime::Entity GetSelectedEntity() const;
+        uint64_t GetSelectionVersion() const;
+        uint64_t GetWorldStructureVersion() const;
+        uint64_t GetComponentsVersion() const;
+
         void SetSelectedEntity(Runtime::Entity inEntity);
         Runtime::Entity CreateEntity(const std::string& inName);
         void DestroyEntity(Runtime::Entity inEntity);
         void RenameEntity(Runtime::Entity inEntity, const std::string& inName);
         void NotifyComponentsChanged(Runtime::Entity inEntity);
 
-    Q_SIGNALS:
-        void SelectionChanged(Runtime::Entity inEntity);
-        void WorldStructureChanged();
-        void ComponentsChanged(Runtime::Entity inEntity);
-
     private:
-        Common::UniquePtr<EditorClient> client;
+        Common::UniquePtr<SceneClient> sceneClient;
         Runtime::Entity selectedEntity;
+        uint64_t selectionVersion;
+        uint64_t worldStructureVersion;
+        uint64_t componentsVersion;
     };
 }

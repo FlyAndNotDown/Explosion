@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include <Runtime/Viewport.h>
 #include <Runtime/Api.h>
+#include <Runtime/RenderSurface.h>
 
 namespace Runtime {
     class World;
@@ -15,9 +15,7 @@ namespace Runtime {
         virtual ~Client();
 
         virtual World& GetWorld() = 0;
-        // maybe nullptr when the client has no active viewport (e.g. headless world or editor viewport closed),
-        // rendering is skipped in that case
-        virtual Viewport* GetViewport() = 0;
+        virtual RenderSurface* GetRenderSurface() = 0;
 
     protected:
         Client();

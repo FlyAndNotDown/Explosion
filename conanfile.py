@@ -5,7 +5,6 @@ class ExplosionConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
 
     def requirements(self):
-        self.requires("cpp-httplib/0.27.0")
         self.requires("stb/cci.20230920")
         self.requires("cityhash/1.0.1")
         self.requires("gtest/1.17.0")
@@ -18,12 +17,12 @@ class ExplosionConan(ConanFile):
         self.requires("vulkan-validationlayers/1.4.350.0")
         self.requires("glfw/3.4")
         self.requires("rapidjson/cci.20250205")
+        self.requires("imgui/1.92.8-docking")
         if self.settings.os == "Windows":
             self.requires("directx-headers/1.610.2")
 
         # private repo
         self.requires("libclang/22.1.6-exp")
-        self.requires("qt/6.10.3-exp")
         self.requires("debugbreak/1.0-exp")
         self.requires("assimp/6.0.2-exp")
         self.requires("clipp/1.2.3-exp")

@@ -24,7 +24,6 @@ You need install those tools to system by yourself and add them to path:
 * [Conan](https://github.com/conan-io/conan)
 * [CMake](https://cmake.org/download/)
 * [Ninja](https://github.com/ninja-build/ninja)
-* [Node.js](https://nodejs.org/en/download)
 
 build steps of engine may use them.
 
@@ -139,6 +138,7 @@ Thanks all those following projects:
 * [Vulkan](https://www.vulkan.org/)
 * [DirectXShaderCompiler](https://github.com/microsoft/DirectXShaderCompiler)
 * [GLFW](https://www.glfw.org/)
+* [Dear ImGui](https://github.com/ocornut/imgui)
 * [clipp](https://github.com/muellan/clipp)
 * [debugbreak](https://github.com/scottt/debugbreak)
 * [LLVM](https://llvm.org/)
@@ -151,13 +151,8 @@ Thanks all those following projects:
 * [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)
 * [assimp](https://github.com/assimp/assimp)
 * [VulkanMemoryAllocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
-* [Qt6](https://www.qt.io/product/qt6)
 * [rapidjson](https://github.com/Tencent/rapidjson)
 * [cpp-httplib](https://github.com/yhirose/cpp-httplib)
-* [React](https://react.dev)
-* [Vite](https://vite.dev)
-* [HeroUI](https://www.heroui.com)
-* [TailWindCSS](https://tailwindcss.com)
 
 # License
 

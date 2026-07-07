@@ -19,7 +19,6 @@ namespace RHI::Vulkan {
         , nativeAspect(VK_IMAGE_ASPECT_COLOR_BIT)
         , ownMemory(false)
     {
-        TransitionToInitState(inCreateInfo);
     }
 
     VulkanTexture::VulkanTexture(VulkanDevice& inDevice, const TextureCreateInfo& inCreateInfo)

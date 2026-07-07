@@ -8,18 +8,18 @@
 #include <Runtime/World.h>
 
 namespace Launch {
-    class GameViewport;
+    class GameWindow;
 
     class GameClient final : public Runtime::Client {
     public:
-        explicit GameClient(GameViewport& inViewport);
+        explicit GameClient(GameWindow& inWindow);
         ~GameClient() override;
 
-        Runtime::Viewport* GetViewport() override;
         Runtime::World& GetWorld() override;
+        Runtime::RenderSurface* GetRenderSurface() override;
 
     private:
-        GameViewport& viewport;
+        GameWindow& window;
         Runtime::World world;
     };
 }

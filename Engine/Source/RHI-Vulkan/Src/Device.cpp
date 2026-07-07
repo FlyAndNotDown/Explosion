@@ -37,9 +37,6 @@ namespace RHI::Vulkan {
 #endif
     };
 
-    const std::vector requiredValidationLayers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
 }
 
 namespace RHI::Vulkan {
@@ -282,11 +279,6 @@ namespace RHI::Vulkan {
 
         deviceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
         deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-
-#if BUILD_CONFIG_DEBUG
-        deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(requiredValidationLayers.size());
-        deviceCreateInfo.ppEnabledLayerNames = requiredValidationLayers.data();
-#endif
 
         Assert(vkCreateDevice(gpu.GetNative(), &deviceCreateInfo, nullptr, &nativeDevice) == VK_SUCCESS);
     }

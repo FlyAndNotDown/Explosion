@@ -3,28 +3,44 @@
 //
 
 #include <Editor/EditorContext.h>
-#include <Editor/moc_EditorContext.cpp> // NOLINT
 #include <Runtime/Component/Name.h>
 #include <Runtime/Component/Transform.h>
 
 namespace Editor {
-    EditorContext::EditorContext(QObject* inParent)
-        : QObject(inParent)
-        , client(Common::MakeUnique<EditorClient>())
+    EditorContext::EditorContext()
+        : sceneClient(Common::MakeUnique<SceneClient>())
         , selectedEntity(Runtime::entityNull)
+        , selectionVersion(0)
+        , worldStructureVersion(0)
+        , componentsVersion(0)
     {
     }
 
     EditorContext::~EditorContext() = default;
 
-    EditorClient& EditorContext::GetClient() const
+    SceneClient& EditorContext::GetSceneClient() const
     {
-        return *client;
+        return *sceneClient;
     }
 
     Runtime::Entity EditorContext::GetSelectedEntity() const
     {
         return selectedEntity;
+    }
+
+    uint64_t EditorContext::GetSelectionVersion() const
+    {
+        return selectionVersion;
+    }
+
+    uint64_t EditorContext::GetWorldStructureVersion() const
+    {
+        return worldStructureVersion;
+    }
+
+    uint64_t EditorContext::GetComponentsVersion() const
+    {
+        return componentsVersion;
     }
 
     void EditorContext::SetSelectedEntity(Runtime::Entity inEntity)
@@ -33,23 +49,23 @@ namespace Editor {
             return;
         }
         selectedEntity = inEntity;
-        emit SelectionChanged(selectedEntity);
+        selectionVersion++;
     }
 
     Runtime::Entity EditorContext::CreateEntity(const std::string& inName)
     {
-        auto& registry = client->GetWorld().GetRegistry();
+        auto& registry = sceneClient->GetWorld().GetRegistry();
         const auto entity = registry.Create();
-        // Name's reflected constructor takes a std::string
+        // Name's reflected constructor takes a std::string.
         registry.Emplace<Runtime::Name>(entity, inName);
         registry.Emplace<Runtime::WorldTransform>(entity);
-        emit WorldStructureChanged();
+        worldStructureVersion++;
         return entity;
     }
 
     void EditorContext::DestroyEntity(Runtime::Entity inEntity)
     {
-        auto& registry = client->GetWorld().GetRegistry();
+        auto& registry = sceneClient->GetWorld().GetRegistry();
         if (!registry.Valid(inEntity)) {
             return;
         }
@@ -57,12 +73,12 @@ namespace Editor {
         if (selectedEntity == inEntity) {
             SetSelectedEntity(Runtime::entityNull);
         }
-        emit WorldStructureChanged();
+        worldStructureVersion++;
     }
 
     void EditorContext::RenameEntity(Runtime::Entity inEntity, const std::string& inName)
     {
-        auto& registry = client->GetWorld().GetRegistry();
+        auto& registry = sceneClient->GetWorld().GetRegistry();
         if (!registry.Valid(inEntity)) {
             return;
         }
@@ -71,11 +87,11 @@ namespace Editor {
         } else {
             registry.Emplace<Runtime::Name>(inEntity, inName);
         }
-        emit WorldStructureChanged();
+        worldStructureVersion++;
     }
 
-    void EditorContext::NotifyComponentsChanged(Runtime::Entity inEntity)
+    void EditorContext::NotifyComponentsChanged(Runtime::Entity)
     {
-        emit ComponentsChanged(inEntity);
+        componentsVersion++;
     }
 }

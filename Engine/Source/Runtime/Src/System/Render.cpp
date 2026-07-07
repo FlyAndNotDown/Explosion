@@ -11,6 +11,7 @@
 #include <Runtime/Component/Transform.h>
 #include <Runtime/Engine.h>
 #include <Runtime/System/Render.h>
+#include <Runtime/Window.h>
 
 namespace Runtime {
     RenderSystem::RenderSystem(ECRegistry& inRegistry, const SystemSetupContext& inContext)
@@ -31,37 +32,53 @@ namespace Runtime {
 
     void RenderSystem::Tick(float inDeltaTimeSeconds)
     {
-        auto* clientViewport = client != nullptr ? client->GetViewport() : nullptr;
-        if (clientViewport == nullptr) {
+        auto* target = client != nullptr ? client->GetRenderSurface() : nullptr;
+        if (target == nullptr) {
             return;
         }
+        auto* window = dynamic_cast<Window*>(target);
+
+        auto* texture = target->GetTexture();
+        Assert(texture != nullptr);
+        const auto& textureDesc = texture->GetCreateInfo();
 
         renderModule.GetRenderThread().EmplaceTask(
             [
                 fence = lastFrameFence,
                 views = BuildViews(),
                 scene = registry.GGet<SceneHolder>().scene.Get(),
-                surfaceExtent = Common::UVec2(clientViewport->GetWidth(), clientViewport->GetHeight()),
-                viewport = clientViewport,
+                surfaceExtent = Common::UVec2(textureDesc.width, textureDesc.height),
+                target,
+                window,
                 renderModule = &renderModule,
                 inDeltaTimeSeconds
             ]() -> void {
                 fence->Reset();
-                const auto presentInfo = viewport->GetNextPresentInfo();
+                if (window != nullptr) {
+                    window->AcquireBackTexture();
+                }
 
                 Render::StandardRenderer::Params rendererParams;
                 rendererParams.device = renderModule->GetDevice();
                 rendererParams.scene = scene;
-                rendererParams.surface = presentInfo.backTexture;
+                rendererParams.surface = target->GetTexture();
                 rendererParams.surfaceExtent = surfaceExtent;
+                rendererParams.surfaceBeforeRenderState = window != nullptr
+                    ? window->GetCurrentBackTextureState()
+                    : RHI::TextureState::shaderReadOnly;
+                rendererParams.surfaceAfterRenderState = window != nullptr
+                    ? RHI::TextureState::present
+                    : RHI::TextureState::shaderReadOnly;
                 rendererParams.views = views;
-                rendererParams.waitSemaphore = presentInfo.imageReadySemaphore;
-                rendererParams.signalSemaphore = presentInfo.renderFinishedSemaphore;
+                rendererParams.waitSemaphore = window != nullptr ? window->GetImageReadySemaphore() : nullptr;
+                rendererParams.signalSemaphore = window != nullptr ? window->GetRenderFinishedSemaphore() : nullptr;
                 rendererParams.signalFence = fence;
 
                 auto renderer = renderModule->CreateStandardRenderer(rendererParams);
                 renderer.Render(inDeltaTimeSeconds);
-                viewport->Present(presentInfo);
+                if (window != nullptr) {
+                    window->Present();
+                }
                 // this frame's gpu work must finish before the renderer (and its recorded command buffers /
                 // transient resources) goes out of scope, and it keeps the shared semaphores safe to reuse
                 fence->Wait();
@@ -91,17 +108,18 @@ namespace Runtime {
     {
         auto& camera = registry.Get<Camera>(inEntity);
         const auto& worldTransform = registry.Get<WorldTransform>(inEntity);
-        const auto& clientViewport = *client->GetViewport();
-
-        const auto width = clientViewport.GetWidth();
-        const auto height = clientViewport.GetHeight();
+        auto* target = client->GetRenderSurface();
+        Assert(target != nullptr && target->GetTexture() != nullptr);
+        const auto& textureDesc = target->GetTexture()->GetCreateInfo();
+        const auto width = textureDesc.width;
+        const auto height = textureDesc.height;
 
         if (camera.viewState == nullptr) {
             camera.viewState = renderModule.NewViewState();
         }
 
         // a player camera renders into its split-screen sub-viewport, any other camera (e.g. the editor camera)
-        // covers the whole client viewport
+        // covers the whole render surface
         Common::URect viewportRect = { 0, 0, width, height };
         if (registry.Has<LocalPlayer>(inEntity)) {
             const auto& playersInfo = registry.GGet<PlayersInfo>();

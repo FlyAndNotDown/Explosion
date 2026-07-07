@@ -5,7 +5,8 @@
 #pragma once
 
 #include <Common/Memory.h>
-#include <Launch/GameViewport.h>
+#include <Launch/GameClient.h>
+#include <Launch/GameWindow.h>
 #include <Runtime/Engine.h>
 #include <Runtime/GameModule.h>
 
@@ -22,7 +23,8 @@ namespace Launch {
         double lastFrameTimeSeconds;
         double thisFrameTimeSeconds;
         float deltaTimeSeconds;
-        Common::UniquePtr<GameViewport> viewport;
+        Common::UniquePtr<GameWindow> window;
+        Common::UniquePtr<GameClient> client;
         Runtime::Engine* engine;
         Runtime::GameModule* gameModule;
     };

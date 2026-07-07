@@ -7,8 +7,9 @@
 #include <Common/Math/Rect.h>
 #include <Render/RenderModule.h>
 #include <Render/View.h>
-#include <Runtime/ECS.h>
 #include <Runtime/Client.h>
+#include <Runtime/ECS.h>
+#include <Runtime/RenderSurface.h>
 #include <Runtime/Api.h>
 
 namespace Runtime {

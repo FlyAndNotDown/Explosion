@@ -22,6 +22,8 @@ namespace Render {
             const Scene* scene;
             RHI::Texture* surface;
             Common::UVec2 surfaceExtent;
+            RHI::TextureState surfaceBeforeRenderState;
+            RHI::TextureState surfaceAfterRenderState;
             std::vector<View> views;
             RHI::Semaphore* waitSemaphore;
             RHI::Semaphore* signalSemaphore;
@@ -38,6 +40,8 @@ namespace Render {
         const Scene* scene;
         RHI::Texture* surface;
         Common::UVec2 surfaceExtent;
+        RHI::TextureState surfaceBeforeRenderState;
+        RHI::TextureState surfaceAfterRenderState;
         std::vector<View> views;
         RHI::Semaphore* waitSemaphore;
         RHI::Semaphore* signalSemaphore;
