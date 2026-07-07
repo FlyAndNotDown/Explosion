@@ -44,6 +44,8 @@ namespace Editor {
         void RecreateSwapChain(uint32_t inWidth, uint32_t inHeight);
         void RecreateSurfaceAndSwapChain();
         void WaitRenderingIdle() const;
+        void BeginCameraLook();
+        void EndCameraLook();
         Common::FVec3 CameraMoveInput() const;
 
         EditorClient& client;
@@ -56,6 +58,6 @@ namespace Editor {
         bool cameraAnglesInitialized;
         float cameraYaw;
         float cameraPitch;
-        QPoint lastMousePos;
+        QPoint cameraCursorRestorePos;
     };
 }

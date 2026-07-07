@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include <QCursor>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QResizeEvent>
@@ -100,11 +101,12 @@ namespace Editor {
             // forward column is (cosP cosY, -cosP sinY, sinP), so recover the angles matching that sign convention
             const auto forward = registry.Get<Runtime::WorldTransform>(cameraEntity).localToWorld.GetRotationMatrix().Col(0);
             cameraYaw = std::atan2(-forward.y, forward.x);
-            cameraPitch = std::asin(std::clamp(forward.z, -1.0f, 1.0f));
+            const float maxPitch = Internal::maxCameraPitchDegrees * Internal::degToRad;
+            cameraPitch = std::clamp(std::asin(std::clamp(forward.z, -1.0f, 1.0f)), -maxPitch, maxPitch);
             cameraAnglesInitialized = true;
         }
 
-        const Common::FVec3 moveInput = CameraMoveInput();
+        const Common::FVec3 moveInput = cameraLooking ? CameraMoveInput() : Common::FVec3Consts::zero;
         const bool moving = moveInput.x != 0.0f || moveInput.y != 0.0f || moveInput.z != 0.0f;
         if (!moving && !cameraLooking) {
             return;
@@ -115,13 +117,17 @@ namespace Editor {
         const Common::FQuat orientation =
             Common::FQuat(Common::FVec3Consts::unitY, Common::FRadian(cameraPitch))
             * Common::FQuat(Common::FVec3Consts::unitZ, Common::FRadian(cameraYaw));
-        const Common::FVec3 forward = orientation.RotateVector(Common::FVec3Consts::unitX);
-        const Common::FVec3 right = orientation.RotateVector(Common::FVec3Consts::unitY);
+        const Common::FVec3 lookForward = orientation.RotateVector(Common::FVec3Consts::unitX);
+        const Common::FVec3 lookRight = orientation.RotateVector(Common::FVec3Consts::unitY);
+        Common::FVec3 moveForward(lookForward.x, lookForward.y, 0.0f);
+        Common::FVec3 moveRight(lookRight.x, lookRight.y, 0.0f);
+        moveForward.Normalize();
+        moveRight.Normalize();
 
         registry.Update<Runtime::WorldTransform>(cameraEntity, [&](Runtime::WorldTransform& transform) -> void {
             const float moveDelta = Internal::cameraMoveSpeed * inDeltaSeconds;
-            transform.localToWorld.translation += forward * (moveInput.x * moveDelta);
-            transform.localToWorld.translation += right * (moveInput.y * moveDelta);
+            transform.localToWorld.translation += moveForward * (moveInput.x * moveDelta);
+            transform.localToWorld.translation += moveRight * (moveInput.y * moveDelta);
             transform.localToWorld.translation += Common::FVec3(0.0f, 0.0f, 1.0f) * (moveInput.z * moveDelta);
             transform.localToWorld.rotation = orientation;
         });
@@ -165,9 +171,9 @@ namespace Editor {
     void EditorViewport::mousePressEvent(QMouseEvent* inEvent)
     {
         if (inEvent->button() == Qt::RightButton) {
-            cameraLooking = true;
-            lastMousePos = inEvent->pos();
-            setCursor(Qt::BlankCursor);
+            BeginCameraLook();
+            inEvent->accept();
+            return;
         }
         GraphicsWidget::mousePressEvent(inEvent);
     }
@@ -175,13 +181,17 @@ namespace Editor {
     void EditorViewport::mouseMoveEvent(QMouseEvent* inEvent)
     {
         if (cameraLooking) {
-            const QPoint delta = inEvent->pos() - lastMousePos;
-            lastMousePos = inEvent->pos();
-
-            cameraYaw -= static_cast<float>(delta.x()) * Internal::cameraLookSpeedDegrees * Internal::degToRad;
-            cameraPitch -= static_cast<float>(delta.y()) * Internal::cameraLookSpeedDegrees * Internal::degToRad;
-            const float maxPitch = Internal::maxCameraPitchDegrees * Internal::degToRad;
-            cameraPitch = std::clamp(cameraPitch, -maxPitch, maxPitch);
+            const QPoint center = rect().center();
+            const QPoint delta = inEvent->pos() - center;
+            if (!delta.isNull()) {
+                cameraYaw -= static_cast<float>(delta.x()) * Internal::cameraLookSpeedDegrees * Internal::degToRad;
+                cameraPitch -= static_cast<float>(delta.y()) * Internal::cameraLookSpeedDegrees * Internal::degToRad;
+                const float maxPitch = Internal::maxCameraPitchDegrees * Internal::degToRad;
+                cameraPitch = std::clamp(cameraPitch, -maxPitch, maxPitch);
+                QCursor::setPos(mapToGlobal(center));
+            }
+            inEvent->accept();
+            return;
         }
         GraphicsWidget::mouseMoveEvent(inEvent);
     }
@@ -189,8 +199,9 @@ namespace Editor {
     void EditorViewport::mouseReleaseEvent(QMouseEvent* inEvent)
     {
         if (inEvent->button() == Qt::RightButton) {
-            cameraLooking = false;
-            unsetCursor();
+            EndCameraLook();
+            inEvent->accept();
+            return;
         }
         GraphicsWidget::mouseReleaseEvent(inEvent);
     }
@@ -198,8 +209,7 @@ namespace Editor {
     void EditorViewport::focusOutEvent(QFocusEvent* inEvent)
     {
         pressedKeys.clear();
-        cameraLooking = false;
-        unsetCursor();
+        EndCameraLook();
         GraphicsWidget::focusOutEvent(inEvent);
     }
 
@@ -251,6 +261,29 @@ namespace Editor {
         WaitDeviceIdle();
     }
 
+    void EditorViewport::BeginCameraLook()
+    {
+        if (cameraLooking) {
+            return;
+        }
+        cameraLooking = true;
+        cameraCursorRestorePos = QCursor::pos();
+        setFocus(Qt::MouseFocusReason);
+        grabMouse(QCursor(Qt::BlankCursor));
+        QCursor::setPos(mapToGlobal(rect().center()));
+    }
+
+    void EditorViewport::EndCameraLook()
+    {
+        if (!cameraLooking) {
+            return;
+        }
+        cameraLooking = false;
+        releaseMouse();
+        unsetCursor();
+        QCursor::setPos(cameraCursorRestorePos);
+    }
+
     Common::FVec3 EditorViewport::CameraMoveInput() const
     {
         Common::FVec3 result(0.0f, 0.0f, 0.0f);
@@ -260,6 +293,9 @@ namespace Editor {
         if (pressedKeys.contains(Qt::Key_A)) { result.y -= 1.0f; }
         if (pressedKeys.contains(Qt::Key_E)) { result.z += 1.0f; }
         if (pressedKeys.contains(Qt::Key_Q)) { result.z -= 1.0f; }
+        if (result.Model() > 1.0f) {
+            result.Normalize();
+        }
         return result;
     }
 }
