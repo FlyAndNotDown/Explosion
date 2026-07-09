@@ -74,9 +74,10 @@ private:
     UniquePtr<Surface> surface;
     UniquePtr<SwapChain> swapChain;
     std::array<Texture*, backBufferCount> swapChainTextures;
+    std::array<TextureState, backBufferCount> swapChainTextureStates;
     UniquePtr<Buffer> triangleVertexBuffer;
     UniquePtr<Semaphore> imageReadySemaphore;
-    UniquePtr<Semaphore> renderFinishedSemaphore;
+    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
     UniquePtr<Fence> frameFence;
 };
 
@@ -84,6 +85,7 @@ TriangleApplication::TriangleApplication(const std::string& inName)
     : Application(inName)
     , swapChainFormat(PixelFormat::max)
     , swapChainTextures()
+    , swapChainTextureStates()
 {
 }
 
@@ -128,7 +130,7 @@ void TriangleApplication::OnDrawFrame()
                         .AddColorTarget(ColorTargetState(swapChainFormat, ColorWriteBits::all, false))));
 
         RGBuilder builder(*device);
-        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], TextureState::present);
+        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
         auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
         auto* vertexBuffer = builder.ImportBuffer(triangleVertexBuffer.Get(), BufferState::shaderReadOnly);
         auto* vertexBufferView = builder.CreateBufferView(vertexBuffer, RGBufferViewDesc(BufferViewType::vertex, vertexBuffer->GetDesc().size, 0, VertexBufferViewInfo(sizeof(Vertex))));
@@ -170,10 +172,11 @@ void TriangleApplication::OnDrawFrame()
 
         RGExecuteInfo executeInfo;
         executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-        executeInfo.semaphoresToSignal = { renderFinishedSemaphore.Get() };
+        executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
         executeInfo.inFenceToSignal = frameFence.Get();
         builder.Execute(executeInfo);
-        swapChain->Present(renderFinishedSemaphore.Get());
+        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
+        swapChainTextureStates[backTextureIndex] = TextureState::present;
         frameFence->Wait();
 
         Core::ThreadContext::IncFrameNumber();
@@ -265,6 +268,7 @@ void TriangleApplication::CreateSwapChain()
 
     for (auto i = 0; i < backBufferCount; i++) {
         swapChainTextures[i] = swapChain->GetTexture(i);
+        swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
     }
 }
 
@@ -293,7 +297,9 @@ void TriangleApplication::CreateTriangleVertexBuffer()
 void TriangleApplication::CreateSyncObjects()
 {
     imageReadySemaphore = device->CreateSemaphore();
-    renderFinishedSemaphore = device->CreateSemaphore();
+    for (auto i = 0; i < backBufferCount; i++) {
+        renderFinishedSemaphores[i] = device->CreateSemaphore();
+    }
     frameFence = device->CreateFence(true);
 }
 
