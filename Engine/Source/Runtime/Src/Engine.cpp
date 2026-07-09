@@ -10,6 +10,9 @@
 #include <Core/Paths.h>
 #include <Core/Thread.h>
 #include <Mirror/Mirror.h>
+#include <Render/RenderCache.h>
+#include <Render/RenderThread.h>
+#include <Render/ResourcePool.h>
 #include <Runtime/Engine.h>
 #include <Runtime/GameThread.h>
 #include <Runtime/Settings/Registry.h>
@@ -35,6 +38,7 @@ namespace Runtime {
 
     Engine::~Engine()
     {
+        Render::RenderWorkerThreads::Get().Stop();
         renderModule->DeInitialize();
         ::Core::ModuleManager::Get().Unload("Render");
 
@@ -65,15 +69,21 @@ namespace Runtime {
 
         Core::ThreadContext::IncFrameNumber();
 
+        // the shader artifact copy and pool forfeits intentionally run through this module's Render.Static singleton
+        // copies: the renderer itself executes in this module too, so these are the instances it reads
         auto& renderThread = renderModule->GetRenderThread();
-        renderThread.EmplaceTask([]() -> void {
+        renderThread.EmplaceTask([device = renderModule->GetDevice()]() -> void {
             Core::ThreadContext::IncFrameNumber();
             Core::Console::Get().PerformRenderThreadSettingsCopy();
             Render::ShaderArtifactRegistry::Get().PerformThreadCopy();
+            Render::BufferPool::Get(*device).Forfeit();
+            Render::TexturePool::Get(*device).Forfeit();
+            Render::ResourceViewCache::Get(*device).Forfeit();
+            Render::BindGroupCache::Get(*device).Forfeit();
         });
 
         for (auto* world : worlds) {
-            if (!world->Playing()) {
+            if (!world->ShouldTick()) {
                 continue;
             }
             world->Tick(inDeltaTimeSeconds);
@@ -102,6 +112,9 @@ namespace Runtime {
         Render::RenderModuleInitParams initParams;
         initParams.rhiType = RHI::GetRHITypeByAbbrString(inRhiTypeStr);
         renderModule->Initialize(initParams);
+        // the render module started its own module-local worker threads, render-layer code inlined into this module
+        // (e.g. render graph buffer uploads) binds to this module's singleton copy which must be started as well
+        Render::RenderWorkerThreads::Get().Start();
         LogInfo(Render, "RHI type: {}", inRhiTypeStr);
     }
 

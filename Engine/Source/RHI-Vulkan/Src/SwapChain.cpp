@@ -2,6 +2,8 @@
 // Created by Zach Lee on 2022/4/4.
 //
 
+#include <algorithm>
+
 #include <RHI/Vulkan/SwapChain.h>
 #include <RHI/Vulkan/Instance.h>
 #include <RHI/Vulkan/Common.h>
@@ -89,9 +91,9 @@ namespace RHI::Vulkan {
         extent.width = std::clamp(extent.width, surfaceCap.minImageExtent.width, surfaceCap.maxImageExtent.width);
         extent.height = std::clamp(extent.height, surfaceCap.minImageExtent.height, surfaceCap.maxImageExtent.height);
 
-        Assert(device.CheckSwapChainFormatSupport(vkSurface, inCreateInfo.format));
+        Assert(device.CheckSwapChainFormatSupport(vkSurface, inCreateInfo.format, inCreateInfo.colorSpace));
         auto supportedFormat = EnumCast<PixelFormat, VkFormat>(inCreateInfo.format);
-        auto colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+        auto colorSpace = EnumCast<ColorSpace, VkColorSpaceKHR>(inCreateInfo.colorSpace);
 
         uint32_t presentModeCount = 0;
         std::vector<VkPresentModeKHR> presentModes;
@@ -100,16 +102,16 @@ namespace RHI::Vulkan {
         presentModes.resize(presentModeCount);
         vkGetPhysicalDeviceSurfacePresentModesKHR(device.GetGpu().GetNative(), surface, &presentModeCount, presentModes.data());
 
-        VkPresentModeKHR supportedMode = EnumCast<PresentMode, VkPresentModeKHR>(inCreateInfo.presentMode);
-        {
-            Assert(!presentModes.empty());
-            const auto iter = std::ranges::find_if(
-                presentModes,
-                [supportedMode](const VkPresentModeKHR mode) { return mode == supportedMode; });
-            Assert(iter != presentModes.end());
-        }
+        // Only VK_PRESENT_MODE_FIFO_KHR is guaranteed by the spec, so fall back to it when the requested mode is unavailable.
+        const VkPresentModeKHR requestedMode = EnumCast<PresentMode, VkPresentModeKHR>(inCreateInfo.presentMode);
+        const VkPresentModeKHR supportedMode = std::ranges::find(presentModes, requestedMode) != presentModes.end()
+            ? requestedMode
+            : VK_PRESENT_MODE_FIFO_KHR;
 
-        swapChainImageCount = std::clamp(static_cast<uint32_t>(inCreateInfo.textureNum), surfaceCap.minImageCount, surfaceCap.maxImageCount);
+        const uint32_t minImageCount = std::max(static_cast<uint32_t>(inCreateInfo.textureNum), surfaceCap.minImageCount);
+        swapChainImageCount = surfaceCap.maxImageCount == 0
+            ? minImageCount
+            : std::min(minImageCount, surfaceCap.maxImageCount);
         VkSwapchainCreateInfoKHR swapChainInfo = {};
         swapChainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         swapChainInfo.surface = surface;
@@ -135,7 +137,7 @@ namespace RHI::Vulkan {
         textureInfo.width = extent.width;
         textureInfo.height = extent.height;
         textureInfo.depthOrArraySize = 1;
-        textureInfo.initialState = TextureState::present;
+        textureInfo.initialState = TextureState::undefined;
 
         vkGetSwapchainImagesKHR(device.GetNative(), nativeSwapChain, &swapChainImageCount, nullptr);
         std::vector<VkImage> swapChainImages(swapChainImageCount);

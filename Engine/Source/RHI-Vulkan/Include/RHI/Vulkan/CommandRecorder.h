@@ -14,6 +14,7 @@ namespace RHI::Vulkan {
     class VulkanCommandBuffer;
     class VulkanRasterPipeline;
     class VulkanComputePipeline;
+    class VulkanQuerySet;
 
     class VulkanCommandRecorder final : public CommandRecorder {
     public:
@@ -27,6 +28,9 @@ namespace RHI::Vulkan {
         Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() override;
         Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() override;
         Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& inBeginInfo) override;
+        void WriteTimestamp(QuerySet* inQuerySet, uint32_t inQueryIndex) override;
+        void ResetQuerySet(QuerySet* inQuerySet, uint32_t inFirstQuery, uint32_t inQueryCount) override;
+        void ResolveQuery(QuerySet* inQuerySet, uint32_t inFirstQuery, uint32_t inQueryCount, Buffer* inDstBuffer, size_t inDstOffset) override;
         void End() override;
 
     private:
@@ -72,7 +76,9 @@ namespace RHI::Vulkan {
         // ComputePassCommandRecorder
         void SetPipeline(ComputePipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ) override;
+        void DispatchIndirect(Buffer* inIndirectBuffer, size_t inOffset) override;
         void EndPass() override;
 
     private:
@@ -96,6 +102,7 @@ namespace RHI::Vulkan {
         // RasterPassCommandRecorder
         void SetPipeline(RasterPipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void SetIndexBuffer(BufferView* inBufferView) override;
         void SetVertexBuffer(size_t inSlot, BufferView* inBufferView) override;
         void Draw(size_t inVertexCount, size_t inInstanceCount, size_t inFirstVertex, size_t inFirstInstance) override;
@@ -109,6 +116,8 @@ namespace RHI::Vulkan {
         void DrawIndexedIndirect(Buffer* inIndirectBuffer, size_t inOffset) override;
         void MultiDrawIndirect(Buffer* inIndirectBuffer, size_t inOffset, size_t inDrawCount) override;
         void MultiDrawIndexedIndirect(Buffer* inIndirectBuffer, size_t inOffset, size_t inDrawCount) override;
+        void BeginOcclusionQuery(QuerySet* inQuerySet, uint32_t inQueryIndex) override;
+        void EndOcclusionQuery() override;
         void EndPass() override;
 
     private:
@@ -116,6 +125,8 @@ namespace RHI::Vulkan {
         VulkanCommandRecorder& commandRecorder;
         VulkanCommandBuffer& commandBuffer;
         VulkanRasterPipeline* rasterPipeline;
+        VulkanQuerySet* activeOcclusionQuerySet;
+        uint32_t activeOcclusionQueryIndex;
     };
 
 }

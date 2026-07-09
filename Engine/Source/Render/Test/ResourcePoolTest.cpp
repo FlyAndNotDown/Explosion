@@ -33,7 +33,7 @@ TEST_F(ResourcePoolTest, BasicTest)
     textureDesc.height = 1080;
     textureDesc.depthOrArraySize = 1;
     textureDesc.format = RHI::PixelFormat::rgba8Unorm;
-    textureDesc.usages = RHI::TextureUsageBits::renderAttachment | RHI::TextureUsageBits::storageBinding;
+    textureDesc.usages = RHI::TextureUsageBits::renderAttachment | RHI::TextureUsageBits::rwStorageBinding;
     textureDesc.mipLevels = 1;
     textureDesc.samples = 1;
     textureDesc.initialState = RHI::TextureState::undefined;

@@ -10,7 +10,7 @@
 #include <Runtime/Api.h>
 
 namespace Runtime {
-    struct RUNTIME_API EClass() WorldTransform final {
+    struct RUNTIME_API EClass(comp) WorldTransform final {
         EClassBody(WorldTransform)
 
         WorldTransform();
@@ -20,7 +20,7 @@ namespace Runtime {
     };
 
     // must be used with Hierarchy and WorldTransform
-    struct RUNTIME_API EClass() LocalTransform final {
+    struct RUNTIME_API EClass(comp) LocalTransform final {
         EClassBody(LocalTransform)
 
         LocalTransform();
@@ -29,7 +29,7 @@ namespace Runtime {
         EProperty() Common::FTransform localToParent;
     };
 
-    struct RUNTIME_API EClass() Hierarchy final {
+    struct RUNTIME_API EClass(comp) Hierarchy final {
         EClassBody(Hierarchy)
 
         Hierarchy();

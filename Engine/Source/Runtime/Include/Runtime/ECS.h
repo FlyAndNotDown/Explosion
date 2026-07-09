@@ -409,6 +409,12 @@ namespace Runtime {
         Observer removedObserver;
     };
 
+    // entities carrying this component are skipped entirely by ECRegistry::Save, use it to mark runtime-created
+    // entities (e.g. players spawned by systems) that must not be serialized into a level
+    struct RUNTIME_API EClass(transient) TransientTag {
+        EClassBody(TransientTag)
+    };
+
     struct RUNTIME_API EClass() EntityArchive {
         EClassBody(EntityArchive)
 

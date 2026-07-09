@@ -15,6 +15,7 @@
 #include <RHI/Vulkan/Instance.h>
 #include <RHI/Vulkan/BindGroup.h>
 #include <RHI/Vulkan/PipelineLayout.h>
+#include <RHI/Vulkan/QuerySet.h>
 #include <RHI/Synchronous.h>
 
 namespace RHI::Vulkan {
@@ -71,7 +72,8 @@ namespace RHI::Vulkan {
             { TextureState::copyDst, VK_ACCESS_TRANSFER_WRITE_BIT },
             { TextureState::shaderReadOnly, VK_ACCESS_SHADER_READ_BIT },
             { TextureState::renderTarget, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT },
-            { TextureState::storage, VK_ACCESS_SHADER_WRITE_BIT },
+            { TextureState::storage, VK_ACCESS_SHADER_READ_BIT },
+            { TextureState::rwStorage, VK_ACCESS_SHADER_WRITE_BIT },
             { TextureState::depthStencilReadonly, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT },
             { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
             { TextureState::present, VK_ACCESS_MEMORY_READ_BIT }
@@ -88,6 +90,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::renderTarget, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
+            { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
@@ -104,6 +107,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::renderTarget, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
+            { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
@@ -120,6 +124,7 @@ namespace RHI::Vulkan {
             { TextureState::shaderReadOnly, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
             { TextureState::renderTarget, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
             { TextureState::storage, VK_IMAGE_LAYOUT_GENERAL },
+            { TextureState::rwStorage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::depthStencilReadonly, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
             { TextureState::depthStencilWrite, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
             { TextureState::present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
@@ -244,6 +249,28 @@ namespace RHI::Vulkan {
         return Common::UniquePtr<RasterPassCommandRecorder>(new VulkanRasterPassCommandRecorder(device, *this, commandBuffer, inBeginInfo));
     }
 
+    void VulkanCommandRecorder::WriteTimestamp(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        vkCmdWriteTimestamp(commandBuffer.GetNative(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, querySet->GetNative(), inQueryIndex);
+    }
+
+    void VulkanCommandRecorder::ResetQuerySet(QuerySet* inQuerySet, const uint32_t inFirstQuery, const uint32_t inQueryCount)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        vkCmdResetQueryPool(commandBuffer.GetNative(), querySet->GetNative(), inFirstQuery, inQueryCount);
+    }
+
+    void VulkanCommandRecorder::ResolveQuery(QuerySet* inQuerySet, const uint32_t inFirstQuery, const uint32_t inQueryCount, Buffer* inDstBuffer, const size_t inDstOffset)
+    {
+        const auto* querySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        const auto* dstBuffer = static_cast<VulkanBuffer*>(inDstBuffer);
+        vkCmdCopyQueryPoolResults(
+            commandBuffer.GetNative(), querySet->GetNative(), inFirstQuery, inQueryCount,
+            dstBuffer->GetNative(), inDstOffset, sizeof(uint64_t),
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+    }
+
     void VulkanCommandRecorder::End()
     {
         vkEndCommandBuffer(commandBuffer.GetNative());
@@ -365,9 +392,22 @@ namespace RHI::Vulkan {
         vkCmdBindDescriptorSets(commandBuffer.GetNative(), VK_PIPELINE_BIND_POINT_COMPUTE, layout, inLayoutIndex, 1, &descriptorSet, 0, nullptr);
     }
 
+    void VulkanComputePassCommandRecorder::SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize)
+    {
+        const auto* pipelineLayout = computePipeline->GetPipelineLayout();
+        const auto& range = pipelineLayout->GetPushConstantRange(inPipelineConstantIndex);
+        vkCmdPushConstants(commandBuffer.GetNative(), pipelineLayout->GetNative(), range.stageFlags, range.offset, inSize, inData);
+    }
+
     void VulkanComputePassCommandRecorder::Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ)
     {
         vkCmdDispatch(commandBuffer.GetNative(), inGroupCountX, inGroupCountY, inGroupCountZ);
+    }
+
+    void VulkanComputePassCommandRecorder::DispatchIndirect(Buffer* inIndirectBuffer, const size_t inOffset)
+    {
+        const auto* indirectBuffer = static_cast<VulkanBuffer*>(inIndirectBuffer);
+        vkCmdDispatchIndirect(commandBuffer.GetNative(), indirectBuffer->GetNative(), inOffset);
     }
 
     void VulkanComputePassCommandRecorder::EndPass()
@@ -380,6 +420,8 @@ namespace RHI::Vulkan {
         , commandRecorder(inCmdRecorder)
         , commandBuffer(inCmdBuffer)
         , rasterPipeline(nullptr)
+        , activeOcclusionQuerySet(nullptr)
+        , activeOcclusionQueryIndex(0)
     {
         std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos(inBeginInfo.colorAttachments.size());
         for (size_t i = 0; i < inBeginInfo.colorAttachments.size(); i++)
@@ -425,7 +467,11 @@ namespace RHI::Vulkan {
 
             renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
-            if (!inBeginInfo.depthStencilAttachment->depthReadOnly) {
+            // depth-only formats must not present a stencil attachment, otherwise validation requires the
+            // pipeline's (undefined) stencil format to match the view format
+            const auto depthStencilFormat = depthStencilTextureView->GetTexture().GetCreateInfo().format;
+            const bool hasStencil = depthStencilFormat == PixelFormat::d32FloatS8Uint || depthStencilFormat == PixelFormat::d24UnormS8Uint;
+            if (hasStencil && !inBeginInfo.depthStencilAttachment->depthReadOnly) {
                 stencilAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
                 stencilAttachmentInfo.imageView = depthStencilTextureView->GetNative();
                 stencilAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -473,6 +519,13 @@ namespace RHI::Vulkan {
         const VkPipelineLayout layout = rasterPipeline->GetPipelineLayout()->GetNative();
 
         vkCmdBindDescriptorSets(commandBuffer.GetNative(), VK_PIPELINE_BIND_POINT_GRAPHICS, layout, inLayoutIndex, 1, &descriptorSet, 0, nullptr);
+    }
+
+    void VulkanRasterPassCommandRecorder::SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize)
+    {
+        const auto* pipelineLayout = rasterPipeline->GetPipelineLayout();
+        const auto& range = pipelineLayout->GetPushConstantRange(inPipelineConstantIndex);
+        vkCmdPushConstants(commandBuffer.GetNative(), pipelineLayout->GetNative(), range.stageFlags, range.offset, inSize, inData);
     }
 
     void VulkanRasterPassCommandRecorder::SetIndexBuffer(BufferView *inBufferView)
@@ -566,6 +619,19 @@ namespace RHI::Vulkan {
     {
         const auto* indirectBuffer = static_cast<VulkanBuffer*>(inIndirectBuffer);
         vkCmdDrawIndexedIndirect(commandBuffer.GetNative(), indirectBuffer->GetNative(), inOffset, inDrawCount, sizeof(DrawIndexedIndirectArguments));
+    }
+
+    void VulkanRasterPassCommandRecorder::BeginOcclusionQuery(QuerySet* inQuerySet, const uint32_t inQueryIndex)
+    {
+        activeOcclusionQuerySet = static_cast<VulkanQuerySet*>(inQuerySet);
+        activeOcclusionQueryIndex = inQueryIndex;
+        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, VK_QUERY_CONTROL_PRECISE_BIT);
+    }
+
+    void VulkanRasterPassCommandRecorder::EndOcclusionQuery()
+    {
+        Assert(activeOcclusionQuerySet != nullptr);
+        vkCmdEndQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), activeOcclusionQueryIndex);
     }
 
     void VulkanRasterPassCommandRecorder::EndPass()

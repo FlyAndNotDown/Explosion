@@ -71,7 +71,15 @@ namespace RHI::Dummy {
     {
     }
 
+    void DummyComputePassCommandRecorder::SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size)
+    {
+    }
+
     void DummyComputePassCommandRecorder::Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ)
+    {
+    }
+
+    void DummyComputePassCommandRecorder::DispatchIndirect(Buffer* indirectBuffer, size_t offset)
     {
     }
 
@@ -102,6 +110,10 @@ namespace RHI::Dummy {
     }
 
     void DummyRasterPassCommandRecorder::SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup)
+    {
+    }
+
+    void DummyRasterPassCommandRecorder::SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size)
     {
     }
 
@@ -157,6 +169,14 @@ namespace RHI::Dummy {
     {
     }
 
+    void DummyRasterPassCommandRecorder::BeginOcclusionQuery(QuerySet* querySet, uint32_t queryIndex)
+    {
+    }
+
+    void DummyRasterPassCommandRecorder::EndOcclusionQuery()
+    {
+    }
+
     void DummyRasterPassCommandRecorder::EndPass()
     {
     }
@@ -193,6 +213,18 @@ namespace RHI::Dummy {
     Common::UniquePtr<RasterPassCommandRecorder> DummyCommandRecorder::BeginRasterPass(const RasterPassBeginInfo& beginInfo)
     {
         return Common::UniquePtr<RasterPassCommandRecorder>(new DummyRasterPassCommandRecorder(dummyCommandBuffer));
+    }
+
+    void DummyCommandRecorder::WriteTimestamp(QuerySet* querySet, uint32_t queryIndex)
+    {
+    }
+
+    void DummyCommandRecorder::ResetQuerySet(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount)
+    {
+    }
+
+    void DummyCommandRecorder::ResolveQuery(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount, Buffer* dstBuffer, size_t dstOffset)
+    {
     }
 
     void DummyCommandRecorder::End()

@@ -9,6 +9,7 @@ namespace Runtime {
         : perspective(true)
         , nearPlane(0.1f)
         , fov(90.0f)
+        , viewState(nullptr)
     {
     }
 }

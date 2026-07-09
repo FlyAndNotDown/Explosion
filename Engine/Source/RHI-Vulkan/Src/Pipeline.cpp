@@ -9,6 +9,7 @@
 #include <RHI/Vulkan/Device.h>
 #include <RHI/Vulkan/ShaderModule.h>
 #include <RHI/Vulkan/PipelineLayout.h>
+#include <RHI/Vulkan/PipelineCache.h>
 #include <RHI/Vulkan/Common.h>
 
 namespace RHI::Vulkan {
@@ -255,7 +256,10 @@ namespace RHI::Vulkan {
         pipelineCreateInfo.pVertexInputState = &vtxInput;
         pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
 
-        Assert(vkCreateGraphicsPipelines(device.GetNative(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &nativePipeline) == VK_SUCCESS);
+        const VkPipelineCache nativePipelineCache = inCreateInfo.pipelineCache != nullptr
+            ? static_cast<const VulkanPipelineCache*>(inCreateInfo.pipelineCache)->GetNative()
+            : VK_NULL_HANDLE;
+        Assert(vkCreateGraphicsPipelines(device.GetNative(), nativePipelineCache, 1, &pipelineCreateInfo, nullptr, &nativePipeline) == VK_SUCCESS);
 
 #if BUILD_CONFIG_DEBUG
         if (!inCreateInfo.debugName.empty()) {
@@ -310,7 +314,10 @@ namespace RHI::Vulkan {
         pipelineInfo.layout = pipelineLayout->GetNative();
         pipelineInfo.stage = stageInfo;
 
-        Assert(vkCreateComputePipelines(device.GetNative(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &nativePipeline) == VK_SUCCESS);
+        const VkPipelineCache nativePipelineCache = inCreateInfo.pipelineCache != nullptr
+            ? static_cast<const VulkanPipelineCache*>(inCreateInfo.pipelineCache)->GetNative()
+            : VK_NULL_HANDLE;
+        Assert(vkCreateComputePipelines(device.GetNative(), nativePipelineCache, 1, &pipelineInfo, nullptr, &nativePipeline) == VK_SUCCESS);
     }
 
     VkPipeline VulkanComputePipeline::GetNative() const

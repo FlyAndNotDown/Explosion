@@ -40,6 +40,11 @@ namespace RHI::DirectX12 {
         return iter->second;
     }
 
+    RootParameterIndex DX12PipelineLayout::QueryRootConstantParameterIndex(const uint32_t inPipelineConstantIndex) const
+    {
+        return rootConstantParameterIndices[inPipelineConstantIndex];
+    }
+
     ID3D12RootSignature* DX12PipelineLayout::GetNative() const
     {
         return nativeRootSignature.Get();
@@ -66,7 +71,21 @@ namespace RHI::DirectX12 {
                 rootParameterIndexMap[rootParameterKey] = { keyInfo.bindingType, index };
             }
         }
-        // TODO root constants
+        rootConstantParameterIndices.reserve(inCreateInfo.pipelineConstantLayouts.size());
+        for (const auto& pipelineConstantLayout : inCreateInfo.pipelineConstantLayouts) {
+            Assert(pipelineConstantLayout.size % 4 == 0);
+            const auto& hlslBinding = std::get<HlslPipelineConstantBinding>(pipelineConstantLayout.platformBinding);
+            const auto index = static_cast<RootParameterIndex>(rootParameters.size());
+
+            rootParameters.emplace_back();
+            rootParameters.back().InitAsConstants(
+                pipelineConstantLayout.size / 4,
+                hlslBinding.binding,
+                hlslBinding.bindingSpace,
+                GetShaderVisibility(pipelineConstantLayout.stageFlags));
+
+            rootConstantParameterIndices.emplace_back(index);
+        }
 
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
         rootSignatureDesc.Init_1_1(rootParameters.size(), rootParameters.data(), 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);

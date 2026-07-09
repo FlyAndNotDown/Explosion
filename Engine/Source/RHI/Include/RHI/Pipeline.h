@@ -14,6 +14,7 @@ namespace RHI {
     class BindGroupLayout;
     class PipelineLayout;
     class ShaderModule;
+    class PipelineCache;
 
     struct HlslVertexBinding {
         std::string semanticName;
@@ -219,10 +220,12 @@ namespace RHI {
     struct ComputePipelineCreateInfo {
         PipelineLayout* layout;
         ShaderModule* computeShader;
+        PipelineCache* pipelineCache;
 
         ComputePipelineCreateInfo();
         ComputePipelineCreateInfo& SetLayout(PipelineLayout* inLayout);
         ComputePipelineCreateInfo& SetComputeShader(ShaderModule* inComputeShader);
+        ComputePipelineCreateInfo& SetPipelineCache(PipelineCache* inPipelineCache);
     };
 
     struct RasterPipelineCreateInfo {
@@ -240,6 +243,7 @@ namespace RHI {
         MultiSampleState multiSampleState;
         FragmentState fragmentState;
 
+        PipelineCache* pipelineCache;
         std::string debugName;
 
         explicit RasterPipelineCreateInfo(PipelineLayout* inLayout = nullptr);
@@ -254,6 +258,7 @@ namespace RHI {
         RasterPipelineCreateInfo& SetDepthStencilState(const DepthStencilState& inDepthStencilState);
         RasterPipelineCreateInfo& SetMultiSampleState(const MultiSampleState& inMultiSampleState);
         RasterPipelineCreateInfo& SetFragmentState(const FragmentState& inFragmentState);
+        RasterPipelineCreateInfo& SetPipelineCache(PipelineCache* inPipelineCache);
         RasterPipelineCreateInfo& SetDebugName(std::string inDebugName);
     };
 

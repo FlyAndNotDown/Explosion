@@ -193,6 +193,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(BindingType::sampler,        VK_DESCRIPTOR_TYPE_SAMPLER)
         ECIMPL_ITEM(BindingType::texture,        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
         ECIMPL_ITEM(BindingType::storageTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+        ECIMPL_ITEM(BindingType::rwStorageTexture, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
     ECIMPL_END(VkDescriptorType)
 
     ECIMPL_BEGIN(AddressMode, VkSamplerAddressMode)
@@ -261,8 +262,19 @@ namespace RHI::Vulkan {
     ECIMPL_BEGIN(PresentMode, VkPresentModeKHR)
         ECIMPL_ITEM(PresentMode::immediately, VK_PRESENT_MODE_IMMEDIATE_KHR)
         ECIMPL_ITEM(PresentMode::vsync,       VK_PRESENT_MODE_FIFO_KHR)
-        ECIMPL_ITEM(PresentMode::max,         VK_PRESENT_MODE_IMMEDIATE_KHR) // TODO Set the default present mode to immediate?
+        ECIMPL_ITEM(PresentMode::mailbox,     VK_PRESENT_MODE_MAILBOX_KHR)
+        ECIMPL_ITEM(PresentMode::fifoRelaxed, VK_PRESENT_MODE_FIFO_RELAXED_KHR)
     ECIMPL_END(VkPresentModeKHR)
+
+    ECIMPL_BEGIN(ColorSpace, VkColorSpaceKHR)
+        ECIMPL_ITEM(ColorSpace::srgbNonLinear, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        ECIMPL_ITEM(ColorSpace::hdr10St2084,   VK_COLOR_SPACE_HDR10_ST2084_EXT)
+    ECIMPL_END(VkColorSpaceKHR)
+
+    ECIMPL_BEGIN(QueryType, VkQueryType)
+        ECIMPL_ITEM(QueryType::occlusion, VK_QUERY_TYPE_OCCLUSION)
+        ECIMPL_ITEM(QueryType::timestamp, VK_QUERY_TYPE_TIMESTAMP)
+    ECIMPL_END(VkQueryType)
 
     ECIMPL_BEGIN(TextureAspect, VkImageAspectFlags)
         ECIMPL_ITEM(TextureAspect::color,   VK_IMAGE_ASPECT_COLOR_BIT)
@@ -289,6 +301,7 @@ namespace RHI::Vulkan {
         FCIMPL_ITEM(BufferUsageBits::storage,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
         FCIMPL_ITEM(BufferUsageBits::rwStorage,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
         FCIMPL_ITEM(BufferUsageBits::indirect, VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT)
+        FCIMPL_ITEM(BufferUsageBits::queryResolve, VK_BUFFER_USAGE_TRANSFER_DST_BIT)
     FCIMPL_END(VkBufferUsageFlagBits)
 
     FCIMPL_BEGIN(TextureUsageFlags, VkImageUsageFlags)
@@ -296,6 +309,7 @@ namespace RHI::Vulkan {
         FCIMPL_ITEM(TextureUsageBits::copyDst,                VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         FCIMPL_ITEM(TextureUsageBits::textureBinding,         VK_IMAGE_USAGE_SAMPLED_BIT)
         FCIMPL_ITEM(TextureUsageBits::storageBinding,         VK_IMAGE_USAGE_STORAGE_BIT)
+        FCIMPL_ITEM(TextureUsageBits::rwStorageBinding,       VK_IMAGE_USAGE_STORAGE_BIT)
         FCIMPL_ITEM(TextureUsageBits::renderAttachment,       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
         FCIMPL_ITEM(TextureUsageBits::depthStencilAttachment, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
     FCIMPL_END(VkImageUsageFlagBits)

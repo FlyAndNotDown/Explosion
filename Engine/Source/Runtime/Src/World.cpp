@@ -75,6 +75,21 @@ namespace Runtime {
         executor.reset();
     }
 
+    bool World::ShouldTick() const
+    {
+        return executor.has_value() && !Paused();
+    }
+
+    ECRegistry& World::GetRegistry()
+    {
+        return ecRegistry;
+    }
+
+    const ECRegistry& World::GetRegistry() const
+    {
+        return ecRegistry;
+    }
+
     void World::LoadFrom(AssetPtr<Level> inLevel)
     {
         Assert(Stopped());
@@ -83,7 +98,8 @@ namespace Runtime {
 
     void World::SaveTo(AssetPtr<Level> inLevel)
     {
-        Assert(Stopped());
+        // an editor world keeps playing while editing, saving there is safe because transient entities are skipped
+        Assert(systemSetupContext.playType == PlayType::editor || Stopped());
         ecRegistry.Save(inLevel->GetArchive());
     }
 

@@ -21,6 +21,8 @@ namespace Render::Internal {
             } else if (type == RHI::BindingType::texture) {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::storageTexture) {
+                outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
+            } else if (type == RHI::BindingType::rwStorageTexture) {
                 outWrites.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::sampler){
                 return;
@@ -306,6 +308,17 @@ namespace Render {
 
         RGBindItemDesc item;
         item.type = RHI::BindingType::storageTexture;
+        item.view = textureView;
+        items.emplace(std::make_pair(std::move(inName), item));
+        return *this;
+    }
+
+    RGBindGroupDesc& RGBindGroupDesc::RwStorageTexture(std::string inName, RGTextureViewRef textureView)
+    {
+        Assert(!items.contains(inName));
+
+        RGBindItemDesc item;
+        item.type = RHI::BindingType::rwStorageTexture;
         item.view = textureView;
         items.emplace(std::make_pair(std::move(inName), item));
         return *this;
@@ -950,7 +963,7 @@ namespace Render {
                         devirtualizedResourceViews.emplace(std::make_pair(bufferView, ResourceViewCache::Get(device).GetOrCreate(GetRHI(bufferView->GetBuffer()), bufferView->desc)));
                     }
                     createInfo.AddEntry(RHI::BindGroupEntry(*binding, GetRHI(bufferView)));
-                } else if (item.type == RHI::BindingType::texture || item.type == RHI::BindingType::storageTexture) {
+                } else if (item.type == RHI::BindingType::texture || item.type == RHI::BindingType::storageTexture || item.type == RHI::BindingType::rwStorageTexture) {
                     auto* textureView = std::get<RGTextureViewRef>(item.view);
                     if (!devirtualizedResourceViews.contains(textureView)) {
                         devirtualizedResourceViews.emplace(std::make_pair(textureView, ResourceViewCache::Get(device).GetOrCreate(GetRHI(textureView->GetTexture()), textureView->desc)));
@@ -1053,6 +1066,8 @@ namespace Render {
                     TransitionTexture(inRecoder, std::get<RGTextureViewRef>(view)->GetTexture(), RHI::TextureState::shaderReadOnly);
                 } else if (type == RHI::BindingType::storageTexture) {
                     TransitionTexture(inRecoder, std::get<RGTextureViewRef>(view)->GetTexture(), RHI::TextureState::storage);
+                } else if (type == RHI::BindingType::rwStorageTexture) {
+                    TransitionTexture(inRecoder, std::get<RGTextureViewRef>(view)->GetTexture(), RHI::TextureState::rwStorage);
                 } else if (type == RHI::BindingType::sampler) {} else {
                     Unimplement();
                 }

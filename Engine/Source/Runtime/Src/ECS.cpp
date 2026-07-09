@@ -805,6 +805,9 @@ namespace Runtime {
         outArchive = {};
         outArchive.entities.reserve(Count());
         Each([&](Entity entity) -> void {
+            if (Has<TransientTag>(entity)) {
+                return;
+            }
             outArchive.entities.emplace(entity, EntityArchive {});
             auto& comps = outArchive.entities.at(entity).comps;
             comps.reserve(CompCount(entity));

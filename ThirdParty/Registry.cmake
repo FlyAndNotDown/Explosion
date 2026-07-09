@@ -9,8 +9,6 @@ else ()
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${CMAKE_CURRENT_LIST_DIR}/../../ThirdParty")
 endif ()
 
-find_package(httplib REQUIRED GLOBAL)
-
 # glfw requires opengl/system only to propagate headers and the OpenGL framework (libs=False, it never links GL). On
 # Apple that package carries just cpp_info.frameworks, which the new CMakeConfigDeps generator forgets to count when
 # deciding whether to emit a target, so opengl::opengl is never created and glfw's link interface dangles. Recreate it.
@@ -20,6 +18,7 @@ if (APPLE AND NOT TARGET opengl::opengl)
 endif ()
 
 find_package(glfw3 REQUIRED GLOBAL)
+find_package(imgui REQUIRED GLOBAL)
 find_package(stb REQUIRED GLOBAL)
 find_package(cityhash REQUIRED GLOBAL)
 find_package(GTest REQUIRED GLOBAL)

@@ -32,23 +32,29 @@ namespace Launch {
         engine = &Runtime::EngineHolder::Get();
         gameModule = &Core::ModuleManager::Get().GetTyped<Runtime::GameModule>(gameModuleName);
 
-        GameViewportDesc viewportDesc;
-        viewportDesc.title = gameModule->GetGameName();
-        // TODO load from config
-        viewportDesc.width = 1024;
-        viewportDesc.height = 768;
-        viewport = Common::MakeUnique<GameViewport>(viewportDesc);
+        GameWindowDesc windowDesc;
+        windowDesc.title = gameModule->GetGameName();
+        windowDesc.width = 1024;
+        windowDesc.height = 768;
+        window = Common::MakeUnique<GameWindow>(windowDesc);
+        client = Common::MakeUnique<GameClient>(*window);
 
         auto& settingRegistry = Runtime::SettingsRegistry::Get();
         settingRegistry.LoadAllSettings();
 
         const auto& gameSettings = Runtime::SettingsRegistry::Get().GetSettings<Runtime::GameSettings>();
         const auto startupLevel = Runtime::AssetManager::Get().SyncLoad<Runtime::Level>(gameSettings.gameStartupLevel, Runtime::Level::GetStaticClass());
-        viewport->GetClient().GetWorld().LoadFrom(startupLevel);
+        client->GetWorld().LoadFrom(startupLevel);
+        client->GetWorld().Play();
     }
 
     GameApplication::~GameApplication()
     {
+        if (client.Valid() && !client->GetWorld().Stopped()) {
+            client->GetWorld().Stop();
+        }
+        client.Reset();
+        window.Reset();
         Runtime::EngineHolder::Unload();
     }
 
@@ -59,11 +65,11 @@ namespace Launch {
         lastFrameTimeSeconds = thisFrameTimeSeconds;
 
         engine->Tick(deltaTimeSeconds);
-        viewport->PollEvents();
+        window->PollEvents();
     }
 
     bool GameApplication::ShouldClose() const
     {
-        return viewport->ShouldClose();
+        return window->ShouldClose();
     }
 }

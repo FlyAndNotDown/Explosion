@@ -8,10 +8,13 @@
 #include <RHI/Vulkan/Queue.h>
 #include <RHI/Vulkan/CommandBuffer.h>
 #include <RHI/Vulkan/Synchronous.h>
+#include <RHI/Vulkan/Device.h>
+#include <RHI/Vulkan/Gpu.h>
 
 namespace RHI::Vulkan {
-    VulkanQueue::VulkanQueue(VulkanDevice&, const VkQueue inNativeQueue)
-        : nativeQueue(inNativeQueue)
+    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const VkQueue inNativeQueue)
+        : device(inDevice)
+        , nativeQueue(inNativeQueue)
     {
     }
 
@@ -67,6 +70,13 @@ namespace RHI::Vulkan {
         vkSubmitInfo.pCommandBuffers = nullptr;
 
         Assert(vkQueueSubmit(nativeQueue, 1, &vkSubmitInfo, vkFence->GetNative()) == VK_SUCCESS);
+    }
+
+    float VulkanQueue::GetTimestampPeriod()
+    {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(device.GetGpu().GetNative(), &properties);
+        return properties.limits.timestampPeriod;
     }
 
     VkQueue VulkanQueue::GetNative() const

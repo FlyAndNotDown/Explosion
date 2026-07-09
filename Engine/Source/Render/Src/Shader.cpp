@@ -260,6 +260,8 @@ namespace Render {
         , includeDirectories(inIncludeDirectories)
         , shaderVariantFields(Common::VectorUtils::Combine(inVertexFactoryType.GetVariantFields(), inShaderVariantFields))
     {
+        // the base pass source includes "VertexFactory.esh" resolved from the vertex factory's own directory
+        includeDirectories.emplace_back(Common::Path(vertexFactory.GetSourceFile()).Parent().String());
     }
 
     MaterialShaderType::~MaterialShaderType() = default;
@@ -427,6 +429,19 @@ namespace Render {
     }
 
     ShaderMap::~ShaderMap() = default;
+
+    bool ShaderMap::HasShaderInstance(const ShaderType& inShaderType, const ShaderVariantValueMap& inShaderVariants) const // NOLINT
+    {
+        Assert(Core::ThreadContext::IsRenderThread());
+
+        const ShaderArtifactRegistry& registry = ShaderArtifactRegistry::Get();
+        const auto typeIter = registry.typeArtifactsRT.find(inShaderType.GetKey());
+        if (typeIter == registry.typeArtifactsRT.end()) {
+            return false;
+        }
+        const ShaderVariantKey variantKey = ShaderUtils::ComputeVariantKey(inShaderType.GetVariantFields(), inShaderVariants);
+        return typeIter->second.variantArtifacts.contains(variantKey);
+    }
 
     ShaderInstance ShaderMap::GetShaderInstance(const ShaderType& inShaderType, const ShaderVariantValueMap& inShaderVariants)
     {

@@ -35,13 +35,15 @@ namespace RHI::Vulkan {
         Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& inCreateInfo) override;
         Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& inCreateInfo) override;
+        Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
         Common::UniquePtr<Fence> CreateFence(bool initAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
+        Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;
 
-        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat) override;
+        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
 
         VkDevice GetNative() const;

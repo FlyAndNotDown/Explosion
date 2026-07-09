@@ -16,6 +16,8 @@
 #include <RHI/Dummy/CommandBuffer.h>
 #include <RHI/Dummy/Synchronous.h>
 #include <RHI/Dummy/Surface.h>
+#include <RHI/Dummy/QuerySet.h>
+#include <RHI/Dummy/PipelineCache.h>
 #include <Common/Debug.h>
 
 namespace RHI::Dummy {
@@ -114,7 +116,17 @@ namespace RHI::Dummy {
         return { new DummySemaphore(*this) };
     }
 
-    bool DummyDevice::CheckSwapChainFormatSupport(Surface* surface, PixelFormat format)
+    Common::UniquePtr<QuerySet> DummyDevice::CreateQuerySet(const QuerySetCreateInfo& createInfo)
+    {
+        return { new DummyQuerySet(createInfo) };
+    }
+
+    Common::UniquePtr<PipelineCache> DummyDevice::CreatePipelineCache(const PipelineCacheCreateInfo& createInfo)
+    {
+        return { new DummyPipelineCache(createInfo) };
+    }
+
+    bool DummyDevice::CheckSwapChainFormatSupport(Surface* surface, PixelFormat format, ColorSpace colorSpace)
     {
         return true;
     }

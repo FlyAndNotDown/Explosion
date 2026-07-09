@@ -9,16 +9,8 @@ namespace Runtime {
 
     LocalPlayer::LocalPlayer()
         : localPlayerIndex(0)
-        , viewState(nullptr)
     {
     }
-
-#if BUILD_EDITOR
-    EditorPlayer::EditorPlayer()
-        : viewState(nullptr)
-    {
-    }
-#endif
 
     PlayerStart::PlayerStart() = default;
 } // namespace Runtime

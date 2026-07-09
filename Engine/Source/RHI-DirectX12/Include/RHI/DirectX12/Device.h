@@ -85,18 +85,21 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& inCreateInfo) override;
         Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& inCreateInfo) override;
+        Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
         Common::UniquePtr<Fence> CreateFence(bool inInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
+        Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;
 
-        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat) override;
+        bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
 
         ID3D12Device* GetNative() const;
         ID3D12CommandSignature* GetDrawIndirectCommandSignature() const;
         ID3D12CommandSignature* GetDrawIndexedIndirectCommandSignature() const;
+        ID3D12CommandSignature* GetDispatchIndirectCommandSignature() const;
         Common::UniquePtr<DescriptorAllocation> AllocateRtvDescriptor() const;
         Common::UniquePtr<DescriptorAllocation> AllocateCbvSrvUavDescriptor() const;
         Common::UniquePtr<DescriptorAllocation> AllocateSamplerDescriptor() const;
@@ -107,7 +110,7 @@ namespace RHI::DirectX12 {
         void CreateNativeQueues(const DeviceCreateInfo& inCreateInfo);
         void QueryNativeDescriptorSize();
         void CreateDescriptorPools();
-        void CreateDrawIndirectCommandSignatures();
+        void CreateIndirectCommandSignatures();
 #if BUILD_CONFIG_DEBUG
         void RegisterNativeDebugLayerExceptionHandler();
         void UnregisterNativeDebugLayerExceptionHandler();
@@ -127,5 +130,6 @@ namespace RHI::DirectX12 {
         ComPtr<ID3D12Device> nativeDevice;
         ComPtr<ID3D12CommandSignature> drawIndirectCommandSignature;
         ComPtr<ID3D12CommandSignature> drawIndexedIndirectCommandSignature;
+        ComPtr<ID3D12CommandSignature> dispatchIndirectCommandSignature;
     };
 }

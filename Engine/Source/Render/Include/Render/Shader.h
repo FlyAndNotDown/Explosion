@@ -370,6 +370,7 @@ namespace Render {
         ~ShaderMap();
 
         // render thread
+        bool HasShaderInstance(const ShaderType& inShaderType, const ShaderVariantValueMap& inShaderVariants) const;
         ShaderInstance GetShaderInstance(const ShaderType& inShaderType, const ShaderVariantValueMap& inShaderVariants);
         void Invalidate();
 

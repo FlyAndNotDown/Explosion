@@ -12,6 +12,7 @@ namespace RHI::DirectX12 {
     class DX12ComputePipeline;
     class DX12RasterPipeline;
     class DX12PipelineLayout;
+    class DX12QuerySet;
 
     class DX12CommandRecorder final : public CommandRecorder {
     public:
@@ -25,6 +26,9 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() override;
         Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() override;
         Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& inBeginInfo) override;
+        void WriteTimestamp(QuerySet* inQuerySet, uint32_t inQueryIndex) override;
+        void ResetQuerySet(QuerySet* inQuerySet, uint32_t inFirstQuery, uint32_t inQueryCount) override;
+        void ResolveQuery(QuerySet* inQuerySet, uint32_t inFirstQuery, uint32_t inQueryCount, Buffer* inDstBuffer, size_t inDstOffset) override;
         void End() override;
 
     private:
@@ -70,7 +74,9 @@ namespace RHI::DirectX12 {
         // ComputePassCommandRecorder
         void SetPipeline(ComputePipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void Dispatch(size_t inGroupCountX, size_t inGroupCountY, size_t inGroupCountZ) override;
+        void DispatchIndirect(Buffer* inIndirectBuffer, size_t inOffset) override;
         void EndPass() override;
 
     private:
@@ -94,6 +100,7 @@ namespace RHI::DirectX12 {
         // RasterPassCommandRecorder
         void SetPipeline(RasterPipeline* inPipeline) override;
         void SetBindGroup(uint8_t inLayoutIndex, BindGroup* inBindGroup) override;
+        void SetPipelineConstants(uint32_t inPipelineConstantIndex, const void* inData, uint32_t inSize) override;
         void SetIndexBuffer(BufferView* inBufferView) override;
         void SetVertexBuffer(size_t inSlot, BufferView* inBufferView) override;
         void Draw(size_t inVertexCount, size_t inInstanceCount, size_t inFirstVertex, size_t inFirstInstance) override;
@@ -107,6 +114,8 @@ namespace RHI::DirectX12 {
         void DrawIndexedIndirect(Buffer* inIndirectBuffer, size_t inOffset) override;
         void MultiDrawIndirect(Buffer* inIndirectBuffer, size_t inOffset, size_t inDrawCount) override;
         void MultiDrawIndexedIndirect(Buffer* inIndirectBuffer, size_t inOffset, size_t inDrawCount) override;
+        void BeginOcclusionQuery(QuerySet* inQuerySet, uint32_t inQueryIndex) override;
+        void EndOcclusionQuery() override;
         void EndPass() override;
 
     private:
@@ -114,5 +123,7 @@ namespace RHI::DirectX12 {
         DX12CommandRecorder& commandRecorder;
         DX12RasterPipeline* rasterPipeline;
         DX12CommandBuffer& commandBuffer;
+        DX12QuerySet* activeOcclusionQuerySet;
+        uint32_t activeOcclusionQueryIndex;
     };
 }

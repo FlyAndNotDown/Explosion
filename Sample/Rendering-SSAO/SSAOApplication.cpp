@@ -36,7 +36,6 @@ struct RenderMaterial {
     UniquePtr<Texture> diffuseTexture;
 };
 
-// Shader类型定义
 class GBufferVS final : public StaticShaderType<GBufferVS> {
     ShaderTypeInfo(
         GBufferVS,
@@ -168,7 +167,6 @@ protected:
             frameFence->Reset();
             const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
 
-            // 更新Uniform Buffer
             if (uniformBuffers.sceneParams) {
                 auto* uboData = uniformBuffers.sceneParams->Map(MapMode::write, 0, sizeof(UBOSceneParams));
                 memcpy(uboData, &uboSceneParams, sizeof(UBOSceneParams));
@@ -177,22 +175,18 @@ protected:
 
             RGBuilder builder(*device);
 
-            // 导入交换链纹理
-            auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], TextureState::present);
+            auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
             auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
 
-            // 导入几何缓冲区纹理
             auto* gBufferPos = builder.ImportTexture(gBufferPosTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferNormal = builder.ImportTexture(gBufferNormalTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferAlbedo = builder.ImportTexture(gBufferAlbedoTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferDepth = builder.ImportTexture(gBufferDepthTex.Get(), TextureState::depthStencilReadonly);
 
-            // 导入SSAO纹理
             auto* ssaoTexture = builder.ImportTexture(ssaoTex.Get(), TextureState::shaderReadOnly);
             auto* ssaoBlurTexture = builder.ImportTexture(ssaoBlurTex.Get(), TextureState::shaderReadOnly);
             auto* noiseTexture = builder.ImportTexture(noiseTex.Get(), TextureState::shaderReadOnly);
 
-            // 导入缓冲区
             auto* vBuffer = builder.ImportBuffer(vertexBuffer.Get(), BufferState::shaderReadOnly);
             auto* iBuffer = builder.ImportBuffer(indexBuffer.Get(), BufferState::shaderReadOnly);
             auto* quadVBuffer = builder.ImportBuffer(quadVertexBuffer.Get(), BufferState::shaderReadOnly);
@@ -201,7 +195,6 @@ protected:
             auto* ssaoParamsBuffer = builder.ImportBuffer(uniformBuffers.ssaoParams.Get(), BufferState::shaderReadOnly);
             auto* ssaoKernelBuffer = builder.ImportBuffer(uniformBuffers.ssaoKernel.Get(), BufferState::shaderReadOnly);
 
-            // 创建视图
             auto* gBufferPosRTV = builder.CreateTextureView(gBufferPos, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
             auto* gBufferNormalRTV = builder.CreateTextureView(gBufferNormal, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
             auto* gBufferAlbedoRTV = builder.CreateTextureView(gBufferAlbedo, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
@@ -227,7 +220,7 @@ protected:
             auto* ssaoKernelView = builder.CreateBufferView(ssaoKernelBuffer, RGBufferViewDesc(BufferViewType::uniformBinding, ssaoKernelSize * sizeof(FVec4)));
 
             // 1. G-Buffer Pass
-            auto* gBufferPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* gBufferPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(gBufferVS)
                     .SetPixelShader(gBufferPS)
@@ -288,7 +281,7 @@ protected:
                 });
 
             // 2. SSAO Pass
-            auto* ssaoPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* ssaoPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(ssaoVS)
                     .SetPixelShader(ssaoPS)
@@ -330,7 +323,7 @@ protected:
                 });
 
             // 3. SSAO Blur Pass
-            auto* ssaoBlurPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* ssaoBlurPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(blurVS)
                     .SetPixelShader(blurPS)
@@ -367,7 +360,7 @@ protected:
                 });
 
             // 4. Composition Pass
-            auto* compositionPipeline = PipelineCache::Get(*device).GetOrCreate(
+            auto* compositionPipeline = Render::PipelineCache::Get(*device).GetOrCreate(
                 RasterPipelineStateDesc()
                     .SetVertexShader(compositionVS)
                     .SetPixelShader(compositionPS)
@@ -412,14 +405,14 @@ protected:
                     recorder.ResourceBarrier(Barrier::Transition(rg.GetRHI(backTexture), TextureState::renderTarget, TextureState::present));
                 });
 
-            // 执行渲染图
             RGExecuteInfo executeInfo;
             executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-            executeInfo.semaphoresToSignal = { renderFinishedSemaphore.Get() };
+            executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
             executeInfo.inFenceToSignal = frameFence.Get();
             builder.Execute(executeInfo);
 
-            swapChain->Present(renderFinishedSemaphore.Get());
+            swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
+            swapChainTextureStates[backTextureIndex] = TextureState::present;
             frameFence->Wait();
 
             Core::ThreadContext::IncFrameNumber();
@@ -440,7 +433,7 @@ protected:
             fence->Wait();
 
             BindGroupCache::Get(*device).Invalidate();
-            PipelineCache::Get(*device).Invalidate();
+            Render::PipelineCache::Get(*device).Invalidate();
             BufferPool::Get(*device).Invalidate();
             TexturePool::Get(*device).Invalidate();
             ShaderMap::Get(*device).Invalidate();
@@ -473,6 +466,7 @@ private:
     UniquePtr<Surface> surface;
     UniquePtr<SwapChain> swapChain;
     std::array<Texture*, backBufferCount> swapChainTextures;
+    std::array<TextureState, backBufferCount> swapChainTextureStates;
 
     UniquePtr<Buffer> vertexBuffer;
     UniquePtr<Buffer> indexBuffer;
@@ -491,7 +485,7 @@ private:
     UniquePtr<RHI::Sampler> noiseSampler;
 
     UniquePtr<Semaphore> imageReadySemaphore;
-    UniquePtr<Semaphore> renderFinishedSemaphore;
+    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
     UniquePtr<Fence> frameFence;
 
     // Uniform buffers
@@ -569,7 +563,7 @@ private:
         };
 
         for (const auto format : swapChainFormatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+            if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
                 swapChainFormat = format;
                 break;
             }
@@ -588,6 +582,7 @@ private:
 
         for (auto i = 0; i < backBufferCount; i++) {
             swapChainTextures[i] = swapChain->GetTexture(i);
+            swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
         }
     }
 
@@ -675,7 +670,9 @@ private:
     void CreateSyncObjects()
     {
         imageReadySemaphore = device->CreateSemaphore();
-        renderFinishedSemaphore = device->CreateSemaphore();
+        for (auto i = 0; i < backBufferCount; i++) {
+            renderFinishedSemaphores[i] = device->CreateSemaphore();
+        }
         frameFence = device->CreateFence(true);
     }
 
@@ -905,7 +902,6 @@ private:
         for (const auto& mesh : model->meshes) {
             UniquePtr<Texture> diffuseTex = nullptr;
 
-            // 加载材质纹理
             if (mesh->materialData && mesh->materialData->baseColorTexture) {
                 const auto& texData = mesh->materialData->baseColorTexture;
 
@@ -971,7 +967,7 @@ private:
     {
         auto* camera = new Camera(
             FVec3(.0f, -5.0f, 2.0f),
-            FVec3(.0f, .0f, -90.0f),
+            0.0f, -90.0f,
             Camera::ProjectionParams {
                 60.0f,
                 static_cast<float>(GetWindowWidth()),

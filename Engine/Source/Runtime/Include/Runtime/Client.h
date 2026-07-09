@@ -4,17 +4,18 @@
 
 #pragma once
 
-#include <Runtime/Viewport.h>
+#include <Runtime/Api.h>
+#include <Runtime/RenderSurface.h>
 
 namespace Runtime {
     class World;
 
-    class Client {
+    class RUNTIME_API Client {
     public:
         virtual ~Client();
 
         virtual World& GetWorld() = 0;
-        virtual Viewport& GetViewport() = 0;
+        virtual RenderSurface* GetRenderSurface() = 0;
 
     protected:
         Client();

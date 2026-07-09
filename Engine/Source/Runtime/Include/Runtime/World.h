@@ -36,6 +36,9 @@ namespace Runtime {
         void Resume();
         void Pause();
         void Stop();
+        bool ShouldTick() const;
+        ECRegistry& GetRegistry();
+        const ECRegistry& GetRegistry() const;
         void LoadFrom(AssetPtr<Level> inLevel);
         void SaveTo(AssetPtr<Level> inLevel);
 

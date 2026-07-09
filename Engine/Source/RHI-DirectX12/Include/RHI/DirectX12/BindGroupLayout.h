@@ -11,6 +11,8 @@
 namespace RHI::DirectX12 {
     class DX12Device;
 
+    D3D12_SHADER_VISIBILITY GetShaderVisibility(ShaderStageFlags shaderStageFlags);
+
     struct RootParameterKeyInfo {
         BindingType bindingType;
         uint8_t layoutIndex;

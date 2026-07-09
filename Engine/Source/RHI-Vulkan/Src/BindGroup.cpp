@@ -87,7 +87,8 @@ namespace RHI::Vulkan {
                 bufferInfosNum++;
             } else if (entry.binding.type == BindingType::sampler
                 || entry.binding.type == BindingType::texture
-                ||entry.binding.type == BindingType::storageTexture) {
+                || entry.binding.type == BindingType::storageTexture
+                || entry.binding.type == BindingType::rwStorageTexture) {
                 imageInfosNum++;
             }
         }
@@ -121,11 +122,15 @@ namespace RHI::Vulkan {
                 imageInfos.back().sampler = sampler->GetNative();
 
                 descriptorWrites[i].pImageInfo = &imageInfos.back();
-            } else if (entry.binding.type == BindingType::texture || entry.binding.type == BindingType::storageTexture) {
+            } else if (entry.binding.type == BindingType::texture
+                || entry.binding.type == BindingType::storageTexture
+                || entry.binding.type == BindingType::rwStorageTexture) {
                 const auto* textureView = static_cast<VulkanTextureView*>(std::get<TextureView*>(entry.entity));
 
                 imageInfos.emplace_back();
-                imageInfos.back().imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfos.back().imageLayout = entry.binding.type == BindingType::texture
+                    ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    : VK_IMAGE_LAYOUT_GENERAL;
                 imageInfos.back().imageView = textureView->GetNative();
 
                 descriptorWrites[i].pImageInfo = &imageInfos.back();

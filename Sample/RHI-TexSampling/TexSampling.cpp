@@ -44,7 +44,7 @@ protected:
 
         const UniquePtr<CommandRecorder> commandRecorder = commandBuffers[nextFrameIndex]->Begin();
         {
-            commandRecorder->ResourceBarrier(Barrier::Transition(swapChainTextures[backTextureIndex], TextureState::present, TextureState::renderTarget));
+            commandRecorder->ResourceBarrier(Barrier::Transition(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex], TextureState::renderTarget));
             const UniquePtr<RasterPassCommandRecorder> rasterRecorder = commandRecorder->BeginRasterPass(
                 RasterPassBeginInfo()
                     .AddColorAttachment(ColorAttachment(swapChainTextureViews[backTextureIndex].Get(), LoadOp::clear, StoreOp::store, LinearColorConsts::black)));
@@ -66,10 +66,11 @@ protected:
         graphicsQueue->Submit(
             commandBuffers[nextFrameIndex].Get(), QueueSubmitInfo()
                 .AddWaitSemaphore(backBufferReadySemaphores[nextFrameIndex].Get())
-                .AddSignalSemaphore(renderFinishedSemaphores[nextFrameIndex].Get())
+                .AddSignalSemaphore(renderFinishedSemaphores[backTextureIndex].Get())
                 .SetSignalFence(inflightFences[nextFrameIndex].Get()));
 
-        swapChain->Present(renderFinishedSemaphores[nextFrameIndex].Get());
+        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
+        swapChainTextureStates[backTextureIndex] = TextureState::present;
         nextFrameIndex = (nextFrameIndex + 1) % backBufferCount;
     }
 
@@ -113,7 +114,7 @@ private:
         surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
 
         for (const auto format : swapChainFormatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+            if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
                 swapChainFormat = format;
                 break;
             }
@@ -132,6 +133,7 @@ private:
 
         for (auto i = 0; i < backBufferCount; i++) {
             swapChainTextures[i] = swapChain->GetTexture(i);
+            swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
 
             swapChainTextureViews[i] = swapChainTextures[i]->CreateTextureView(
                 TextureViewCreateInfo()
@@ -398,6 +400,7 @@ private:
     UniquePtr<Buffer> pixelBuffer;
     std::array<Texture*, backBufferCount> swapChainTextures {};
     std::array<UniquePtr<TextureView>, backBufferCount> swapChainTextureViews;
+    std::array<TextureState, backBufferCount> swapChainTextureStates {};
     UniquePtr<PipelineLayout> pipelineLayout;
     UniquePtr<RasterPipeline> pipeline;
     UniquePtr<ShaderModule> vertexShader;

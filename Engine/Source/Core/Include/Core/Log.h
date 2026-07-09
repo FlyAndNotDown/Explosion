@@ -19,10 +19,25 @@
 #define LogError(tag, ...) Core::Logger::Get().Log(#tag, Core::LogLevel::error, std::format(__VA_ARGS__))
 
 namespace Core {
-    class LogStream {
+    enum class LogLevel : uint8_t {
+        verbose,
+        info,
+        warning,
+        error,
+        max
+    };
+
+    struct LogEntry {
+        std::string time;
+        std::string tag;
+        LogLevel level;
+        std::string content;
+    };
+
+    class CORE_API LogStream {
     public:
         virtual ~LogStream() = default;
-        virtual void Write(const std::string& inString) = 0;
+        virtual void Write(const LogEntry& inEntry) = 0;
         virtual void Flush() = 0;
     };
 
@@ -34,7 +49,7 @@ namespace Core {
         NonCopyable(COutLogStream);
         NonMovable(COutLogStream);
 
-        void Write(const std::string& inString) override;
+        void Write(const LogEntry& inEntry) override;
         void Flush() override;
     };
 
@@ -46,19 +61,11 @@ namespace Core {
         NonCopyable(FileLogStream)
         NonMovable(FileLogStream)
 
-        void Write(const std::string& inString) override;
+        void Write(const LogEntry& inEntry) override;
         void Flush() override;
 
     private:
         std::ofstream file;
-    };
-
-    enum class LogLevel : uint8_t {
-        verbose,
-        info,
-        warning,
-        error,
-        max
     };
 
     class CORE_API Logger {
@@ -76,7 +83,7 @@ namespace Core {
     private:
         Logger();
 
-        void LogInternal(const std::string& inString);
+        void LogInternal(const LogEntry& inEntry);
 
         float lastFlushTimeSec;
         std::vector<Common::UniquePtr<LogStream>> streams;

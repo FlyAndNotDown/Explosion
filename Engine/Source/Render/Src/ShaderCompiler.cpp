@@ -61,7 +61,7 @@ namespace Render {
             { D3D_SIT_CBUFFER, RHI::BindingType::uniformBuffer },
             { D3D_SIT_TEXTURE, RHI::BindingType::texture },
             { D3D_SIT_SAMPLER, RHI::BindingType::sampler },
-            { D3D_SIT_UAV_RWTYPED, RHI::BindingType::storageTexture },
+            { D3D_SIT_UAV_RWTYPED, RHI::BindingType::rwStorageTexture },
             { D3D_SIT_STRUCTURED, RHI::BindingType::storageBuffer },
             { D3D_SIT_UAV_RWSTRUCTURED, RHI::BindingType::rwStorageBuffer }
         };
@@ -242,7 +242,8 @@ namespace Render {
             resourceBindings.emplace_back(&buffer, RHI::BindingType::storageBuffer);
         }
         for (const spirv_cross::Resource& image : shaderResources.storage_images) {
-            resourceBindings.emplace_back(&image, RHI::BindingType::storageTexture);
+            const bool readOnly = compiler.has_decoration(image.id, spv::DecorationNonWritable);
+            resourceBindings.emplace_back(&image, readOnly ? RHI::BindingType::storageTexture : RHI::BindingType::rwStorageTexture);
         }
 
         for (const auto& iter : resourceBindings) { // NOLINT

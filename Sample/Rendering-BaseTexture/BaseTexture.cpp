@@ -84,9 +84,10 @@ private:
     UniquePtr<Texture> texture;
     UniquePtr<Buffer> imageBuffer;
     std::array<Texture*, backBufferCount> swapChainTextures;
+    std::array<TextureState, backBufferCount> swapChainTextureStates;
     UniquePtr<RasterPipeline> pipeline;
     UniquePtr<Semaphore> imageReadySemaphore;
-    UniquePtr<Semaphore> renderFinishedSemaphore;
+    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
     UniquePtr<Fence> frameFence;
 };
 
@@ -94,6 +95,7 @@ BaseTexApp::BaseTexApp(const std::string& inName)
     : Application(inName)
     , swapChainFormat(PixelFormat::max)
     , swapChainTextures()
+    , swapChainTextureStates()
 {
 }
 
@@ -123,7 +125,7 @@ void BaseTexApp::OnDrawFrame()
         frameFence->Reset();
         const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
 
-        auto* pso = PipelineCache::Get(*device).GetOrCreate(
+        auto* pso = Render::PipelineCache::Get(*device).GetOrCreate(
             RasterPipelineStateDesc()
                 .SetVertexShader(vs)
                 .SetPixelShader(ps)
@@ -139,7 +141,7 @@ void BaseTexApp::OnDrawFrame()
                 .SetPrimitiveState(PrimitiveState(PrimitiveTopologyType::triangle, FillMode::solid, IndexFormat::uint16, FrontFace::ccw, CullMode::none)));
 
         RGBuilder builder(*device);
-        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], TextureState::present);
+        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
         auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
         auto* vBuffer = builder.ImportBuffer(vertexBuffer.Get(), BufferState::shaderReadOnly);
         auto* vBufferView = builder.CreateBufferView(vBuffer, RGBufferViewDesc(BufferViewType::vertex, vBuffer->GetDesc().size, 0, VertexBufferViewInfo(sizeof(Vertex))));
@@ -147,7 +149,7 @@ void BaseTexApp::OnDrawFrame()
         auto* iBufferView = builder.CreateBufferView(iBuffer, RGBufferViewDesc(BufferViewType::index, iBuffer->GetDesc().size, 0, IndexBufferViewInfo(IndexFormat::uint32)));
         auto* uBuffer = builder.CreateBuffer(RGBufferDesc(sizeof(VertUniform), BufferUsageBits::uniform | BufferUsageBits::mapWrite, BufferState::staging, "psUniform"));
         auto* uBufferView = builder.CreateBufferView(uBuffer, RGBufferViewDesc(BufferViewType::uniformBinding, sizeof(VertUniform)));
-        auto* rgTexture = builder.ImportTexture(texture.Get(), TextureState::undefined);
+        auto* rgTexture = builder.ImportTexture(texture.Get(), TextureState::shaderReadOnly);
         auto* rgTextureView = builder.CreateTextureView(rgTexture, RGTextureViewDesc(TextureViewType::textureBinding, TextureViewDimension::tv2D));
 
         auto* bindGroup = builder.AllocateBindGroup(
@@ -185,10 +187,11 @@ void BaseTexApp::OnDrawFrame()
 
         RGExecuteInfo executeInfo;
         executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-        executeInfo.semaphoresToSignal = { renderFinishedSemaphore.Get() };
+        executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
         executeInfo.inFenceToSignal = frameFence.Get();
         builder.Execute(executeInfo);
-        swapChain->Present(renderFinishedSemaphore.Get());
+        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
+        swapChainTextureStates[backTextureIndex] = TextureState::present;
         frameFence->Wait();
 
         Core::ThreadContext::IncFrameNumber();
@@ -210,7 +213,7 @@ void BaseTexApp::OnDestroy()
         fence->Wait();
 
         BindGroupCache::Get(*device).Invalidate();
-        PipelineCache::Get(*device).Invalidate();
+        Render::PipelineCache::Get(*device).Invalidate();
         BufferPool::Get(*device).Invalidate();
         TexturePool::Get(*device).Invalidate();
         ShaderMap::Get(*device).Invalidate();
@@ -263,7 +266,7 @@ void BaseTexApp::CreateSwapChain()
     surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
 
     for (const auto format : swapChainFormatQualifiers) {
-        if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+        if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
             swapChainFormat = format;
             break;
         }
@@ -282,6 +285,7 @@ void BaseTexApp::CreateSwapChain()
 
     for (auto i = 0; i < backBufferCount; i++) {
         swapChainTextures[i] = swapChain->GetTexture(i);
+        swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
     }
 }
 
@@ -391,7 +395,9 @@ void BaseTexApp::CreateTextureAndSampler()
 void BaseTexApp::CreateSyncObjects()
 {
     imageReadySemaphore = device->CreateSemaphore();
-    renderFinishedSemaphore = device->CreateSemaphore();
+    for (auto i = 0; i < backBufferCount; i++) {
+        renderFinishedSemaphores[i] = device->CreateSemaphore();
+    }
     frameFence = device->CreateFence(true);
 }
 

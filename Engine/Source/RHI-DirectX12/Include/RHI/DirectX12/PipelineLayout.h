@@ -6,6 +6,7 @@
 
 #include <unordered_map>
 #include <optional>
+#include <vector>
 
 #include <wrl/client.h>
 
@@ -38,6 +39,7 @@ namespace RHI::DirectX12 {
         ~DX12PipelineLayout() override;
 
         std::optional<BindingTypeAndRootParameterIndex> QueryRootDescriptorParameterIndex(uint8_t inLayoutIndex, const HlslBinding& inBinding);
+        RootParameterIndex QueryRootConstantParameterIndex(uint32_t inPipelineConstantIndex) const;
         ID3D12RootSignature* GetNative() const;
 
     private:
@@ -45,5 +47,6 @@ namespace RHI::DirectX12 {
 
         ComPtr<ID3D12RootSignature> nativeRootSignature;
         RootParameterIndexMap rootParameterIndexMap;
+        std::vector<RootParameterIndex> rootConstantParameterIndices;
     };
 }

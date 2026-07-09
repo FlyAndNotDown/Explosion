@@ -24,6 +24,8 @@
 #include <RHI/DirectX12/SwapChain.h>
 #include <RHI/DirectX12/Synchronous.h>
 #include <RHI/DirectX12/Surface.h>
+#include <RHI/DirectX12/QuerySet.h>
+#include <RHI/DirectX12/PipelineCache.h>
 #include <RHI/CommandRecorder.h>
 #include <Core/Log.h>
 
@@ -153,7 +155,7 @@ namespace RHI::DirectX12 {
         CreateNativeQueues(inCreateInfo);
         QueryNativeDescriptorSize();
         CreateDescriptorPools();
-        CreateDrawIndirectCommandSignatures();
+        CreateIndirectCommandSignatures();
 #if BUILD_CONFIG_DEBUG
         RegisterNativeDebugLayerExceptionHandler();
 #endif
@@ -253,14 +255,24 @@ namespace RHI::DirectX12 {
         return { new DX12Semaphore(*this) };
     }
 
-    bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat)
+    Common::UniquePtr<QuerySet> DX12Device::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
     {
-        static std::unordered_set supportedFormats = {
-            PixelFormat::rgba8Unorm,
-            PixelFormat::bgra8Unorm,
-            // TODO HDR
+        return { new DX12QuerySet(*this, inCreateInfo) };
+    }
+
+    Common::UniquePtr<PipelineCache> DX12Device::CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo)
+    {
+        return { new DX12PipelineCache(*this, inCreateInfo) };
+    }
+
+    bool DX12Device::CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace)
+    {
+        static std::unordered_map<ColorSpace, std::unordered_set<PixelFormat>> supportedFormats = {
+            { ColorSpace::srgbNonLinear, { PixelFormat::rgba8Unorm, PixelFormat::bgra8Unorm } },
+            { ColorSpace::hdr10St2084,   { PixelFormat::rgb10A2Unorm } }
         };
-        return supportedFormats.contains(inFormat);
+        const auto iter = supportedFormats.find(inColorSpace);
+        return iter != supportedFormats.end() && iter->second.contains(inFormat);
     }
 
     TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
@@ -297,6 +309,11 @@ namespace RHI::DirectX12 {
     ID3D12CommandSignature* DX12Device::GetDrawIndexedIndirectCommandSignature() const
     {
         return drawIndexedIndirectCommandSignature.Get();
+    }
+
+    ID3D12CommandSignature* DX12Device::GetDispatchIndirectCommandSignature() const
+    {
+        return dispatchIndirectCommandSignature.Get();
     }
 
     Common::UniquePtr<DescriptorAllocation> DX12Device::AllocateRtvDescriptor() const
@@ -368,7 +385,7 @@ namespace RHI::DirectX12 {
         dsvDescriptorPool = Common::MakeUnique<DescriptorPool>(*this, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, nativeDsvDescriptorSize, 16);
     }
 
-    void DX12Device::CreateDrawIndirectCommandSignatures()
+    void DX12Device::CreateIndirectCommandSignatures()
     {
         const auto createSignature = [this](const D3D12_INDIRECT_ARGUMENT_TYPE inArgumentType, const uint32_t inStride) -> ComPtr<ID3D12CommandSignature> {
             D3D12_INDIRECT_ARGUMENT_DESC argumentDesc {};
@@ -388,6 +405,7 @@ namespace RHI::DirectX12 {
 
         drawIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DRAW, sizeof(DrawIndirectArguments));
         drawIndexedIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED, sizeof(DrawIndexedIndirectArguments));
+        dispatchIndirectCommandSignature = createSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH, sizeof(DispatchIndirectArguments));
     }
 
 #if BUILD_CONFIG_DEBUG

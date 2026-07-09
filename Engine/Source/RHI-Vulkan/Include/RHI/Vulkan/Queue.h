@@ -20,10 +20,12 @@ namespace RHI::Vulkan {
 
         void Submit(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo) override;
         void Flush(Fence* inFenceToSignal) override;
+        float GetTimestampPeriod() override;
 
         VkQueue GetNative() const;
 
     private:
+        VulkanDevice& device;
         VkQueue nativeQueue;
     };
 }

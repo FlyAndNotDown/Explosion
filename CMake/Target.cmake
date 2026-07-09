@@ -86,41 +86,79 @@ function(exp_gather_target_runtime_dependencies_recurse)
     set(${arg_OUT_DEP_TARGET} ${result_dep_target} PARENT_SCOPE)
 endfunction()
 
-# Every runtime file lands in the single shared per-sub-project Binaries directory. To keep the copies generator-agnostic
-# and race-free, each destination is owned by exactly one copy step rather than being re-copied by every consumer:
-#   - files referenced through a target ($<TARGET_FILE:...>) get a per-file owner created in the consumer's scope, so the
-#     generator expression resolves where the target is visible (imported third-party targets such as Qt are
-#     directory-scoped and would be invisible in a global aggregate target). A first-party owner additionally waits on its
-#     producing target; merging these into one target is impossible because a build tool such as MirrorTool consumes a dll
-#     while another dll's producer transitively depends on the tool, which would close a build cycle;
-#   - prebuilt third-party files given as plain paths, plus resources, carry no target and are batched (deduplicated) into
-#     one per-sub-project assets target whose copies run sequentially (see exp_finalize_dist_assets).
-function(exp_add_runtime_dep_copy)
+# All runtime files share one per-sub-project Binaries directory, so each must have a single copy owner or parallel builds
+# race on the same destination: a first-party shared library copies itself via a POST_BUILD step on its producer (see
+# exp_add_library), while imported targets, plain-path third-party files and resources go through one batched assets
+# target (see exp_finalize_dist_assets). An imported target's $<TARGET_FILE:...> is not resolvable in that source-scope
+# batch target, so its file is resolved to a concrete path here first.
+
+# Resolve an imported target's on-disk file for a config, trying the per-config location, its config mapping, the
+# config-less IMPORTED_LOCATION, then any available imported configuration.
+function(exp_get_imported_location)
     set(options "")
-    set(singleValueArgs KEY SRC PRODUCER OUTPUT_TARGET)
+    set(singleValueArgs TARGET CONFIG OUTPUT)
     set(multiValueArgs "")
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    string(MAKE_C_IDENTIFIER "${arg_KEY}" key_id)
-    set(registry_property EXP_RUNTIME_DEP_COPY_${SUB_PROJECT_NAME}_${key_id})
-
-    get_property(copy_target GLOBAL PROPERTY ${registry_property})
-    if (NOT copy_target)
-        exp_get_runtime_output_dir(OUTPUT out_dir)
-        set(copy_target ${SUB_PROJECT_NAME}.CopyDll.${key_id})
-        add_custom_target(
-            ${copy_target}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${out_dir}
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${arg_SRC} ${out_dir}
-        )
-        set_target_properties(${copy_target} PROPERTIES FOLDER ${AUX_TARGETS_FOLDER})
-        if (arg_PRODUCER)
-            add_dependencies(${copy_target} ${arg_PRODUCER})
+    set(loc "loc-NOTFOUND")
+    if (NOT "${arg_CONFIG}" STREQUAL "")
+        string(TOUPPER "${arg_CONFIG}" config_upper)
+        get_target_property(loc ${arg_TARGET} IMPORTED_LOCATION_${config_upper})
+        if (NOT loc)
+            get_target_property(mapped_configs ${arg_TARGET} MAP_IMPORTED_CONFIG_${config_upper})
+            if (mapped_configs)
+                foreach (mapped ${mapped_configs})
+                    string(TOUPPER "${mapped}" mapped_upper)
+                    get_target_property(loc ${arg_TARGET} IMPORTED_LOCATION_${mapped_upper})
+                    if (loc)
+                        break()
+                    endif ()
+                endforeach ()
+            endif ()
         endif ()
-        set_property(GLOBAL PROPERTY ${registry_property} ${copy_target})
+    endif ()
+    if (NOT loc)
+        get_target_property(loc ${arg_TARGET} IMPORTED_LOCATION)
+    endif ()
+    if (NOT loc)
+        get_target_property(imported_configs ${arg_TARGET} IMPORTED_CONFIGURATIONS)
+        if (imported_configs)
+            list(GET imported_configs 0 first_config)
+            string(TOUPPER "${first_config}" first_upper)
+            get_target_property(loc ${arg_TARGET} IMPORTED_LOCATION_${first_upper})
+        endif ()
+    endif ()
+    if (NOT loc)
+        set(loc "")
     endif ()
 
-    set(${arg_OUTPUT_TARGET} ${copy_target} PARENT_SCOPE)
+    set(${arg_OUTPUT} ${loc} PARENT_SCOPE)
+endfunction()
+
+# Resolve an imported target's runtime file to a concrete path the source-scope assets target can copy: a plain path for
+# single-config generators, or a per-config $<$<CONFIG:..>:path> of literals (no target reference) for multi-config ones.
+function(exp_resolve_imported_runtime_file)
+    set(options "")
+    set(singleValueArgs TARGET OUTPUT_SRC)
+    set(multiValueArgs "")
+    cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    set(src_expr "")
+    if (with_multi_config_generator)
+        foreach (config ${CMAKE_CONFIGURATION_TYPES})
+            exp_get_imported_location(TARGET ${arg_TARGET} CONFIG ${config} OUTPUT loc)
+            if (loc)
+                string(APPEND src_expr "$<$<CONFIG:${config}>:${loc}>")
+            endif ()
+        endforeach ()
+    else ()
+        exp_get_imported_location(TARGET ${arg_TARGET} CONFIG "${CMAKE_BUILD_TYPE}" OUTPUT loc)
+        if (loc)
+            set(src_expr ${loc})
+        endif ()
+    endif ()
+
+    set(${arg_OUTPUT_SRC} ${src_expr} PARENT_SCOPE)
 endfunction()
 
 function(exp_schedule_dist_assets_finalize)
@@ -207,19 +245,14 @@ function(exp_process_runtime_dependencies)
         endif ()
 
         if (referenced AND TARGET ${referenced})
-            set(producer "")
             get_target_property(referenced_imported ${referenced} IMPORTED)
-            if (NOT referenced_imported)
-                set(producer ${referenced})
+            if (referenced_imported)
+                exp_resolve_imported_runtime_file(TARGET ${referenced} OUTPUT_SRC src)
+                if (src)
+                    set_property(GLOBAL APPEND PROPERTY EXP_DIST_ASSET_FILES_${SUB_PROJECT_NAME} ${src})
+                endif ()
             endif ()
-
-            exp_add_runtime_dep_copy(
-                KEY ${r}
-                SRC ${r}
-                PRODUCER ${producer}
-                OUTPUT_TARGET copy_target
-            )
-            add_dependencies(${arg_NAME} ${copy_target})
+            # first-party shared libs copy themselves via a POST_BUILD step in exp_add_library; nothing to wire up here
         else ()
             set_property(GLOBAL APPEND PROPERTY EXP_DIST_ASSET_FILES_${SUB_PROJECT_NAME} ${r})
         endif ()
@@ -560,6 +593,16 @@ function(exp_add_library)
         LIBRARY_OUTPUT_DIRECTORY ${library_output_dir}
         ARCHIVE_OUTPUT_DIRECTORY ${archive_output_directory}
     )
+
+    if ("${arg_TYPE}" STREQUAL "SHARED")
+        exp_get_runtime_output_dir(OUTPUT dist_dir)
+        add_custom_command(
+            TARGET ${arg_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${dist_dir}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${arg_NAME}> ${dist_dir}
+            VERBATIM
+        )
+    endif ()
 
     foreach (inc ${arg_PUBLIC_INC})
         get_filename_component(absolute_inc ${inc} ABSOLUTE)

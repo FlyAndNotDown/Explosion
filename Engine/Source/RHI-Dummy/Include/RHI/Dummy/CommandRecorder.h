@@ -21,6 +21,9 @@ namespace RHI::Dummy {
         Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() override;
         Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() override;
         Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& beginInfo) override;
+        void WriteTimestamp(QuerySet* querySet, uint32_t queryIndex) override;
+        void ResetQuerySet(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount) override;
+        void ResolveQuery(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount, Buffer* dstBuffer, size_t dstOffset) override;
         void End() override;
 
     private:
@@ -60,10 +63,12 @@ namespace RHI::Dummy {
         // ComputePassCommandRecorder
         void SetPipeline(ComputePipeline* pipeline) override;
         void SetBindGroup(uint8_t layoutIndex, BindGroup *bindGroup) override;
+        void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) override;
         void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) override;
+        void DispatchIndirect(Buffer* indirectBuffer, size_t offset) override;
         void EndPass() override;
     };
-    
+
     class DummyRasterPassCommandRecorder final : public RasterPassCommandRecorder {
     public:
         NonCopyable(DummyRasterPassCommandRecorder)
@@ -78,6 +83,7 @@ namespace RHI::Dummy {
         // RasterPassCommandRecorder
         void SetPipeline(RasterPipeline* pipeline) override;
         void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) override;
+        void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) override;
         void SetIndexBuffer(BufferView* bufferView) override;
         void SetVertexBuffer(size_t slot, BufferView* bufferView) override;
         void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) override;
@@ -91,6 +97,8 @@ namespace RHI::Dummy {
         void DrawIndexedIndirect(Buffer* indirectBuffer, size_t offset) override;
         void MultiDrawIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) override;
         void MultiDrawIndexedIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) override;
+        void BeginOcclusionQuery(QuerySet* querySet, uint32_t queryIndex) override;
+        void EndOcclusionQuery() override;
         void EndPass() override;
     };
 }

@@ -132,7 +132,7 @@ protected:
 
         {
             // composition
-            commandRecorder->ResourceBarrier(Barrier::Transition(swapChainTextures[backTextureIndex], TextureState::present, TextureState::renderTarget));
+            commandRecorder->ResourceBarrier(Barrier::Transition(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex], TextureState::renderTarget));
             const UniquePtr<RasterPassCommandRecorder> rasterRecorder = commandRecorder->BeginRasterPass(
                 RasterPassBeginInfo()
                     .AddColorAttachment(RHI::ColorAttachment(swapChainTextureViews[backTextureIndex].Get(), LoadOp::clear, StoreOp::store, LinearColorConsts::black)));
@@ -155,10 +155,11 @@ protected:
         graphicsQueue->Submit(
             commandBuffers[nextFrameIndex].Get(), QueueSubmitInfo()
                 .AddWaitSemaphore(backBufferReadySemaphores[nextFrameIndex].Get())
-                .AddSignalSemaphore(renderFinishedSemaphores[nextFrameIndex].Get())
+                .AddSignalSemaphore(renderFinishedSemaphores[backTextureIndex].Get())
                 .SetSignalFence(inflightFences[nextFrameIndex].Get()));
 
-        swapChain->Present(renderFinishedSemaphores[nextFrameIndex].Get());
+        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
+        swapChainTextureStates[backTextureIndex] = TextureState::present;
         nextFrameIndex = (nextFrameIndex + 1) % backBufferCount;
     }
 
@@ -186,6 +187,7 @@ private:
     UniquePtr<BufferView> indexBufferView = nullptr;
     std::array<Texture*, backBufferCount> swapChainTextures {};
     std::array<UniquePtr<TextureView>, backBufferCount> swapChainTextureViews {};
+    std::array<TextureState, backBufferCount> swapChainTextureStates {};
 
     UniquePtr<Buffer> quadVertexBuffer = nullptr;
     UniquePtr<BufferView> quadVertexBufferView = nullptr;
@@ -414,7 +416,7 @@ private:
         surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
 
         for (const auto format : swapChainFormatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format)) {
+            if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
                 swapChainFormat = format;
                 break;
             }
@@ -433,6 +435,7 @@ private:
 
         for (auto i = 0; i < backBufferCount; i++) {
             swapChainTextures[i] = swapChain->GetTexture(i);
+            swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
 
             swapChainTextureViews[i] = swapChainTextures[i]->CreateTextureView(
                 TextureViewCreateInfo()
@@ -995,7 +998,7 @@ private:
     {
         auto* camera = new Camera(
             FVec3(.0f, -5.0f, 2.0f),
-            FVec3(.0f, .0f, -90.0f),
+            0.0f, -90.0f,
             Camera::ProjectionParams {
                 60.0f,
                 static_cast<float>(GetWindowWidth()),

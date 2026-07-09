@@ -22,6 +22,8 @@
 #include <RHI/Vulkan/CommandBuffer.h>
 #include <RHI/Vulkan/Synchronous.h>
 #include <RHI/Vulkan/Surface.h>
+#include <RHI/Vulkan/QuerySet.h>
+#include <RHI/Vulkan/PipelineCache.h>
 
 namespace RHI::Vulkan {
     const std::vector requiredExtensions = {
@@ -35,9 +37,6 @@ namespace RHI::Vulkan {
 #endif
     };
 
-    const std::vector requiredValidationLayers = {
-        "VK_LAYER_KHRONOS_validation"
-    };
 }
 
 namespace RHI::Vulkan {
@@ -147,10 +146,19 @@ namespace RHI::Vulkan {
         return { new VulkanSemaphore(*this) };
     }
 
-    bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat)
+    Common::UniquePtr<QuerySet> VulkanDevice::CreateQuerySet(const QuerySetCreateInfo& inCreateInfo)
+    {
+        return { new VulkanQuerySet(*this, inCreateInfo) };
+    }
+
+    Common::UniquePtr<PipelineCache> VulkanDevice::CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo)
+    {
+        return { new VulkanPipelineCache(*this, inCreateInfo) };
+    }
+
+    bool VulkanDevice::CheckSwapChainFormatSupport(Surface* inSurface, const PixelFormat inFormat, const ColorSpace inColorSpace)
     {
         const auto* vkSurface = static_cast<VulkanSurface*>(inSurface);
-        VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 
         uint32_t formatCount = 0;
         std::vector<VkSurfaceFormatKHR> surfaceFormats;
@@ -161,7 +169,7 @@ namespace RHI::Vulkan {
 
         const auto iter = std::ranges::find_if(
             surfaceFormats,
-            [format = EnumCast<PixelFormat, VkFormat>(inFormat), colorSpace](const VkSurfaceFormatKHR surfaceFormat) {
+            [format = EnumCast<PixelFormat, VkFormat>(inFormat), colorSpace = EnumCast<ColorSpace, VkColorSpaceKHR>(inColorSpace)](const VkSurfaceFormatKHR surfaceFormat) {
                 return format == surfaceFormat.format && colorSpace == surfaceFormat.colorSpace;
             });
         return iter != surfaceFormats.end();
@@ -248,6 +256,7 @@ namespace RHI::Vulkan {
 
         VkPhysicalDeviceFeatures deviceFeatures = {};
         deviceFeatures.samplerAnisotropy = VK_TRUE;
+        deviceFeatures.occlusionQueryPrecise = VK_TRUE;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -270,11 +279,6 @@ namespace RHI::Vulkan {
 
         deviceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
         deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-
-#if BUILD_CONFIG_DEBUG
-        deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(requiredValidationLayers.size());
-        deviceCreateInfo.ppEnabledLayerNames = requiredValidationLayers.data();
-#endif
 
         Assert(vkCreateDevice(gpu.GetNative(), &deviceCreateInfo, nullptr, &nativeDevice) == VK_SUCCESS);
     }

@@ -16,4 +16,9 @@ namespace RHI::Dummy {
     void DummyQueue::Flush(RHI::Fence* fenceToSignal)
     {
     }
+
+    float DummyQueue::GetTimestampPeriod()
+    {
+        return 1.0f;
+    }
 }

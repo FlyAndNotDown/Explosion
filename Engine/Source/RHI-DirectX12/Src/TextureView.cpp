@@ -11,12 +11,12 @@
 namespace RHI::DirectX12 {
     static bool IsShaderResource(const TextureViewType type)
     {
-        return (type == TextureViewType::textureBinding);
+        return (type == TextureViewType::textureBinding) || (type == TextureViewType::storageBinding);
     }
 
     static bool IsUnorderedAccess(const TextureViewType type)
     {
-        return (type == TextureViewType::storageBinding);
+        return (type == TextureViewType::rwStorageBinding);
     }
 
     static bool IsRenderTarget(const TextureViewType type)

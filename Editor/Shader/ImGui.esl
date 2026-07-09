@@ -1,0 +1,37 @@
+#include <Platform.esh>
+
+VkBinding(0, 0) Texture2D imageTex : register(t0);
+VkBinding(1, 0) SamplerState imageSampler : register(s0);
+VkBinding(2, 0) cbuffer passParams : register(b0)
+{
+    float2 displayPos;
+    float2 displaySize;
+};
+
+struct FragmentInput {
+    float4 position : SV_POSITION;
+    float2 uv : TEXCOORD;
+    float4 color : COLOR;
+};
+
+FragmentInput VSMain(
+    VkLocation(0) float2 position : POSITION,
+    VkLocation(1) float2 uv : TEXCOORD,
+    VkLocation(2) float4 color : COLOR)
+{
+    const float2 normalized = (position - displayPos) / displaySize;
+
+    FragmentInput output;
+    output.position = float4(normalized.x * 2.0f - 1.0f, 1.0f - normalized.y * 2.0f, 0.0f, 1.0f);
+#if VULKAN
+    output.position.y = -output.position.y;
+#endif
+    output.uv = uv;
+    output.color = color;
+    return output;
+}
+
+float4 PSMain(FragmentInput input) : SV_TARGET
+{
+    return input.color * imageTex.Sample(imageSampler, input.uv);
+}

@@ -28,13 +28,15 @@ namespace RHI::Dummy {
         Common::UniquePtr<BindGroup> CreateBindGroup(const BindGroupCreateInfo& createInfo) override;
         Common::UniquePtr<PipelineLayout> CreatePipelineLayout(const PipelineLayoutCreateInfo& createInfo) override;
         Common::UniquePtr<ShaderModule> CreateShaderModule(const ShaderModuleCreateInfo& createInfo) override;
+        Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& createInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& createInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& createInfo) override;
         Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
         Common::UniquePtr<Fence> CreateFence(bool bInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
+        Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) override;
 
-        bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format) override;
+        bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format, ColorSpace colorSpace) override;
         TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
 
     private:

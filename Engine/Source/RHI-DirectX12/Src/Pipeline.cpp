@@ -10,6 +10,7 @@
 #include <RHI/DirectX12/ShaderModule.h>
 #include <RHI/DirectX12/PipelineLayout.h>
 #include <RHI/DirectX12/Pipeline.h>
+#include <RHI/DirectX12/PipelineCache.h>
 
 namespace RHI::DirectX12 {
     D3D12_RENDER_TARGET_BLEND_DESC GetDX12RenderTargetBlendDesc(const ColorTargetState& colorTargetState)
@@ -224,8 +225,18 @@ namespace RHI::DirectX12 {
         auto inputElements = GetDX12InputElements(inCreateInfo);
         UpdateDX12InputLayoutDesc(desc, inputElements);
 
-        bool success = SUCCEEDED(inDevice.GetNative()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&nativePipelineState)));
-        Assert(success);
+        auto* pipelineCache = static_cast<DX12PipelineCache*>(inCreateInfo.pipelineCache);
+        ID3D12PipelineLibrary* nativePipelineLibrary = pipelineCache != nullptr ? pipelineCache->GetNative() : nullptr;
+        const bool cacheable = nativePipelineLibrary != nullptr && !inCreateInfo.debugName.empty();
+        const std::wstring cacheKey = cacheable ? Common::StringUtils::ToWideString(inCreateInfo.debugName) : std::wstring {};
+
+        bool loaded = cacheable && SUCCEEDED(nativePipelineLibrary->LoadGraphicsPipeline(cacheKey.c_str(), &desc, IID_PPV_ARGS(&nativePipelineState)));
+        if (!loaded) {
+            Assert(SUCCEEDED(inDevice.GetNative()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&nativePipelineState))));
+            if (cacheable) {
+                nativePipelineLibrary->StorePipeline(cacheKey.c_str(), nativePipelineState.Get());
+            }
+        }
 
 #if BUILD_CONFIG_DEBUG
         if (!inCreateInfo.debugName.empty()) {

@@ -22,6 +22,7 @@ namespace RHI {
     class TextureView;
     class BindGroup;
     class SwapChain;
+    class QuerySet;
     struct Barrier;
 
     struct TextureSubResourceInfo {
@@ -106,6 +107,12 @@ namespace RHI {
         uint32_t firstIndex = 0;
         int32_t baseVertex = 0;
         uint32_t firstInstance = 0;
+    };
+
+    struct DispatchIndirectArguments {
+        uint32_t groupCountX = 0;
+        uint32_t groupCountY = 0;
+        uint32_t groupCountZ = 0;
     };
 
     template <typename Derived>
@@ -227,7 +234,9 @@ namespace RHI {
 
         virtual void SetPipeline(ComputePipeline* pipeline) = 0;
         virtual void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) = 0;
+        virtual void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) = 0;
         virtual void Dispatch(size_t groupCountX, size_t groupCountY, size_t groupCountZ) = 0;
+        virtual void DispatchIndirect(Buffer* indirectBuffer, size_t offset) = 0;
         virtual void EndPass() = 0;
 
     protected:
@@ -241,6 +250,7 @@ namespace RHI {
 
         virtual void SetPipeline(RasterPipeline* pipeline) = 0;
         virtual void SetBindGroup(uint8_t layoutIndex, BindGroup* bindGroup) = 0;
+        virtual void SetPipelineConstants(uint32_t pipelineConstantIndex, const void* data, uint32_t size) = 0;
         virtual void SetIndexBuffer(BufferView* bufferView) = 0;
         virtual void SetVertexBuffer(size_t slot, BufferView* bufferView) = 0;
         virtual void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) = 0;
@@ -254,6 +264,8 @@ namespace RHI {
         virtual void DrawIndexedIndirect(Buffer* indirectBuffer, size_t offset) = 0;
         virtual void MultiDrawIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) = 0;
         virtual void MultiDrawIndexedIndirect(Buffer* indirectBuffer, size_t offset, size_t drawCount) = 0;
+        virtual void BeginOcclusionQuery(QuerySet* querySet, uint32_t queryIndex) = 0;
+        virtual void EndOcclusionQuery() = 0;
         virtual void EndPass() = 0;
 
     protected:
@@ -268,6 +280,9 @@ namespace RHI {
         virtual Common::UniquePtr<CopyPassCommandRecorder> BeginCopyPass() = 0;
         virtual Common::UniquePtr<ComputePassCommandRecorder> BeginComputePass() = 0;
         virtual Common::UniquePtr<RasterPassCommandRecorder> BeginRasterPass(const RasterPassBeginInfo& beginInfo) = 0;
+        virtual void WriteTimestamp(QuerySet* querySet, uint32_t queryIndex) = 0;
+        virtual void ResetQuerySet(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount) = 0;
+        virtual void ResolveQuery(QuerySet* querySet, uint32_t firstQuery, uint32_t queryCount, Buffer* dstBuffer, size_t dstOffset) = 0;
         virtual void End() = 0;
 
     protected:

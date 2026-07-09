@@ -1,0 +1,17 @@
+#include <Platform.esh>
+
+// bare semantics (implicit index 0) keep the dxil and spirv reflection keys identical
+struct VertexFactoryInput {
+    VkLocation(0) float3 position : POSITION;
+    VkLocation(1) float2 uv0 : TEXCOORD;
+};
+
+float3 GetLocalPosition(VertexFactoryInput input)
+{
+    return input.position;
+}
+
+float2 GetUv0(VertexFactoryInput input)
+{
+    return input.uv0;
+}
