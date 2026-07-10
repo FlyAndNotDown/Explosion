@@ -1,12 +1,20 @@
 set(imgui_stdlib_path ${imgui_PACKAGE_FOLDER_RELEASE}/res/misc/cpp)
 
 file(GLOB_RECURSE editor_sources Src/*.cpp)
+set(editor_platform_libs)
+if (APPLE)
+    list(APPEND editor_sources Src/Utils/MacosPlatformUtils.mm)
+    set_source_files_properties(Src/Utils/MacosPlatformUtils.mm PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+    list(APPEND editor_platform_libs "-framework Cocoa")
+elseif (WIN32)
+    list(APPEND editor_platform_libs ole32 shell32)
+endif ()
+
 exp_add_executable(
     NAME Editor
     SRC ${editor_sources} ${imgui_stdlib_path}/imgui_stdlib.cpp
-    LIB Core RHI Runtime glfw imgui::imgui
+    LIB Core RHI Runtime glfw imgui::imgui ${editor_platform_libs}
     INC Include ${imgui_stdlib_path}
-    LIB ${editor_libs}
     DEP_TARGET ${platform_rhi_targets}
     REFLECT Include
 )

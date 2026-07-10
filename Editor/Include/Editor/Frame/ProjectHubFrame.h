@@ -43,19 +43,20 @@ namespace Editor {
         void Render(EditorWindow& inWindow, const std::string& inRhiType);
 
     private:
+        void RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType);
+        void RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType);
+        void RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType);
         CreateProjectResult CreateProject();
         void OpenProject(EditorWindow& inWindow, const std::string& inProjectPath, const std::string& inRhiType);
         void SaveRecentProjects() const;
         void TouchRecentProject(const std::string& inProjectPath);
 
         Common::Path recentProjectsFile;
-        std::string engineVersion;
         std::vector<ProjectTemplateInfo> projectTemplates;
         std::vector<RecentProjectInfo> recentProjects;
         std::string projectName;
         std::string directory;
         int selectedTemplateIndex;
         std::string statusMessage;
-        std::string lastCreatedProjectPath;
     };
 }

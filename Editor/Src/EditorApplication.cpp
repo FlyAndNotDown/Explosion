@@ -19,6 +19,9 @@
 namespace Editor::Internal {
     constexpr uint32_t defaultWindowWidth = 1600;
     constexpr uint32_t defaultWindowHeight = 900;
+    constexpr uint32_t projectHubWindowWidth = 560;
+    constexpr uint32_t projectHubWindowHeight = 720;
+    constexpr float defaultFontSize = 15.0f;
     constexpr uint32_t defaultSceneWidth = 1280;
     constexpr uint32_t defaultSceneHeight = 720;
     constexpr RHI::PixelFormat sceneColorFormat = RHI::PixelFormat::rgba8Unorm;
@@ -44,6 +47,16 @@ namespace Editor::Internal {
             ? Core::Paths::GameRootDir().DirName()
             : "Untitled";
         return std::format("{} - Explosion Editor", projectName);
+    }
+
+    static uint32_t GetInitialWindowWidth(const EditorApplicationDesc& inDesc)
+    {
+        return inDesc.mode == EditorApplicationMode::projectHub ? projectHubWindowWidth : defaultWindowWidth;
+    }
+
+    static uint32_t GetInitialWindowHeight(const EditorApplicationDesc& inDesc)
+    {
+        return inDesc.mode == EditorApplicationMode::projectHub ? projectHubWindowHeight : defaultWindowHeight;
     }
 
     static void SetDarkStyle()
@@ -117,8 +130,8 @@ namespace Editor {
         window = Common::MakeUnique<EditorWindow>(
             EditorWindowDesc {
                 .title = Internal::MakeWindowTitle(desc),
-                .width = Internal::defaultWindowWidth,
-                .height = Internal::defaultWindowHeight
+                .width = Internal::GetInitialWindowWidth(desc),
+                .height = Internal::GetInitialWindowHeight(desc)
             });
         InstallCallbacks();
 
@@ -175,6 +188,9 @@ namespace Editor {
         io.BackendPlatformName = "ExplosionGLFW";
         io.BackendRendererName = "ExplosionRHI";
         io.IniFilename = "ExplosionEditor.ini";
+        ImFontConfig defaultFontConfig;
+        defaultFontConfig.SizePixels = Internal::defaultFontSize;
+        io.FontDefault = io.Fonts->AddFontDefaultVector(&defaultFontConfig);
         Internal::SetDarkStyle();
     }
 

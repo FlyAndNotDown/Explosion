@@ -5,6 +5,10 @@ set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES ${CMAKE_SOURCE_DIR}/conan_provider.cmake CA
 
 project(Explosion VERSION 0.0.1)
 
+if (APPLE)
+    enable_language(OBJCXX)
+endif ()
+
 option(BUILD_EDITOR "Build Explosion editor" ON)
 option(BUILD_SAMPLE "Build samples" ON)
 
