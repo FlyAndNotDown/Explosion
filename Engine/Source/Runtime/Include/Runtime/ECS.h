@@ -54,13 +54,14 @@ namespace Runtime::Internal {
     public:
         explicit CompRtti(CompClass inClass);
         void Bind(size_t inOffset);
+        Mirror::Any CopyConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
         Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
-        Mirror::Any MoveAssign(ElemPtr inElem, const Mirror::Any& inOther) const;
         void Destruct(ElemPtr inElem) const;
         Mirror::Any Get(ElemPtr inElem) const;
         CompClass Class() const;
         size_t Offset() const;
         size_t MemorySize() const;
+        size_t MemoryAlignment() const;
 
     private:
         using MoveConstructFunc = Mirror::Any(ElemPtr, size_t, const Mirror::Any&);
@@ -77,6 +78,12 @@ namespace Runtime::Internal {
     class RUNTIME_API Archetype {
     public:
         explicit Archetype(const std::vector<CompRtti>& inRttiVec);
+        ~Archetype();
+
+        Archetype(const Archetype& inOther);
+        Archetype(Archetype&& inOther) noexcept;
+        Archetype& operator=(const Archetype& inOther);
+        Archetype& operator=(Archetype&& inOther) noexcept;
 
         bool Contains(CompClass inClazz) const;
         bool ContainsAll(const std::vector<CompClass>& inClasses) const;
@@ -103,18 +110,22 @@ namespace Runtime::Internal {
         const CompRtti& GetCompRtti(CompClass clazz) const;
         size_t Capacity() const;
         void Reserve(float inRatio = 1.5f);
+        void DestroyElements();
+        void ReleaseMemory();
         ElemPtr AllocateNewElemBack();
-        ElemPtr ElemAt(std::vector<uint8_t>& inMemory, size_t inIndex) const;
+        ElemPtr ElemAt(ElemPtr inMemory, size_t inIndex) const;
         ElemPtr ElemAt(size_t inIndex) const;
 
         ArchetypeId id;
         size_t count;
         size_t elemSize;
+        size_t elemAlignment;
+        size_t capacity;
         std::vector<CompRtti> rttiVec;
         std::unordered_map<CompClass, CompRttiIndex> rttiMap;
         std::unordered_map<Entity, ElemIndex> entityMap;
         std::unordered_map<ElemIndex, Entity> elemMap;
-        std::vector<uint8_t> memory;
+        ElemPtr memory;
     };
 
     class EntityPool {
@@ -370,9 +381,9 @@ namespace Runtime {
         auto& Constructed();
         auto& Updated();
         auto& Removed();
-        const auto& Constructed() const;
-        const auto& Updated() const;
-        const auto& Removed() const;
+        const Observer& Constructed() const;
+        const Observer& Updated() const;
+        const Observer& Removed() const;
 
     private:
         Observer constructedObserver;
@@ -399,9 +410,9 @@ namespace Runtime {
         void ClearUpdated();
         void ClearRemoved();
         void Clear();
-        const auto& Constructed() const;
-        const auto& Updated() const;
-        const auto& Removed() const;
+        const Observer& Constructed() const;
+        const Observer& Updated() const;
+        const Observer& Removed() const;
 
     private:
         Observer constructedObserver;
@@ -970,8 +981,8 @@ namespace Runtime {
         , removedObserver(inRegistry.Observer())
     {
         constructedObserver.ObConstructed<C>();
-        constructedObserver.ObUpdated<C>();
-        constructedObserver.ObRemoved<C>();
+        updatedObserver.ObUpdated<C>();
+        removedObserver.ObRemoved<C>();
     }
 
     template <typename C>
@@ -1058,19 +1069,19 @@ namespace Runtime {
     }
 
     template <typename C>
-    const auto& EventsObserver<C>::Constructed() const
+    const Observer& EventsObserver<C>::Constructed() const
     {
         return constructedObserver;
     }
 
     template <typename C>
-    const auto& EventsObserver<C>::Updated() const
+    const Observer& EventsObserver<C>::Updated() const
     {
         return updatedObserver;
     }
 
     template <typename C>
-    const auto& EventsObserver<C>::Removed() const
+    const Observer& EventsObserver<C>::Removed() const
     {
         return removedObserver;
     }

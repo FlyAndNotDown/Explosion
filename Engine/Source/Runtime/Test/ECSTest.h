@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <Runtime/Meta.h>
 #include <Runtime/ECS.h>
 using namespace Runtime;
@@ -38,6 +40,22 @@ struct EClass() CompB {
     }
 
     EProperty() float value;
+};
+
+struct EClass() LifetimeComp {
+    EClassBody(LifetimeComp)
+
+    LifetimeComp();
+    explicit LifetimeComp(std::string inValue);
+    LifetimeComp(const LifetimeComp& inOther);
+    LifetimeComp(LifetimeComp&& inOther) noexcept;
+    LifetimeComp& operator=(const LifetimeComp& inOther);
+    LifetimeComp& operator=(LifetimeComp&& inOther) noexcept;
+    ~LifetimeComp();
+
+    EProperty() std::string value;
+
+    static uint32_t instanceCount;
 };
 
 struct EClass(globalComp) GCompA {

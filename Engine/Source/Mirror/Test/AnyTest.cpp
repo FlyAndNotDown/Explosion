@@ -133,6 +133,23 @@ TEST(AnyTest, DetorTest)
     ASSERT_FALSE(live);
 }
 
+TEST(AnyTest, HolderDetorTest)
+{
+    bool live = false;
+    {
+        Any value = AnyDtorTest(live);
+        ASSERT_TRUE(live);
+    }
+    ASSERT_FALSE(live);
+
+    {
+        Any value = AnyDtorTest(live);
+        ASSERT_TRUE(live);
+        value.Reset();
+        ASSERT_FALSE(live);
+    }
+}
+
 TEST(AnyTest, CopyCtorTest)
 {
     bool called = false;
