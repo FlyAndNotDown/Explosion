@@ -55,6 +55,7 @@ namespace Render {
         using DescType = typename PooledResTraits<PooledRes>::DescType;
 
         static ResourcePool& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
 
         ResRefType Allocate(const DescType& desc);
         size_t Size() const;
@@ -62,7 +63,10 @@ namespace Render {
         void Invalidate();
 
     private:
+        using DeviceMap = std::unordered_map<RHI::Device*, Common::UniquePtr<ResourcePool>>;
+
         explicit ResourcePool(RHI::Device& inDevice);
+        static DeviceMap& GetDeviceMap();
 
         RHI::Device& device;
         std::vector<ResRefType> pooledResources;
@@ -145,11 +149,28 @@ namespace Render {
     template <typename PooledResource>
     ResourcePool<PooledResource>& ResourcePool<PooledResource>::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<ResourcePool>> deviceMap;
+        auto& deviceMap = GetDeviceMap();
         if (!deviceMap.contains(&device)) {
             deviceMap.emplace(std::make_pair(&device, Common::UniquePtr<ResourcePool>(new ResourcePool(device))));
         }
         return *deviceMap.at(&device);
+    }
+
+    template <typename PooledResource>
+    void ResourcePool<PooledResource>::Destroy(RHI::Device& device)
+    {
+        auto& deviceMap = GetDeviceMap();
+        if (const auto iter = deviceMap.find(&device); iter != deviceMap.end()) {
+            iter->second->Invalidate();
+            deviceMap.erase(iter);
+        }
+    }
+
+    template <typename PooledResource>
+    typename ResourcePool<PooledResource>::DeviceMap& ResourcePool<PooledResource>::GetDeviceMap()
+    {
+        static DeviceMap deviceMap;
+        return deviceMap;
     }
 
     template <typename PooledResource>

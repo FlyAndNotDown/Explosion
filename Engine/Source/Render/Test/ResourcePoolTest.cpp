@@ -4,6 +4,7 @@
 
 #include <Test/Test.h>
 
+#include <Render/RenderCache.h>
 #include <Render/ResourcePool.h>
 
 using namespace Render;
@@ -18,7 +19,10 @@ struct ResourcePoolTest : testing::Test {
                 .AddQueueRequest(RHI::QueueRequestInfo(RHI::QueueType::graphics, 1)));
     }
 
-    void TearDown() override {}
+    void TearDown() override
+    {
+        DestroyDeviceResources(*device);
+    }
 
     RHI::Instance* instance;
     Common::UniquePtr<RHI::Device> device;

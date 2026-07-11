@@ -3,6 +3,7 @@
 //
 
 #include <Core/Thread.h>
+#include <Render/RenderCache.h>
 #include <Render/RenderModule.h>
 #include <Render/Scene.h>
 
@@ -51,6 +52,8 @@ namespace Render {
     {
         RenderThread::Get().Stop();
         RenderWorkerThreads::Get().Stop();
+
+        DestroyDeviceResources(*rhiDevice);
 
         rhiInstance = nullptr;
         rhiDevice = nullptr;

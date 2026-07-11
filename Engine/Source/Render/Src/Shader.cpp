@@ -9,6 +9,14 @@
 #include <Core/Paths.h>
 #include <Core/Thread.h>
 
+namespace Render::Internal {
+    static std::unordered_map<RHI::Device*, Common::UniquePtr<ShaderMap>>& GetShaderMaps()
+    {
+        static std::unordered_map<RHI::Device*, Common::UniquePtr<ShaderMap>> instances;
+        return instances;
+    }
+}
+
 namespace Render {
     bool ShaderBoolVariantField::operator==(const ShaderBoolVariantField& inRhs) const
     {
@@ -416,11 +424,16 @@ namespace Render {
 
     ShaderMap& ShaderMap::Get(RHI::Device& inDevice)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<ShaderMap>> instances;
+        auto& instances = Internal::GetShaderMaps();
         if (!instances.contains(&inDevice)) {
             instances.emplace(&inDevice, Common::UniquePtr(new ShaderMap(inDevice)));
         }
         return *instances.at(&inDevice);
+    }
+
+    void ShaderMap::Destroy(RHI::Device& inDevice)
+    {
+        Internal::GetShaderMaps().erase(&inDevice);
     }
 
     ShaderMap::ShaderMap(RHI::Device& inDevice)

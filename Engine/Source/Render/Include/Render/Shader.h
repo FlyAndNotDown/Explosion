@@ -366,6 +366,7 @@ namespace Render {
     class ShaderMap {
     public:
         static ShaderMap& Get(RHI::Device& inDevice);
+        static void Destroy(RHI::Device& inDevice);
 
         ~ShaderMap();
 

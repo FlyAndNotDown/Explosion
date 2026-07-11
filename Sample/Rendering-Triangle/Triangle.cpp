@@ -197,11 +197,7 @@ void TriangleApplication::OnDestroy()
         device->GetQueue(QueueType::graphics, 0)->Flush(fence.Get());
         fence->Wait();
 
-        BindGroupCache::Get(*device).Invalidate();
-        Render::PipelineCache::Get(*device).Invalidate();
-        BufferPool::Get(*device).Invalidate();
-        TexturePool::Get(*device).Invalidate();
-        ShaderMap::Get(*device).Invalidate();
+        DestroyDeviceResources(*device);
     });
     RenderThread::Get().Flush();
 
