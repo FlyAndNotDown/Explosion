@@ -1,0 +1,36 @@
+From d3704262ce167a171d831856f8f561fc52553b61 Mon Sep 17 00:00:00 2001
+From: Steven Perron <stevenperron@google.com>
+Date: Tue, 16 Dec 2025 20:02:32 +0000
+Subject: [PATCH] spirv-tools: Fix infinite recursion in
+ SmallVector::operator== on MSVC (#6470)
+
+On MSVC, __cplusplus is not updated by default to reflect the C++
+standard version being used; it stays at 199711L unless the
+/Zc:__cplusplus compiler option is used. Instead, _MSVC_LANG is defined
+to the correct version.
+
+In C++20, the compiler generates rewritten candidates for operator==
+(e.g., reversing arguments). If the explicit operator==(std::vector,
+SmallVector) is present, it can lead to infinite recursion when the
+compiler attempts to use it to satisfy a comparison, effectively calling
+itself.
+
+This change updates the preprocessor check to use _MSVC_LANG when
+defined, ensuring that the legacy operator== is properly disabled for
+C++20 and later on MSVC, preventing the recursion.
+
+Fixes #6468
+---
+ external/SPIRV-Tools/source/util/small_vector.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/external/SPIRV-Tools/source/util/small_vector.h b/external/SPIRV-Tools/source/util/small_vector.h
+index b2ce8f4b6..8bbc8c1f5 100644
+--- a/external/SPIRV-Tools/source/util/small_vector.h
++++ b/external/SPIRV-Tools/source/util/small_vector.h
+@@ -186,3 +186,4 @@ class SmallVector {
+ // Avoid infinite recursion from rewritten operators in C++20
+-#if __cplusplus <= 201703L
++#if (defined(_MSVC_LANG) && _MSVC_LANG <= 201703L) || \
++    (!defined(_MSVC_LANG) && __cplusplus <= 201703L)
+   friend bool operator==(const std::vector<T>& lhs, const SmallVector& rhs) {

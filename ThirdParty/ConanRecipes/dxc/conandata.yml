@@ -5,3 +5,8 @@ platforms:
 sources:
   "1.8.2505.1-exp":
     commit: "b106a961d09221b3c5bdb37be45b679257da08b8"
+patches:
+  "1.8.2505.1-exp":
+    - patch_file: patches/0000-fix-small-vector-msvc-cxx20.patch
+      patch_description: fix SmallVector comparison recursion with C++20 on MSVC
+      patch_type: backport
