@@ -151,6 +151,7 @@ namespace Render {
 
         const RHI::ResourceBinding* GetBinding(const std::string& name);
         const RHI::ResourceBinding* GetBinding(const std::string& name, RHI::ShaderStageBits shaderStage) const;
+        const std::pair<RHI::ShaderStageFlags, RHI::ResourceBinding>* GetBindingInfo(const std::string& name) const;
         RHI::BindGroupLayout* GetRHI() const;
 
     private:

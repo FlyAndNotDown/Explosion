@@ -2,6 +2,7 @@
 // Created by johnk on 11/3/2022.
 //
 
+#include <array>
 #include <vector>
 
 #include <directx/d3dx12.h>
@@ -16,12 +17,19 @@ namespace RHI::DirectX12 {
     {
         return layoutIndex == inOther.layoutIndex
             && binding.rangeType == inOther.binding.rangeType
-            && binding.index == inOther.binding.index;
+            && binding.index == inOther.binding.index
+            && shaderVisibility == inOther.shaderVisibility;
     }
 
     size_t RootParameterKeyHashProvider::operator()(const RootParameterKey& inKey) const
     {
-        return Common::HashUtils::CityHash(&inKey, sizeof(RootParameterKey));
+        const std::array values = {
+            inKey.layoutIndex,
+            static_cast<uint8_t>(inKey.binding.rangeType),
+            inKey.binding.index,
+            inKey.shaderVisibility.Value()
+        };
+        return Common::HashUtils::CityHash(values.data(), values.size());
     }
 
     DX12PipelineLayout::DX12PipelineLayout(DX12Device& inDevice, const PipelineLayoutCreateInfo& inCreateInfo) : PipelineLayout(inCreateInfo)
@@ -31,9 +39,12 @@ namespace RHI::DirectX12 {
 
     DX12PipelineLayout::~DX12PipelineLayout() = default;
 
-    std::optional<BindingTypeAndRootParameterIndex> DX12PipelineLayout::QueryRootDescriptorParameterIndex(uint8_t inLayoutIndex, const HlslBinding& inBinding)
+    std::optional<BindingTypeAndRootParameterIndex> DX12PipelineLayout::QueryRootDescriptorParameterIndex(
+        const uint8_t inLayoutIndex,
+        const HlslBinding& inBinding,
+        const ShaderStageFlags inShaderVisibility)
     {
-        const auto iter = rootParameterIndexMap.find(RootParameterKey {inLayoutIndex, inBinding });
+        const auto iter = rootParameterIndexMap.find(RootParameterKey { inLayoutIndex, inBinding, inShaderVisibility });
         if (iter == rootParameterIndexMap.end()) {
             return {};
         }
@@ -67,8 +78,9 @@ namespace RHI::DirectX12 {
                 rootParameters.emplace_back(pendingRootParameters[j]);
 
                 const auto& keyInfo = keyInfos[j];
-                auto rootParameterKey = RootParameterKey { keyInfo.layoutIndex, keyInfo.binding };
-                rootParameterIndexMap[rootParameterKey] = { keyInfo.bindingType, index };
+                auto rootParameterKey = RootParameterKey { keyInfo.layoutIndex, keyInfo.binding, keyInfo.shaderVisibility };
+                const bool inserted = rootParameterIndexMap.emplace(rootParameterKey, BindingTypeAndRootParameterIndex { keyInfo.bindingType, index }).second;
+                Assert(inserted);
             }
         }
         rootConstantParameterIndices.reserve(inCreateInfo.pipelineConstantLayouts.size());

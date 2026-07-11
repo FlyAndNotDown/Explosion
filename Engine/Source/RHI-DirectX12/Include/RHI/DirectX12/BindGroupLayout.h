@@ -17,8 +17,9 @@ namespace RHI::DirectX12 {
         BindingType bindingType;
         uint8_t layoutIndex;
         HlslBinding binding;
+        ShaderStageFlags shaderVisibility;
 
-        RootParameterKeyInfo(BindingType inBindingType, uint8_t inLayoutIndex, HlslBinding inBinding);
+        RootParameterKeyInfo(BindingType inBindingType, uint8_t inLayoutIndex, HlslBinding inBinding, ShaderStageFlags inShaderVisibility);
     };
 
     class DX12BindGroupLayout final : public BindGroupLayout {

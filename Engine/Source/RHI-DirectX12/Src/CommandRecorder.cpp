@@ -209,17 +209,18 @@ namespace RHI::DirectX12 {
     void DX12ComputePassCommandRecorder::SetBindGroup(const uint8_t inLayoutIndex, BindGroup* inBindGroup)
     {
         auto* bindGroup = static_cast<DX12BindGroup*>(inBindGroup);
+        Assert(computePipeline && bindGroup);
         const auto& bindGroupLayout = bindGroup->GetBindGroupLayout();
         auto& pipelineLayout = computePipeline->GetPipelineLayout();
 
         Assert(inLayoutIndex == bindGroupLayout.GetLayoutIndex());
-        Assert(computePipeline);
 
-        for (const auto& bindings= bindGroup->GetNativeBindings();
-            const auto& [hlslBinding, cpuDescriptorHandle] : bindings) {
-            std::optional<BindingTypeAndRootParameterIndex> t = pipelineLayout.QueryRootDescriptorParameterIndex(inLayoutIndex, hlslBinding);
+        for (const auto& bindings = bindGroup->GetNativeBindings();
+            const auto& [hlslBinding, shaderVisibility, cpuDescriptorHandle] : bindings) {
+            std::optional<BindingTypeAndRootParameterIndex> t = pipelineLayout.QueryRootDescriptorParameterIndex(inLayoutIndex, hlslBinding, shaderVisibility);
+            Assert(t.has_value());
             if (!t.has_value()) {
-                return;
+                continue;
             }
             commandBuffer.GetNativeCmdList()->SetComputeRootDescriptorTable(t.value().second, commandBuffer.GetRuntimeDescriptorHeaps()->NewGpuDescriptorHandle(hlslBinding.rangeType, cpuDescriptorHandle));
         }
@@ -317,17 +318,18 @@ namespace RHI::DirectX12 {
     void DX12RasterPassCommandRecorder::SetBindGroup(const uint8_t inLayoutIndex, BindGroup* inBindGroup)
     {
         auto* bindGroup = static_cast<DX12BindGroup*>(inBindGroup);
+        Assert(rasterPipeline && bindGroup);
         const auto& bindGroupLayout = bindGroup->GetBindGroupLayout();
         auto& pipelineLayout = rasterPipeline->GetPipelineLayout();
 
         Assert(inLayoutIndex == bindGroupLayout.GetLayoutIndex());
-        Assert(rasterPipeline);
 
-        for (const auto& bindings= bindGroup->GetNativeBindings();
-            const auto& [hlslBinding, cpuDescriptorHandle] : bindings) {
-            std::optional<BindingTypeAndRootParameterIndex> t = pipelineLayout.QueryRootDescriptorParameterIndex(inLayoutIndex, hlslBinding);
+        for (const auto& bindings = bindGroup->GetNativeBindings();
+            const auto& [hlslBinding, shaderVisibility, cpuDescriptorHandle] : bindings) {
+            std::optional<BindingTypeAndRootParameterIndex> t = pipelineLayout.QueryRootDescriptorParameterIndex(inLayoutIndex, hlslBinding, shaderVisibility);
+            Assert(t.has_value());
             if (!t.has_value()) {
-                return;
+                continue;
             }
             commandBuffer.GetNativeCmdList()->SetGraphicsRootDescriptorTable(t.value().second, commandBuffer.GetRuntimeDescriptorHeaps()->NewGpuDescriptorHandle(hlslBinding.rangeType, cpuDescriptorHandle));
         }

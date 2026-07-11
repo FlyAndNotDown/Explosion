@@ -282,8 +282,8 @@ private:
             // per renderable bindGroup
             bindGroup = device.CreateBindGroup(
                 BindGroupCreateInfo(&bindGroupLayout)
-                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("colorTex").second, diffuseColorMapView.Get()))
-                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("colorSampler").second, &sampler)));
+                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("colorTex").second, ShaderStageBits::sPixel, diffuseColorMapView.Get()))
+                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("colorSampler").second, ShaderStageBits::sPixel, &sampler)));
         }
     };
 
@@ -658,41 +658,41 @@ private:
         {
             bindGroups.scene = device->CreateBindGroup(
                 BindGroupCreateInfo(bindGroupLayouts.gBuffer.Get())
-                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("passParams").second, uniformBuffers.sceneParams.bufView.Get())));
+                    .AddEntry(BindGroupEntry(gBufferPsReflectionData.QueryResourceBindingChecked("passParams").second, ShaderStageBits::sVertex | ShaderStageBits::sPixel, uniformBuffers.sceneParams.bufView.Get())));
         }
 
         // ssao generation
         {
             bindGroups.ssao = device->CreateBindGroup(
                 BindGroupCreateInfo(bindGroupLayouts.ssao.Get())
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("posDepthTex").second, gBufferPos.srv.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("normalTex").second, gBufferNormal.srv.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("ssaoNoiseTex").second, noise.view.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("texSampler").second, sampler.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("ssaoNoiseSampler").second, noiseSampler.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("kernalParams").second, uniformBuffers.ssaoKernel.bufView.Get()))
-                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("passParams").second, uniformBuffers.ssaoParams.bufView.Get())));
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("posDepthTex").second, ShaderStageBits::sPixel, gBufferPos.srv.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("normalTex").second, ShaderStageBits::sPixel, gBufferNormal.srv.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("ssaoNoiseTex").second, ShaderStageBits::sPixel, noise.view.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("texSampler").second, ShaderStageBits::sPixel, sampler.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("ssaoNoiseSampler").second, ShaderStageBits::sPixel, noiseSampler.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("kernalParams").second, ShaderStageBits::sPixel, uniformBuffers.ssaoKernel.bufView.Get()))
+                    .AddEntry(BindGroupEntry(ssaoPsReflectionData.QueryResourceBindingChecked("passParams").second, ShaderStageBits::sPixel, uniformBuffers.ssaoParams.bufView.Get())));
         }
 
         // ssao blur
         {
             bindGroups.ssaoBlur = device->CreateBindGroup(
                 BindGroupCreateInfo(bindGroupLayouts.ssaoBlur.Get())
-                    .AddEntry(BindGroupEntry(ssaoBlurPsReflectionData.QueryResourceBindingChecked("ssaoTex").second, ssaoOutput.srv.Get()))
-                    .AddEntry(BindGroupEntry(ssaoBlurPsReflectionData.QueryResourceBindingChecked("ssaoSampler").second, sampler.Get())));
+                    .AddEntry(BindGroupEntry(ssaoBlurPsReflectionData.QueryResourceBindingChecked("ssaoTex").second, ShaderStageBits::sPixel, ssaoOutput.srv.Get()))
+                    .AddEntry(BindGroupEntry(ssaoBlurPsReflectionData.QueryResourceBindingChecked("ssaoSampler").second, ShaderStageBits::sPixel, sampler.Get())));
         }
 
         // composition
         {
             bindGroups.composition = device->CreateBindGroup(
                 BindGroupCreateInfo(bindGroupLayouts.composition.Get())
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("posTex").second, gBufferPos.srv.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("normalTex").second, gBufferNormal.srv.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("albedoTex").second, gBufferAlbedo.srv.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("ssaoTex").second, ssaoOutput.srv.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("ssaoBluredTex").second, ssaoBlurOutput.srv.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("texSampler").second, sampler.Get()))
-                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("passParams").second, uniformBuffers.ssaoParams.bufView.Get())));
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("posTex").second, ShaderStageBits::sPixel, gBufferPos.srv.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("normalTex").second, ShaderStageBits::sPixel, gBufferNormal.srv.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("albedoTex").second, ShaderStageBits::sPixel, gBufferAlbedo.srv.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("ssaoTex").second, ShaderStageBits::sPixel, ssaoOutput.srv.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("ssaoBluredTex").second, ShaderStageBits::sPixel, ssaoBlurOutput.srv.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("texSampler").second, ShaderStageBits::sPixel, sampler.Get()))
+                    .AddEntry(BindGroupEntry(compositionPsReflectionData.QueryResourceBindingChecked("passParams").second, ShaderStageBits::sPixel, uniformBuffers.ssaoParams.bufView.Get())));
         }
     }
 

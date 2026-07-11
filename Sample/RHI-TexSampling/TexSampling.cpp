@@ -329,9 +329,9 @@ private:
 
         bindGroup = device->CreateBindGroup(
             BindGroupCreateInfo(bindGroupLayout.Get())
-                .AddEntry(BindGroupEntry(psReflectionData.QueryResourceBindingChecked("colorTex").second, sampleTextureView.Get()))
-                .AddEntry(BindGroupEntry(psReflectionData.QueryResourceBindingChecked("colorSampler").second, sampler.Get()))
-                .AddEntry(BindGroupEntry(vsReflectionData.QueryResourceBindingChecked("passParams").second, uniformBufferView.Get())));
+                .AddEntry(BindGroupEntry(psReflectionData.QueryResourceBindingChecked("colorTex").second, ShaderStageBits::sPixel, sampleTextureView.Get()))
+                .AddEntry(BindGroupEntry(psReflectionData.QueryResourceBindingChecked("colorSampler").second, ShaderStageBits::sPixel, sampler.Get()))
+                .AddEntry(BindGroupEntry(vsReflectionData.QueryResourceBindingChecked("passParams").second, ShaderStageBits::sVertex, uniformBufferView.Get())));
     }
 
     void CreatePipelineLayout()

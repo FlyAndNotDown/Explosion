@@ -18,9 +18,13 @@ namespace RHI {
 
     struct BindGroupEntry {
         ResourceBinding binding;
+        ShaderStageFlags shaderVisibility;
         std::variant<Sampler*, BufferView*, TextureView*> entity;
 
-        BindGroupEntry(const ResourceBinding& inBinding, const std::variant<Sampler*, BufferView*, TextureView*>& inEntity);
+        BindGroupEntry(
+            const ResourceBinding& inBinding,
+            ShaderStageFlags inShaderVisibility,
+            const std::variant<Sampler*, BufferView*, TextureView*>& inEntity);
     };
 
     struct BindGroupCreateInfo {

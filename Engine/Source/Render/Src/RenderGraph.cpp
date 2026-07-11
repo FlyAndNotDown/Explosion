@@ -954,23 +954,24 @@ namespace Render {
             RHI::BindGroupCreateInfo createInfo(layout->GetRHI());
 
             for (const auto& [name, item] : items) {
-                const auto* binding = layout->GetBinding(name);
-                Assert(binding != nullptr);
+                const auto* bindingInfo = layout->GetBindingInfo(name);
+                Assert(bindingInfo != nullptr);
+                const auto& [shaderVisibility, binding] = *bindingInfo;
 
                 if (item.type == RHI::BindingType::uniformBuffer || item.type == RHI::BindingType::storageBuffer || item.type == RHI::BindingType::rwStorageBuffer) {
                     auto* bufferView = std::get<RGBufferViewRef>(item.view);
                     if (!devirtualizedResourceViews.contains(bufferView)) {
                         devirtualizedResourceViews.emplace(std::make_pair(bufferView, ResourceViewCache::Get(device).GetOrCreate(GetRHI(bufferView->GetBuffer()), bufferView->desc)));
                     }
-                    createInfo.AddEntry(RHI::BindGroupEntry(*binding, GetRHI(bufferView)));
+                    createInfo.AddEntry(RHI::BindGroupEntry(binding, shaderVisibility, GetRHI(bufferView)));
                 } else if (item.type == RHI::BindingType::texture || item.type == RHI::BindingType::storageTexture || item.type == RHI::BindingType::rwStorageTexture) {
                     auto* textureView = std::get<RGTextureViewRef>(item.view);
                     if (!devirtualizedResourceViews.contains(textureView)) {
                         devirtualizedResourceViews.emplace(std::make_pair(textureView, ResourceViewCache::Get(device).GetOrCreate(GetRHI(textureView->GetTexture()), textureView->desc)));
                     }
-                    createInfo.AddEntry(RHI::BindGroupEntry(*binding, GetRHI(textureView)));
+                    createInfo.AddEntry(RHI::BindGroupEntry(binding, shaderVisibility, GetRHI(textureView)));
                 } else if (item.type == RHI::BindingType::sampler) {
-                    createInfo.AddEntry(RHI::BindGroupEntry(*binding, std::get<RHI::Sampler*>(item.view)));
+                    createInfo.AddEntry(RHI::BindGroupEntry(binding, shaderVisibility, std::get<RHI::Sampler*>(item.view)));
                 } else {
                     Unimplement();
                 }

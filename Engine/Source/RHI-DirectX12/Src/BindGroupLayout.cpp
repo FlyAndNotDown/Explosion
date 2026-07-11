@@ -19,10 +19,15 @@ namespace RHI::DirectX12 {
 }
 
 namespace RHI::DirectX12 {
-    RootParameterKeyInfo::RootParameterKeyInfo(const BindingType inBindingType, const uint8_t inLayoutIndex, const HlslBinding inBinding)
+    RootParameterKeyInfo::RootParameterKeyInfo(
+        const BindingType inBindingType,
+        const uint8_t inLayoutIndex,
+        const HlslBinding inBinding,
+        const ShaderStageFlags inShaderVisibility)
         : bindingType(inBindingType)
         , layoutIndex(inLayoutIndex)
         , binding(inBinding)
+        , shaderVisibility(inShaderVisibility)
     {
     }
 
@@ -64,7 +69,7 @@ namespace RHI::DirectX12 {
             nativeDescriptorRanges.back().Init(EnumCast<HlslBindingRangeType, D3D12_DESCRIPTOR_RANGE_TYPE>(hlslBinding.rangeType), 1, hlslBinding.index, inCreateInfo.layoutIndex);
             nativeRootParameters.back().InitAsDescriptorTable(1, &nativeDescriptorRanges.back(), GetShaderVisibility(entry.shaderVisibility));
 
-            rootParameterKeyInfos.emplace_back(entry.binding.type, inCreateInfo.layoutIndex, hlslBinding);
+            rootParameterKeyInfos.emplace_back(entry.binding.type, inCreateInfo.layoutIndex, hlslBinding, entry.shaderVisibility);
         }
     }
 }

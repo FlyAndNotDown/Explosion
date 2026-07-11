@@ -144,8 +144,8 @@ private:
         bindGroupLayout = device->CreateBindGroupLayout(layoutCreateInfo);
 
         const auto bindGroupCreateInfo = BindGroupCreateInfo(bindGroupLayout.Get())
-            .AddEntry(BindGroupEntry(csOutPut.reflectionData.QueryResourceBindingChecked("input").second, inputBufferView.Get()))
-            .AddEntry(BindGroupEntry(csOutPut.reflectionData.QueryResourceBindingChecked("output").second, outputBufferView.Get()));
+            .AddEntry(BindGroupEntry(csOutPut.reflectionData.QueryResourceBindingChecked("input").second, ShaderStageBits::sCompute, inputBufferView.Get()))
+            .AddEntry(BindGroupEntry(csOutPut.reflectionData.QueryResourceBindingChecked("output").second, ShaderStageBits::sCompute, outputBufferView.Get()));
         bindGroup = device->CreateBindGroup(bindGroupCreateInfo);
 
         pipelineLayout = device->CreatePipelineLayout(PipelineLayoutCreateInfo().AddBindGroupLayout(bindGroupLayout.Get()));

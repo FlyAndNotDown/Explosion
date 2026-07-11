@@ -47,7 +47,7 @@ namespace RHI::DirectX12 {
         return *bindGroupLayout;
     }
 
-    const std::vector<std::pair<HlslBinding, CD3DX12_CPU_DESCRIPTOR_HANDLE>>& DX12BindGroup::GetNativeBindings()
+    const std::vector<NativeBinding>& DX12BindGroup::GetNativeBindings()
     {
         return nativeBindings;
     }
@@ -65,7 +65,7 @@ namespace RHI::DirectX12 {
             const auto& entry = inCreateInfo.entries[i];
 
             CD3DX12_CPU_DESCRIPTOR_HANDLE handle = GetDescriptorCpuHandle(entry);
-            nativeBindings.emplace_back(std::get<HlslBinding>(entry.binding.platformBinding), handle);
+            nativeBindings.emplace_back(std::get<HlslBinding>(entry.binding.platformBinding), entry.shaderVisibility, handle);
         }
     }
 }

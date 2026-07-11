@@ -540,9 +540,9 @@ namespace Editor {
 
         auto bindGroup = GetDevice().CreateBindGroup(
             RHI::BindGroupCreateInfo(imguiBindGroupLayout.Get(), "imguiBindGroup")
-                .AddEntry(RHI::BindGroupEntry(imguiPixelShaderCompileOutput.reflectionData.QueryResourceBindingChecked("imageTex").second, &inTextureView))
-                .AddEntry(RHI::BindGroupEntry(imguiPixelShaderCompileOutput.reflectionData.QueryResourceBindingChecked("imageSampler").second, imguiImageSampler.Get()))
-                .AddEntry(RHI::BindGroupEntry(imguiVertexShaderCompileOutput.reflectionData.QueryResourceBindingChecked("passParams").second, imguiPassParamsBufferView.Get())));
+                .AddEntry(RHI::BindGroupEntry(imguiPixelShaderCompileOutput.reflectionData.QueryResourceBindingChecked("imageTex").second, RHI::ShaderStageBits::sPixel, &inTextureView))
+                .AddEntry(RHI::BindGroupEntry(imguiPixelShaderCompileOutput.reflectionData.QueryResourceBindingChecked("imageSampler").second, RHI::ShaderStageBits::sPixel, imguiImageSampler.Get()))
+                .AddEntry(RHI::BindGroupEntry(imguiVertexShaderCompileOutput.reflectionData.QueryResourceBindingChecked("passParams").second, RHI::ShaderStageBits::sVertex, imguiPassParamsBufferView.Get())));
         auto* result = bindGroup.Get();
         imguiFrameTextureBindGroups.emplace(&inTextureView, std::move(bindGroup));
         return result;
