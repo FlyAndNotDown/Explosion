@@ -13,7 +13,7 @@ on:
 env:
   BUILD_TYPE: Release
   MAKE_THREAD_NUM: 16
-  CMAKE_VERSION: '4.1.2'
+  CMAKE_VERSION: '4.3.2'
 
 jobs:
   build:

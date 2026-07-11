@@ -14,7 +14,7 @@ concurrency:
 env:
   CONAN_REMOTE_NAME: explosion
   CONAN_REMOTE_URL: https://conan.kindem.online/artifactory/api/conan/conan
-  CMAKE_VERSION: '4.1.2'
+  CMAKE_VERSION: '4.3.2'
 
 jobs:
   publish:
