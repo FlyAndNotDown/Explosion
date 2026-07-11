@@ -14,15 +14,57 @@
 #include <Common/Result.h>
 #include <Common/Serialization.h>
 #include <Common/Template.h>
-#include <Core/EngineVersion.h>
 #include <Core/Paths.h>
 #include <Editor/EditorLog.h>
 #include <Editor/EditorWindow.h>
 #include <Editor/Frame/ProjectHubFrame.h>
+#include <Editor/Utils/PlatformUtils.h>
 
-namespace Editor::Internal {
+namespace Editor::ProjectHub::Internal {
     constexpr std::string_view templateFileExtension = ".tpl";
     constexpr std::string_view cmakeMinVersion = "3.25";
+    constexpr float actionButtonHeight = 58.0f;
+    constexpr float recentProjectHeight = 68.0f;
+    constexpr float contentSpacing = 12.0f;
+    const ImVec4 windowBackground(0.055f, 0.063f, 0.078f, 1.0f);
+    const ImVec4 cardBackground(0.09f, 0.102f, 0.125f, 1.0f);
+    const ImVec4 cardHovered(0.125f, 0.145f, 0.18f, 1.0f);
+    const ImVec4 accent(0.25f, 0.49f, 0.96f, 1.0f);
+    const ImVec4 accentHovered(0.31f, 0.55f, 1.0f, 1.0f);
+    const ImVec4 secondaryButton(0.12f, 0.137f, 0.17f, 1.0f);
+    const ImVec4 secondaryButtonHovered(0.16f, 0.18f, 0.22f, 1.0f);
+
+    static bool RenderActionButton(const char* inLabel, const ImVec2& inSize, const ImVec4& inColor, const ImVec4& inHoveredColor)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, inColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, inHoveredColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, inHoveredColor);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 9.0f);
+        const bool clicked = ImGui::Button(inLabel, inSize);
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(3);
+        return clicked;
+    }
+
+    static bool RenderRecentProject(const RecentProjectInfo& inProject)
+    {
+        ImGui::PushID(inProject.path.c_str());
+        const ImVec2 cardMin = ImGui::GetCursorScreenPos();
+        ImGui::InvisibleButton("##RecentProject", ImVec2(ImGui::GetContentRegionAvail().x, recentProjectHeight));
+        const ImVec2 cardMax = ImGui::GetItemRectMax();
+        const bool hovered = ImGui::IsItemHovered();
+
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(cardMin, cardMax, ImGui::GetColorU32(hovered ? cardHovered : cardBackground), 8.0f);
+        drawList->PushClipRect(ImVec2(cardMin.x + 16.0f, cardMin.y), ImVec2(cardMax.x - 38.0f, cardMax.y), true);
+        drawList->AddText(ImVec2(cardMin.x + 16.0f, cardMin.y + 13.0f), ImGui::GetColorU32(ImGuiCol_Text), inProject.name.c_str());
+        drawList->AddText(ImVec2(cardMin.x + 16.0f, cardMin.y + 38.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), inProject.path.c_str());
+        drawList->PopClipRect();
+        drawList->AddText(ImVec2(cardMax.x - 25.0f, cardMin.y + 25.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), ">");
+
+        ImGui::PopID();
+        return ImGui::IsItemClicked();
+    }
 
     static Common::Path StripTemplateExtension(const Common::Path& inRelativePath)
     {
@@ -30,10 +72,7 @@ namespace Editor::Internal {
         return { str.substr(0, str.size() - templateFileExtension.size()) };
     }
 
-    static Common::Result<void, std::string> RenderProjectTemplate(
-        const Common::Path& inTemplateDir,
-        const Common::Path& inProjectDir,
-        const std::string& inProjectName)
+    static Common::Result<void, std::string> RenderProjectTemplate(const Common::Path& inTemplateDir, const Common::Path& inProjectDir, const std::string& inProjectName)
     {
         Common::TemplateEngine templateEngine;
         templateEngine
@@ -79,11 +118,9 @@ namespace Editor::Internal {
 namespace Editor {
     ProjectHubFrame::ProjectHubFrame()
         : recentProjectsFile(Core::Paths::EngineCacheDir() / "Editor" / "ProjectHub" / "RecentProjects.json")
-        , engineVersion(std::format("v{}.{}.{}", ENGINE_VERSION_MAJOR, ENGINE_VERSION_MINOR, ENGINE_VERSION_PATCH))
         , projectName()
         , directory()
         , selectedTemplateIndex(0)
-        , lastCreatedProjectPath()
     {
         const Common::Path projectTemplatesRoot = Core::Paths::EngineResDir() / "Editor" / "ProjectTemplates";
         (void) projectTemplatesRoot.Traverse([this](const Common::Path& inPath) -> bool {
@@ -109,64 +146,170 @@ namespace Editor {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGui::Begin("Project Hub", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ProjectHub::Internal::windowBackground);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(26.0f, 24.0f));
+        ImGui::Begin(
+            "##ProjectHub",
+            nullptr,
+            ImGuiWindowFlags_NoDecoration
+                | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoSavedSettings
+                | ImGuiWindowFlags_NoBringToFrontOnFocus);
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor();
 
-        ImGui::TextUnformatted("Explosion Editor");
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", engineVersion.c_str());
-        ImGui::Separator();
+        RenderActionBar(inWindow, inRhiType);
+        ImGui::Dummy(ImVec2(0.0f, 22.0f));
+        RenderRecentProjects(inWindow, inRhiType);
+        RenderCreateProjectPopup(inWindow, inRhiType);
+        ImGui::End();
+    }
 
-        ImGui::Columns(2, "ProjectHubColumns", true);
-        ImGui::TextUnformatted("Recent Projects");
-        ImGui::BeginChild("RecentProjects", ImVec2(0.0f, -1.0f), true);
-        for (const auto& project : std::views::reverse(recentProjects)) {
-            ImGui::PushID(project.path.c_str());
-            if (ImGui::Selectable(project.name.c_str())) {
-                OpenProject(inWindow, project.path, inRhiType);
+    void ProjectHubFrame::RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType)
+    {
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        const float buttonWidth = (ImGui::GetContentRegionAvail().x - spacing) * 0.5f;
+        if (ProjectHub::Internal::RenderActionButton("Open", ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
+            if (const auto selectedDirectory = PlatformUtils::SelectDirectory("Open Explosion Project")) {
+                OpenProject(inWindow, *selectedDirectory, inRhiType);
             }
-            ImGui::TextDisabled("%s", project.path.c_str());
-            ImGui::PopID();
+        }
+
+        ImGui::SameLine();
+        if (ProjectHub::Internal::RenderActionButton("Create", ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::secondaryButton, ProjectHub::Internal::secondaryButtonHovered)) {
+            statusMessage.clear();
+            ImGui::OpenPopup("##CreateProjectPopup");
+        }
+    }
+
+    void ProjectHubFrame::RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType)
+    {
+        ImGui::TextUnformatted("Recent projects");
+        const std::string projectCount = std::to_string(recentProjects.size());
+        ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(projectCount.c_str()).x);
+        ImGui::TextDisabled("%s", projectCount.c_str());
+        ImGui::Dummy(ImVec2(0.0f, 7.0f));
+
+        if (!statusMessage.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.42f, 0.42f, 1.0f));
+            ImGui::TextWrapped("%s", statusMessage.c_str());
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0.0f, 7.0f));
+        }
+
+        ImGui::BeginChild("##RecentProjects", ImVec2(0.0f, 0.0f), false);
+        std::string projectToOpen;
+        for (const auto& project : std::views::reverse(recentProjects)) {
+            if (ProjectHub::Internal::RenderRecentProject(project)) {
+                projectToOpen = project.path;
+            }
+            ImGui::Dummy(ImVec2(0.0f, ProjectHub::Internal::contentSpacing));
+        }
+
+        if (recentProjects.empty()) {
+            const ImVec2 emptyMin = ImGui::GetCursorScreenPos();
+            const ImVec2 emptyMax(emptyMin.x + ImGui::GetContentRegionAvail().x, emptyMin.y + 118.0f);
+            ImGui::GetWindowDrawList()->AddRectFilled(emptyMin, emptyMax, ImGui::GetColorU32(ProjectHub::Internal::cardBackground), 8.0f);
+            const char* title = "No recent projects";
+            const char* description = "Open an existing project or create a new one.";
+            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 16.0f, emptyMin.y + 31.0f), ImGui::GetColorU32(ImGuiCol_Text), title);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 16.0f, emptyMin.y + 59.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), description);
+            ImGui::Dummy(ImVec2(0.0f, 118.0f));
         }
         ImGui::EndChild();
 
-        ImGui::NextColumn();
-        ImGui::TextUnformatted("Create Project");
-        ImGui::InputText("Name", &projectName);
-        ImGui::InputText("Directory", &directory);
+        if (!projectToOpen.empty()) {
+            OpenProject(inWindow, projectToOpen, inRhiType);
+        }
+    }
 
-        const char* selectedTemplate = projectTemplates.empty() ? "None" : projectTemplates[selectedTemplateIndex].name.c_str();
-        if (ImGui::BeginCombo("Template", selectedTemplate)) {
-            for (int i = 0; i < static_cast<int>(projectTemplates.size()); i++) {
-                const bool selected = i == selectedTemplateIndex;
-                if (ImGui::Selectable(projectTemplates[i].name.c_str(), selected)) {
-                    selectedTemplateIndex = i;
-                }
-                if (selected) {
-                    ImGui::SetItemDefaultFocus();
+    void ProjectHubFrame::RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType)
+    {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(456.0f, 0.0f), ImGuiCond_Appearing);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.075f, 0.086f, 0.105f, 1.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(24.0f, 22.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 11.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+        if (ImGui::BeginPopupModal("##CreateProjectPopup", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+            ImGui::TextUnformatted("Create project");
+            ImGui::TextDisabled("Start from a template and open it right away.");
+            ImGui::Dummy(ImVec2(0.0f, 13.0f));
+
+            ImGui::TextDisabled("NAME");
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputTextWithHint("##ProjectName", "MyProject", &projectName);
+            ImGui::Dummy(ImVec2(0.0f, 7.0f));
+
+            ImGui::TextDisabled("LOCATION");
+            const float browseButtonWidth = 76.0f;
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - browseButtonWidth - ImGui::GetStyle().ItemSpacing.x);
+            ImGui::InputTextWithHint("##ProjectDirectory", "Choose a parent folder", &directory);
+            ImGui::SameLine();
+            if (ImGui::Button("Browse", ImVec2(browseButtonWidth, 0.0f))) {
+                if (const auto selectedDirectory = PlatformUtils::SelectDirectory("Choose Project Location", directory)) {
+                    directory = *selectedDirectory;
                 }
             }
-            ImGui::EndCombo();
-        }
+            ImGui::Dummy(ImVec2(0.0f, 7.0f));
 
-        if (ImGui::Button("Create")) {
-            const CreateProjectResult result = CreateProject();
-            lastCreatedProjectPath = result.success ? result.projectPath : std::string();
-            statusMessage = result.success ? std::format("Created {}", result.projectPath) : result.error;
+            ImGui::TextDisabled("TEMPLATE");
+            const char* selectedTemplate = projectTemplates.empty()
+                ? "No templates available"
+                : projectTemplates[selectedTemplateIndex].name.c_str();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::BeginCombo("##ProjectTemplate", selectedTemplate)) {
+                for (int i = 0; i < static_cast<int>(projectTemplates.size()); i++) {
+                    const bool selected = i == selectedTemplateIndex;
+                    if (ImGui::Selectable(projectTemplates[i].name.c_str(), selected)) {
+                        selectedTemplateIndex = i;
+                    }
+                    if (selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+            if (!statusMessage.empty()) {
+                ImGui::Dummy(ImVec2(0.0f, 9.0f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.42f, 0.42f, 1.0f));
+                ImGui::TextWrapped("%s", statusMessage.c_str());
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::Dummy(ImVec2(0.0f, 15.0f));
+            const float footerWidth = 178.0f;
+            ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - footerWidth);
+            if (ImGui::Button("Cancel", ImVec2(82.0f, 36.0f))) {
+                statusMessage.clear();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ProjectHub::Internal::RenderActionButton("Create##Confirm", ImVec2(88.0f, 36.0f), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
+                const CreateProjectResult result = CreateProject();
+                if (result.success) {
+                    statusMessage.clear();
+                    ImGui::CloseCurrentPopup();
+                    OpenProject(inWindow, result.projectPath, inRhiType);
+                } else {
+                    statusMessage = result.error;
+                }
+            }
+            ImGui::EndPopup();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Open Created") && !lastCreatedProjectPath.empty()) {
-            OpenProject(inWindow, lastCreatedProjectPath, inRhiType);
-        }
-        if (!statusMessage.empty()) {
-            ImGui::TextWrapped("%s", statusMessage.c_str());
-        }
-        ImGui::Columns(1);
-        ImGui::End();
+        ImGui::PopStyleVar(4);
+        ImGui::PopStyleColor();
     }
 
     CreateProjectResult ProjectHubFrame::CreateProject()
     {
-        if (projectName.empty() || directory.empty() || projectTemplates.empty()) {
+        if (projectName.empty() || directory.empty() || projectTemplates.empty()
+            || selectedTemplateIndex < 0 || selectedTemplateIndex >= static_cast<int>(projectTemplates.size())) {
             return { .success = false, .error = "Project name, directory and template must not be empty.", .projectPath = {} };
         }
 
@@ -181,12 +324,12 @@ namespace Editor {
             return { .success = false, .error = std::format("Target directory '{}' already exists.", projectDir.String()), .projectPath = {} };
         }
 
-        if (const auto result = Internal::RenderProjectTemplate(templateDir, projectDir, projectName);
+        if (const auto result = ProjectHub::Internal::RenderProjectTemplate(templateDir, projectDir, projectName);
             result.IsErr()) {
             return { .success = false, .error = result.Error(), .projectPath = {} };
         }
 
-        recentProjects.emplace_back(RecentProjectInfo { projectName, projectDir.String() });
+        TouchRecentProject(projectDir.String());
         SaveRecentProjects();
         LogInfo(ProjectHub, "created project '{}' at '{}'", projectName, projectDir.String());
         return { .success = true, .error = {}, .projectPath = projectDir.String() };
@@ -203,7 +346,7 @@ namespace Editor {
         TouchRecentProject(inProjectPath);
         SaveRecentProjects();
 
-        const std::string command = Internal::LaunchCommand(Core::Paths::ExecutablePath().String(), inProjectPath, inRhiType);
+        const std::string command = ProjectHub::Internal::LaunchCommand(Core::Paths::ExecutablePath().String(), inProjectPath, inRhiType);
         std::ignore = std::system(command.c_str());
         inWindow.RequestClose();
     }

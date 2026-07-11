@@ -137,7 +137,6 @@ namespace Editor {
         , renderSurface(nullptr)
         , editorCamera(Runtime::entityNull)
         , sceneHovered(false)
-        , sceneFocused(false)
         , cameraLooking(false)
         , cameraAnglesInitialized(false)
         , cameraYaw(0.0f)
@@ -237,8 +236,8 @@ namespace Editor {
             pendingLookDeltaY = 0.0f;
         }
 
-        const Common::FVec3 moveInput = cameraLooking ? CameraMoveInput() : Common::FVec3Consts::zero;
-        const bool moving = moveInput.x != 0.0f || moveInput.y != 0.0f || moveInput.z != 0.0f;
+        const Common::FVec2 moveInput = cameraLooking ? CameraMoveInput() : Common::FVec2Consts::zero;
+        const bool moving = moveInput.x != 0.0f || moveInput.y != 0.0f;
         if (!moving && !cameraLooking) {
             return;
         }
@@ -246,18 +245,13 @@ namespace Editor {
         const Common::FQuat orientation =
             Common::FQuat(Common::FVec3Consts::unitY, Common::FRadian(cameraPitch))
             * Common::FQuat(Common::FVec3Consts::unitZ, Common::FRadian(cameraYaw));
-        const Common::FVec3 lookForward = orientation.RotateVector(Common::FVec3Consts::unitX);
-        const Common::FVec3 lookRight = orientation.RotateVector(Common::FVec3Consts::unitY);
-        Common::FVec3 moveForward(lookForward.x, lookForward.y, 0.0f);
-        Common::FVec3 moveRight(lookRight.x, lookRight.y, 0.0f);
-        moveForward.Normalize();
-        moveRight.Normalize();
+        const Common::FVec3 moveForward = orientation.RotateVector(Common::FVec3Consts::unitX);
+        const Common::FVec3 moveRight = orientation.RotateVector(Common::FVec3Consts::unitY);
 
         registry.Update<Runtime::WorldTransform>(editorCamera, [&](Runtime::WorldTransform& transform) -> void {
             const float moveDelta = Internal::cameraMoveSpeed * inDeltaSeconds;
             transform.localToWorld.translation += moveForward * (moveInput.x * moveDelta);
             transform.localToWorld.translation += moveRight * (moveInput.y * moveDelta);
-            transform.localToWorld.translation += Common::FVec3(0.0f, 0.0f, 1.0f) * (moveInput.z * moveDelta);
             transform.localToWorld.rotation = orientation;
         });
     }
@@ -269,8 +263,7 @@ namespace Editor {
 
     void SceneClient::SetSceneFocused(bool inFocused)
     {
-        sceneFocused = inFocused;
-        if (!sceneFocused) {
+        if (!inFocused && !cameraLooking) {
             pressedKeys.clear();
         }
     }
@@ -339,15 +332,13 @@ namespace Editor {
         registry.Emplace<Runtime::WorldTransform>(editorCamera, cameraTransform);
     }
 
-    Common::FVec3 SceneClient::CameraMoveInput() const
+    Common::FVec2 SceneClient::CameraMoveInput() const
     {
-        Common::FVec3 result(0.0f, 0.0f, 0.0f);
+        Common::FVec2 result(0.0f, 0.0f);
         if (pressedKeys.contains(GLFW_KEY_W)) { result.x += 1.0f; }
         if (pressedKeys.contains(GLFW_KEY_S)) { result.x -= 1.0f; }
         if (pressedKeys.contains(GLFW_KEY_D)) { result.y += 1.0f; }
         if (pressedKeys.contains(GLFW_KEY_A)) { result.y -= 1.0f; }
-        if (pressedKeys.contains(GLFW_KEY_E)) { result.z += 1.0f; }
-        if (pressedKeys.contains(GLFW_KEY_Q)) { result.z -= 1.0f; }
         if (result.Model() > 1.0f) {
             result.Normalize();
         }

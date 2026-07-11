@@ -9,10 +9,18 @@
 
 #include <Common/IO.h>
 #include <Core/Thread.h>
+#include <Render/ResourcePool.h>
 
 namespace Render::Internal {
     constexpr uint64_t resourceViewCacheReleaseFrameLatency = 2;
     constexpr uint64_t bindGroupCacheReleaseFrameLatency = 2;
+
+    template <typename Cache>
+    static std::unordered_map<RHI::Device*, Common::UniquePtr<Cache>>& GetDeviceCacheMap()
+    {
+        static std::unordered_map<RHI::Device*, Common::UniquePtr<Cache>> map;
+        return map;
+    }
 
     static uint64_t CombineHashes(const std::vector<uint64_t>& hashes)
     {
@@ -97,6 +105,7 @@ namespace Render {
     class PipelineLayoutCache {
     public:
         static PipelineLayoutCache& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
         ~PipelineLayoutCache();
 
         void Invalidate();
@@ -121,13 +130,18 @@ namespace Render {
 
     PipelineLayoutCache& PipelineLayoutCache::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<PipelineLayoutCache>> map;
+        auto& map = Internal::GetDeviceCacheMap<PipelineLayoutCache>();
 
         if (const auto iter = map.find(&device);
             iter == map.end()) {
             map[&device] = Common::UniquePtr(new PipelineLayoutCache(device));
         }
         return *map[&device];
+    }
+
+    void PipelineLayoutCache::Destroy(RHI::Device& device)
+    {
+        Internal::GetDeviceCacheMap<PipelineLayoutCache>().erase(&device);
     }
 
     PipelineLayoutCache::PipelineLayoutCache(RHI::Device& inDevice)
@@ -594,7 +608,7 @@ namespace Render {
 
     SamplerCache& SamplerCache::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<SamplerCache>> map;
+        auto& map = Internal::GetDeviceCacheMap<SamplerCache>();
 
         std::unique_lock lock(mutex);
         const auto iter = map.find(&device);
@@ -602,6 +616,11 @@ namespace Render {
             map[&device] = Common::UniquePtr(new SamplerCache(device));
         }
         return *map[&device];
+    }
+
+    void SamplerCache::Destroy(RHI::Device& device)
+    {
+        Internal::GetDeviceCacheMap<SamplerCache>().erase(&device);
     }
 
     SamplerCache::SamplerCache(RHI::Device& inDevice)
@@ -625,7 +644,7 @@ namespace Render {
 
     PipelineCache& PipelineCache::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<PipelineCache>> map;
+        auto& map = Internal::GetDeviceCacheMap<PipelineCache>();
 
         std::unique_lock lock(mutex);
         if (const auto iter = map.find(&device);
@@ -633,6 +652,16 @@ namespace Render {
             map[&device] = Common::UniquePtr(new PipelineCache(device));
         }
         return *map[&device];
+    }
+
+    void PipelineCache::Destroy(RHI::Device& device)
+    {
+        auto& map = Internal::GetDeviceCacheMap<PipelineCache>();
+        if (const auto iter = map.find(&device); iter != map.end()) {
+            iter->second->Invalidate();
+            map.erase(iter);
+        }
+        PipelineLayoutCache::Destroy(device);
     }
 
     PipelineCache::PipelineCache(RHI::Device& inDevice)
@@ -673,13 +702,18 @@ namespace Render {
 
     ResourceViewCache& ResourceViewCache::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<ResourceViewCache>> map;
+        auto& map = Internal::GetDeviceCacheMap<ResourceViewCache>();
 
         std::unique_lock lock(mutex);
         if (!map.contains(&device)) {
             map.emplace(std::make_pair(&device, Common::UniquePtr(new ResourceViewCache(device))));
         }
         return *map.at(&device);
+    }
+
+    void ResourceViewCache::Destroy(RHI::Device& device)
+    {
+        Internal::GetDeviceCacheMap<ResourceViewCache>().erase(&device);
     }
 
     ResourceViewCache::ResourceViewCache(RHI::Device& inDevice)
@@ -760,13 +794,18 @@ namespace Render {
 
     BindGroupCache& BindGroupCache::Get(RHI::Device& device)
     {
-        static std::unordered_map<RHI::Device*, Common::UniquePtr<BindGroupCache>> map;
+        auto& map = Internal::GetDeviceCacheMap<BindGroupCache>();
 
         std::unique_lock lock(mutex);
         if (!map.contains(&device)) {
             map.emplace(std::make_pair(&device, Common::UniquePtr(new BindGroupCache(device))));
         }
         return *map.at(&device);
+    }
+
+    void BindGroupCache::Destroy(RHI::Device& device)
+    {
+        Internal::GetDeviceCacheMap<BindGroupCache>().erase(&device);
     }
 
     BindGroupCache::~BindGroupCache() = default;
@@ -799,5 +838,16 @@ namespace Render {
     BindGroupCache::BindGroupCache(RHI::Device& inDevice)
         : device(inDevice)
     {
+    }
+
+    void DestroyDeviceResources(RHI::Device& device)
+    {
+        BindGroupCache::Destroy(device);
+        PipelineCache::Destroy(device);
+        SamplerCache::Destroy(device);
+        ResourceViewCache::Destroy(device);
+        ShaderMap::Destroy(device);
+        BufferPool::Destroy(device);
+        TexturePool::Destroy(device);
     }
 } // namespace Render

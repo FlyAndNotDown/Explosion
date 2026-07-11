@@ -803,6 +803,7 @@ namespace Mirror {
         void ForEachMemberFunction(const MemberFunctionTraverser& func) const;
         const TypeInfo* GetTypeInfo() const;
         size_t SizeOf() const;
+        size_t AlignOf() const;
         bool HasDefaultConstructor() const;
         const Class* GetBaseClass() const;
         bool IsBaseOf(const Class* derivedClass) const;
@@ -853,6 +854,7 @@ namespace Mirror {
             Id id;
             const TypeInfo* typeInfo;
             size_t memorySize;
+            size_t memoryAlignment;
             BaseClassGetter baseClassGetter;
             InplaceGetter inplaceGetter;
             Caster caster;
@@ -875,6 +877,7 @@ namespace Mirror {
 
         const TypeInfo* typeInfo;
         size_t memorySize;
+        size_t memoryAlignment;
         BaseClassGetter baseClassGetter;
         InplaceGetter inplaceGetter;
         Caster caster;

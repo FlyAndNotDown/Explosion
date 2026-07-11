@@ -228,6 +228,7 @@ namespace Render {
     class SamplerCache {
     public:
         static SamplerCache& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
         ~SamplerCache();
 
         Sampler* GetOrCreate(const RSamplerDesc& desc);
@@ -244,6 +245,7 @@ namespace Render {
     class PipelineCache {
     public:
         static PipelineCache& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
         ~PipelineCache();
 
         // TODO offline pipeline cache
@@ -264,6 +266,7 @@ namespace Render {
     class ResourceViewCache {
     public:
         static ResourceViewCache& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
         ~ResourceViewCache();
 
         RHI::BufferView* GetOrCreate(RHI::Buffer* buffer, const RHI::BufferViewCreateInfo& inDesc);
@@ -297,6 +300,7 @@ namespace Render {
     class BindGroupCache {
     public:
         static BindGroupCache& Get(RHI::Device& device);
+        static void Destroy(RHI::Device& device);
         ~BindGroupCache();
 
         RHI::BindGroup* Allocate(const RHI::BindGroupCreateInfo& inCreateInfo);
@@ -313,4 +317,6 @@ namespace Render {
         RHI::Device& device;
         std::vector<std::pair<Common::UniquePtr<RHI::BindGroup>, AllocateFrameNumber>> bindGroups;
     };
+
+    void DestroyDeviceResources(RHI::Device& device);
 }

@@ -46,7 +46,7 @@ namespace Editor {
 
     private:
         void CreateEditorCamera();
-        Common::FVec3 CameraMoveInput() const;
+        Common::FVec2 CameraMoveInput() const;
 
         Core::Uri levelUri;
         Runtime::World world;
@@ -55,7 +55,6 @@ namespace Editor {
         Runtime::Entity editorCamera;
         std::set<int> pressedKeys;
         bool sceneHovered;
-        bool sceneFocused;
         bool cameraLooking;
         bool cameraAnglesInitialized;
         float cameraYaw;

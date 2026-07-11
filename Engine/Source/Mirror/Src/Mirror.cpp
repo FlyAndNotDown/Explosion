@@ -81,17 +81,16 @@ namespace Mirror {
     }
 
     Any::Any()
+        : arrayLength(0)
+        , policy(AnyPolicy::max)
+        , rtti(nullptr)
+        , info(RefInfo {})
     {
-        Reset();
     }
 
     Any::~Any()
     {
-        if (IsMemoryHolder() && rtti != nullptr) {
-            for (auto i = 0; i < ElementNum(); i++) {
-                // rtti->detor(Data(i));
-            }
-        }
+        Reset();
     }
 
     Any::Any(Any& inOther)
@@ -613,10 +612,15 @@ namespace Mirror {
 
     void Any::Reset()
     {
+        if (rtti != nullptr && policy == AnyPolicy::memoryHolder) {
+            for (uint32_t i = 0; i < ElementNum(); i++) {
+                rtti->detor(Data(i));
+            }
+        }
         arrayLength = 0;
         policy = AnyPolicy::max;
         rtti = nullptr;
-        info = {};
+        info = RefInfo {};
     }
 
     bool Any::Empty() const
@@ -1430,6 +1434,7 @@ namespace Mirror {
         : ReflNode(std::move(params.id))
         , typeInfo(params.typeInfo)
         , memorySize(params.memorySize)
+        , memoryAlignment(params.memoryAlignment)
         , baseClassGetter(std::move(params.baseClassGetter))
         , inplaceGetter(std::move(params.inplaceGetter))
         , caster(std::move(params.caster))
@@ -1626,6 +1631,11 @@ namespace Mirror {
     size_t Class::SizeOf() const
     {
         return memorySize;
+    }
+
+    size_t Class::AlignOf() const
+    {
+        return memoryAlignment;
     }
 
     bool Class::HasDefaultConstructor() const

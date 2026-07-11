@@ -19,6 +19,9 @@
 namespace Editor::Internal {
     constexpr uint32_t defaultWindowWidth = 1600;
     constexpr uint32_t defaultWindowHeight = 900;
+    constexpr uint32_t projectHubWindowWidth = 560;
+    constexpr uint32_t projectHubWindowHeight = 720;
+    constexpr float defaultFontSize = 15.0f;
     constexpr uint32_t defaultSceneWidth = 1280;
     constexpr uint32_t defaultSceneHeight = 720;
     constexpr RHI::PixelFormat sceneColorFormat = RHI::PixelFormat::rgba8Unorm;
@@ -46,6 +49,16 @@ namespace Editor::Internal {
         return std::format("{} - Explosion Editor", projectName);
     }
 
+    static uint32_t GetInitialWindowWidth(const EditorApplicationDesc& inDesc)
+    {
+        return inDesc.mode == EditorApplicationMode::projectHub ? projectHubWindowWidth : defaultWindowWidth;
+    }
+
+    static uint32_t GetInitialWindowHeight(const EditorApplicationDesc& inDesc)
+    {
+        return inDesc.mode == EditorApplicationMode::projectHub ? projectHubWindowHeight : defaultWindowHeight;
+    }
+
     static void SetDarkStyle()
     {
         ImGui::StyleColorsDark();
@@ -68,13 +81,14 @@ namespace Editor::Internal {
         ImGui::DockBuilderAddNode(inDockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(inDockSpaceId, inSize);
 
-        ImGuiID sceneNodeId = inDockSpaceId;
+        ImGuiID sceneNodeId = 0;
+        ImGuiID rightColumnNodeId = 0;
         ImGuiID outlinerNodeId = 0;
         ImGuiID inspectorNodeId = 0;
         ImGuiID logNodeId = 0;
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Left, 0.22f, &outlinerNodeId, &sceneNodeId);
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Right, 0.28f, &inspectorNodeId, &sceneNodeId);
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, 0.26f, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(inDockSpaceId, ImGuiDir_Right, 0.25f, &rightColumnNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, 0.25f, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(rightColumnNodeId, ImGuiDir_Down, 0.5f, &inspectorNodeId, &outlinerNodeId);
 
         ImGui::DockBuilderDockWindow("Scene", sceneNodeId);
         ImGui::DockBuilderDockWindow("Outliner", outlinerNodeId);
@@ -117,8 +131,8 @@ namespace Editor {
         window = Common::MakeUnique<EditorWindow>(
             EditorWindowDesc {
                 .title = Internal::MakeWindowTitle(desc),
-                .width = Internal::defaultWindowWidth,
-                .height = Internal::defaultWindowHeight
+                .width = Internal::GetInitialWindowWidth(desc),
+                .height = Internal::GetInitialWindowHeight(desc)
             });
         InstallCallbacks();
 
@@ -175,6 +189,9 @@ namespace Editor {
         io.BackendPlatformName = "ExplosionGLFW";
         io.BackendRendererName = "ExplosionRHI";
         io.IniFilename = "ExplosionEditor.ini";
+        ImFontConfig defaultFontConfig;
+        defaultFontConfig.SizePixels = Internal::defaultFontSize;
+        io.FontDefault = io.Fonts->AddFontDefaultVector(&defaultFontConfig);
         Internal::SetDarkStyle();
     }
 

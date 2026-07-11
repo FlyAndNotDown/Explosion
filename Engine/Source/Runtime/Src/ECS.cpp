@@ -4,6 +4,10 @@
 
 #include <taskflow/taskflow.hpp>
 
+#include <cstddef>
+#include <new>
+#include <utility>
+
 #include <Core/Thread.h>
 #include <Runtime/ECS.h>
 
@@ -19,6 +23,11 @@ namespace Runtime {
 }
 
 namespace Runtime::Internal {
+    static size_t AlignArchetypeOffset(size_t inOffset, size_t inAlignment)
+    {
+        return (inOffset + inAlignment - 1) & ~(inAlignment - 1);
+    }
+
     static bool IsGlobalCompClass(GCompClass inClass)
     {
         return inClass->GetMetaBoolOr(MetaPresets::globalComp, false);
@@ -37,18 +46,19 @@ namespace Runtime::Internal {
         offset = inOffset;
     }
 
+    Mirror::Any CompRtti::CopyConstruct(ElemPtr inElem, const Mirror::Any& inOther) const
+    {
+        auto* compBegin = static_cast<uint8_t*>(inElem) + offset;
+        return clazz->GetConstructor(Mirror::IdPresets::copyCtor).InplaceNewDyn(compBegin, { inOther.ConstRef() });
+    }
+
     Mirror::Any CompRtti::MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const
     {
         auto* compBegin = static_cast<uint8_t*>(inElem) + offset;
-        return clazz->InplaceNewDyn(compBegin, { inOther });
-    }
-
-    Mirror::Any CompRtti::MoveAssign(ElemPtr inElem, const Mirror::Any& inOther) const
-    {
-        auto* compBegin = static_cast<uint8_t*>(inElem) + offset;
-        auto compRef = clazz->InplaceGetObject(compBegin);
-        compRef.MoveAssign(inOther);
-        return compRef;
+        if (clazz->HasConstructor(Mirror::IdPresets::moveCtor)) {
+            return clazz->GetConstructor(Mirror::IdPresets::moveCtor).InplaceNewDyn(compBegin, { inOther });
+        }
+        return clazz->GetConstructor(Mirror::IdPresets::copyCtor).InplaceNewDyn(compBegin, { inOther.ConstRef() });
     }
 
     void CompRtti::Destruct(ElemPtr inElem) const
@@ -78,11 +88,19 @@ namespace Runtime::Internal {
         return clazz->SizeOf();
     }
 
+    size_t CompRtti::MemoryAlignment() const
+    {
+        return clazz->AlignOf();
+    }
+
     Archetype::Archetype(const std::vector<CompRtti>& inRttiVec)
         : id(0)
         , count(0)
-        , elemSize(1)
+        , elemSize(0)
+        , elemAlignment(alignof(std::max_align_t))
+        , capacity(0)
         , rttiVec(inRttiVec)
+        , memory(nullptr)
     {
         rttiMap.reserve(rttiVec.size());
         for (auto i = 0; i < rttiVec.size(); i++) {
@@ -91,9 +109,80 @@ namespace Runtime::Internal {
             rttiMap.emplace(clazz, i);
 
             id += clazz->GetTypeInfo()->id;
+            elemAlignment = std::max(elemAlignment, rtti.MemoryAlignment());
+            elemSize = AlignArchetypeOffset(elemSize, rtti.MemoryAlignment());
             rtti.Bind(elemSize);
             elemSize += rtti.MemorySize();
         }
+        elemSize = AlignArchetypeOffset(std::max(elemSize, static_cast<size_t>(1)), elemAlignment);
+    }
+
+    Archetype::~Archetype()
+    {
+        DestroyElements();
+        ReleaseMemory();
+    }
+
+    Archetype::Archetype(const Archetype& inOther)
+        : id(inOther.id)
+        , count(inOther.count)
+        , elemSize(inOther.elemSize)
+        , elemAlignment(inOther.elemAlignment)
+        , capacity(inOther.capacity)
+        , rttiVec(inOther.rttiVec)
+        , rttiMap(inOther.rttiMap)
+        , entityMap(inOther.entityMap)
+        , elemMap(inOther.elemMap)
+        , memory(capacity > 0 ? ::operator new(capacity * elemSize, std::align_val_t(elemAlignment)) : nullptr)
+    {
+        for (size_t i = 0; i < count; i++) {
+            for (const auto& rtti : rttiVec) {
+                rtti.CopyConstruct(ElemAt(i), rtti.Get(inOther.ElemAt(i)));
+            }
+        }
+    }
+
+    Archetype::Archetype(Archetype&& inOther) noexcept
+        : id(inOther.id)
+        , count(std::exchange(inOther.count, 0))
+        , elemSize(inOther.elemSize)
+        , elemAlignment(inOther.elemAlignment)
+        , capacity(std::exchange(inOther.capacity, 0))
+        , rttiVec(std::move(inOther.rttiVec))
+        , rttiMap(std::move(inOther.rttiMap))
+        , entityMap(std::move(inOther.entityMap))
+        , elemMap(std::move(inOther.elemMap))
+        , memory(std::exchange(inOther.memory, nullptr))
+    {
+    }
+
+    Archetype& Archetype::operator=(const Archetype& inOther)
+    {
+        if (this != &inOther) {
+            *this = Archetype(inOther);
+        }
+        return *this;
+    }
+
+    Archetype& Archetype::operator=(Archetype&& inOther) noexcept
+    {
+        if (this == &inOther) {
+            return *this;
+        }
+
+        DestroyElements();
+        ReleaseMemory();
+        id = inOther.id;
+        count = std::exchange(inOther.count, 0);
+        elemSize = inOther.elemSize;
+        elemAlignment = inOther.elemAlignment;
+        capacity = std::exchange(inOther.capacity, 0);
+        rttiVec = std::move(inOther.rttiVec);
+        rttiMap = std::move(inOther.rttiMap);
+        entityMap = std::move(inOther.entityMap);
+        elemMap = std::move(inOther.elemMap);
+        memory = std::exchange(inOther.memory, nullptr);
+        return *this;
     }
 
     bool Archetype::Contains(CompClass inClazz) const
@@ -159,14 +248,25 @@ namespace Runtime::Internal {
         const auto elemIndex = entityMap.at(inEntity);
         ElemPtr elem = ElemAt(elemIndex);
         const auto lastElemIndex = count - 1;
-        const auto entityToLastElem = elemMap.at(lastElemIndex);
         ElemPtr lastElem = ElemAt(lastElemIndex);
-        for (const auto& rtti : rttiVec) {
-            rtti.MoveAssign(elem, rtti.Get(lastElem));
+
+        if (elemIndex == lastElemIndex) {
+            for (const auto& rtti : rttiVec) {
+                rtti.Destruct(elem);
+            }
+        } else {
+            for (const auto& rtti : rttiVec) {
+                rtti.Destruct(elem);
+                rtti.MoveConstruct(elem, rtti.Get(lastElem));
+                rtti.Destruct(lastElem);
+            }
+
+            const auto entityToLastElem = elemMap.at(lastElemIndex);
+            entityMap.at(entityToLastElem) = elemIndex;
+            elemMap.at(elemIndex) = entityToLastElem;
         }
-        entityMap.at(entityToLastElem) = elemIndex;
+
         entityMap.erase(inEntity);
-        elemMap.at(elemIndex) = entityToLastElem;
         elemMap.erase(lastElemIndex);
         count--;
     }
@@ -231,36 +331,57 @@ namespace Runtime::Internal {
         return rttiVec[rttiMap.at(clazz)];
     }
 
-    ElemPtr Archetype::ElemAt(std::vector<uint8_t>& inMemory, size_t inIndex) const // NOLINT
+    ElemPtr Archetype::ElemAt(ElemPtr inMemory, size_t inIndex) const
     {
-        return inMemory.data() + (inIndex * elemSize);
+        return static_cast<uint8_t*>(inMemory) + (inIndex * elemSize);
     }
 
     ElemPtr Archetype::ElemAt(size_t inIndex) const
     {
-        return ElemAt(const_cast<std::vector<uint8_t>&>(memory), inIndex);
+        return ElemAt(memory, inIndex);
     }
 
     size_t Archetype::Capacity() const
     {
-        return memory.size() / elemSize;
+        return capacity;
     }
 
     void Archetype::Reserve(float inRatio)
     {
         Assert(inRatio > 1.0f);
         const size_t newCapacity = static_cast<size_t>(std::ceil(static_cast<float>(std::max(Capacity(), static_cast<size_t>(1))) * inRatio));
-        std::vector<uint8_t> newMemory(newCapacity * elemSize);
+        ElemPtr newMemory = ::operator new(newCapacity * elemSize, std::align_val_t(elemAlignment));
 
-        for (auto i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; i++) {
             for (const auto& rtti : rttiVec) {
-                void* dstElem = ElemAt(newMemory, i);
-                void* srcElem = ElemAt(i);
+                ElemPtr dstElem = ElemAt(newMemory, i);
+                ElemPtr srcElem = ElemAt(i);
                 rtti.MoveConstruct(dstElem, rtti.Get(srcElem));
                 rtti.Destruct(srcElem);
             }
         }
-        memory = std::move(newMemory);
+        ReleaseMemory();
+        memory = newMemory;
+        capacity = newCapacity;
+    }
+
+    void Archetype::DestroyElements()
+    {
+        for (size_t i = 0; i < count; i++) {
+            for (const auto& rtti : rttiVec) {
+                rtti.Destruct(ElemAt(i));
+            }
+        }
+        count = 0;
+    }
+
+    void Archetype::ReleaseMemory()
+    {
+        if (memory != nullptr) {
+            ::operator delete(memory, std::align_val_t(elemAlignment));
+            memory = nullptr;
+        }
+        capacity = 0;
     }
 
     void* Archetype::AllocateNewElemBack()
@@ -614,17 +735,17 @@ namespace Runtime {
         ClearRemoved();
     }
 
-    const auto& EventsObserverDyn::Constructed() const
+    const Observer& EventsObserverDyn::Constructed() const
     {
         return constructedObserver;
     }
 
-    const auto& EventsObserverDyn::Updated() const
+    const Observer& EventsObserverDyn::Updated() const
     {
         return updatedObserver;
     }
 
-    const auto& EventsObserverDyn::Removed() const
+    const Observer& EventsObserverDyn::Removed() const
     {
         return removedObserver;
     }
@@ -655,6 +776,9 @@ namespace Runtime {
 
     ECRegistry& ECRegistry::operator=(const ECRegistry& inOther)
     {
+        if (this == &inOther) {
+            return *this;
+        }
         entities = inOther.entities;
         globalComps = inOther.globalComps;
         archetypes = inOther.archetypes;
@@ -663,6 +787,9 @@ namespace Runtime {
 
     ECRegistry& ECRegistry::operator=(ECRegistry&& inOther) noexcept
     {
+        if (this == &inOther) {
+            return *this;
+        }
         entities = std::move(inOther.entities);
         globalComps = std::move(inOther.globalComps);
         archetypes = std::move(inOther.archetypes);
@@ -685,7 +812,11 @@ namespace Runtime {
     void ECRegistry::Destroy(Entity inEntity)
     {
         Assert(Valid(inEntity));
-        archetypes.at(entities.GetArchetype(inEntity)).EraseElem(inEntity);
+        Internal::Archetype& archetype = archetypes.at(entities.GetArchetype(inEntity));
+        for (const auto& compRtti : archetype.GetRttiVec()) {
+            NotifyRemoveDyn(compRtti.Class(), inEntity);
+        }
+        archetype.EraseElem(inEntity);
         entities.Free(inEntity);
     }
 

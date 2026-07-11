@@ -30,6 +30,8 @@ namespace Render {
             RHI::Fence* signalFence;
         };
 
+        NonCopyable(Renderer)
+
         explicit Renderer(const Params& inParams);
         virtual ~Renderer();
 

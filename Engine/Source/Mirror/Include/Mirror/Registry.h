@@ -522,6 +522,7 @@ namespace Mirror {
         params.id = inId;
         params.typeInfo = GetTypeInfo<C>();
         params.memorySize = sizeof(C);
+        params.memoryAlignment = alignof(C);
         params.baseClassGetter = []() -> const Mirror::Class* {
             if constexpr (std::is_void_v<B>) {
                 return nullptr;

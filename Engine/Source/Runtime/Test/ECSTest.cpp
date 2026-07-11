@@ -5,6 +5,50 @@
 #include <ECSTest.h>
 #include <Test/Test.h>
 
+#include <utility>
+
+uint32_t LifetimeComp::instanceCount = 0;
+
+LifetimeComp::LifetimeComp()
+{
+    instanceCount++;
+}
+
+LifetimeComp::LifetimeComp(std::string inValue)
+    : value(std::move(inValue))
+{
+    instanceCount++;
+}
+
+LifetimeComp::LifetimeComp(const LifetimeComp& inOther)
+    : value(inOther.value)
+{
+    instanceCount++;
+}
+
+LifetimeComp::LifetimeComp(LifetimeComp&& inOther) noexcept
+    : value(std::move(inOther.value))
+{
+    instanceCount++;
+}
+
+LifetimeComp& LifetimeComp::operator=(const LifetimeComp& inOther)
+{
+    value = inOther.value;
+    return *this;
+}
+
+LifetimeComp& LifetimeComp::operator=(LifetimeComp&& inOther) noexcept
+{
+    value = std::move(inOther.value);
+    return *this;
+}
+
+LifetimeComp::~LifetimeComp()
+{
+    instanceCount--;
+}
+
 TEST(ECSTest, EntityTest)
 {
     ECRegistry registry;
@@ -24,11 +68,16 @@ TEST(ECSTest, EntityTest)
     const auto entity3 = registry.Create();
     registry.Destroy(entity0);
     const auto entity4 = registry.Create();
+    ASSERT_EQ(entity4, entity0);
     cur = { entity1, entity2, entity3, entity4 };
 
     registry.Each([&](const auto e) -> void {
         ASSERT_TRUE(cur.contains(e));
     });
+
+    registry.Clear();
+    ASSERT_EQ(registry.Count(), 0);
+    ASSERT_EQ(registry.Create(), 1);
 }
 
 TEST(ECSTest, ComponentStaticTest)
@@ -63,6 +112,15 @@ TEST(ECSTest, ComponentStaticTest)
     ASSERT_TRUE(constRegistry.Has<CompB>(entity2));
     ASSERT_EQ(constRegistry.Get<CompA>(entity2).value, 3);
     ASSERT_EQ(constRegistry.Get<CompB>(entity2).value, 4.0f);
+    ASSERT_EQ(registry.CompCount(entity2), 2);
+    std::unordered_set<CompClass> compClasses;
+    registry.CompEach(entity2, [&](CompClass clazz) -> void {
+        compClasses.emplace(clazz);
+    });
+    ASSERT_EQ(compClasses, (std::unordered_set<CompClass> {
+        &Mirror::Class::Get<CompA>(),
+        &Mirror::Class::Get<CompB>()
+    }));
 
     const auto entity3 = registry.Create();
     registry.Emplace<CompA>(entity3, 5);
@@ -99,6 +157,39 @@ TEST(ECSTest, ComponentStaticTest)
     for (const auto& [entity, compB] : view3) {
         ASSERT_TRUE(expected.contains(entity));
     }
+
+    ASSERT_EQ(reinterpret_cast<uintptr_t>(registry.Find<CompA>(entity1)) % alignof(CompA), 0);
+    ASSERT_EQ(reinterpret_cast<uintptr_t>(registry.Find<CompB>(entity2)) % alignof(CompB), 0);
+}
+
+TEST(ECSTest, ComponentLifetimeTest)
+{
+    const auto baselineInstanceCount = LifetimeComp::instanceCount;
+    const std::string firstValue = "first component value that does not use the small string optimization";
+    const std::string secondValue = "second component value that does not use the small string optimization";
+    {
+        ECRegistry registry;
+        const auto entity0 = registry.Create();
+        const auto entity1 = registry.Create();
+        registry.Emplace<LifetimeComp>(entity0, std::string(firstValue));
+        registry.Emplace<LifetimeComp>(entity1, std::string(secondValue));
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 2);
+
+        registry.Emplace<CompA>(entity0, 1);
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 2);
+        ASSERT_EQ(registry.Get<LifetimeComp>(entity0).value, firstValue);
+        ASSERT_EQ(registry.Get<LifetimeComp>(entity1).value, secondValue);
+
+        registry.Remove<CompA>(entity0);
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 2);
+        registry.Destroy(entity1);
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 1);
+        ASSERT_EQ(registry.Get<LifetimeComp>(entity0).value, firstValue);
+
+        registry.Clear();
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount);
+    }
+    ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount);
 }
 
 TEST(ECSTest, ComponentDynamicTest)
@@ -181,6 +272,10 @@ TEST(ECSTest, ComponentDynamicTest)
     view5.Each([&](Entity e, const CompA& compA, const CompB& compB) -> void {
         ASSERT_TRUE(expected.contains(e));
     });
+
+    registry.RemoveDyn(compAClass, entity0);
+    ASSERT_FALSE(registry.HasDyn(compAClass, entity0));
+    ASSERT_TRUE(registry.FindDyn(compAClass, entity0).Empty());
 }
 
 TEST(ECSTest, GlobalComponentStaticTest)
@@ -264,6 +359,11 @@ TEST(ECSTest, ComponentEventStaticTest)
     ASSERT_EQ(count, EventCounts(2, 3, 1));
     registry.Remove<CompA>(entity1);
     ASSERT_EQ(count, EventCounts(2, 3, 2));
+
+    const auto entity2 = registry.Create();
+    registry.Emplace<CompA>(entity2, 6);
+    registry.Destroy(entity2);
+    ASSERT_EQ(count, EventCounts(3, 3, 3));
 
     registry.Events<CompA>().onConstructed.Unbind(constructedCallback);
     registry.Events<CompA>().onUpdated.Unbind(updatedCallback);
@@ -400,9 +500,75 @@ TEST(ECSTest, ObserverTest)
     });
     ASSERT_EQ(observer.Count(), 2);
     expected = { entity0, entity1 };
-    for (const auto e : expected) {
+    for (const auto e : observer) {
         ASSERT_TRUE(expected.contains(e));
     }
+
+    const auto popped = observer.Pop();
+    ASSERT_EQ(observer.Count(), 0);
+    ASSERT_EQ(std::unordered_set<Entity>(popped.begin(), popped.end()), expected);
+
+    registry.Update<CompB>(entity1, [](CompB& compB) -> void {
+        compB.value = 4.0f;
+    });
+    size_t traversedCount = 0;
+    observer.EachThenClear([&](Entity e) -> void {
+        ASSERT_EQ(e, entity1);
+        traversedCount++;
+    });
+    ASSERT_EQ(traversedCount, 1);
+    ASSERT_EQ(observer.Count(), 0);
+}
+
+TEST(ECSTest, EventsObserverStaticTest)
+{
+    ECRegistry registry;
+    auto observer = registry.EventsObserver<CompA>();
+    const auto entity = registry.Create();
+
+    registry.Emplace<CompA>(entity, 1);
+    ASSERT_EQ(observer.ConstructedCount(), 1);
+    ASSERT_EQ(observer.UpdatedCount(), 0);
+    ASSERT_EQ(observer.RemovedCount(), 0);
+
+    registry.Update<CompA>(entity, [](CompA& compA) -> void {
+        compA.value = 2;
+    });
+    ASSERT_EQ(observer.ConstructedCount(), 1);
+    ASSERT_EQ(observer.UpdatedCount(), 1);
+    ASSERT_EQ(observer.RemovedCount(), 0);
+
+    registry.Remove<CompA>(entity);
+    ASSERT_EQ(observer.Constructed().All(), std::vector<Entity> { entity });
+    ASSERT_EQ(observer.Updated().All(), std::vector<Entity> { entity });
+    ASSERT_EQ(observer.Removed().All(), std::vector<Entity> { entity });
+
+    observer.ClearUpdated();
+    ASSERT_EQ(observer.ConstructedCount(), 1);
+    ASSERT_EQ(observer.UpdatedCount(), 0);
+    ASSERT_EQ(observer.RemovedCount(), 1);
+    observer.Clear();
+    ASSERT_EQ(observer.ConstructedCount(), 0);
+    ASSERT_EQ(observer.RemovedCount(), 0);
+}
+
+TEST(ECSTest, EventsObserverDynamicTest)
+{
+    const auto* compClass = &Mirror::Class::Get<CompA>();
+    ECRegistry registry;
+    auto observer = registry.EventsObserverDyn(compClass);
+    const auto entity = registry.Create();
+
+    registry.EmplaceDyn(compClass, entity, Mirror::ForwardAsArgList(1));
+    registry.NotifyUpdatedDyn(compClass, entity);
+    registry.Destroy(entity);
+
+    ASSERT_EQ(observer.ConstructedCount(), 1);
+    ASSERT_EQ(observer.UpdatedCount(), 1);
+    ASSERT_EQ(observer.RemovedCount(), 1);
+    ASSERT_EQ(observer.Constructed().All(), std::vector<Entity> { entity });
+    ASSERT_EQ(observer.Updated().All(), std::vector<Entity> { entity });
+    ASSERT_EQ(observer.Removed().All(), std::vector<Entity> { entity });
 }
 
 TEST(ECSTest, ECRegistryCopyTest)
@@ -418,6 +584,39 @@ TEST(ECSTest, ECRegistryCopyTest)
     ASSERT_EQ(registry1.Get<CompB>(entity1).value, 2.0f);
 }
 
+TEST(ECSTest, ECRegistryValueSemanticsTest)
+{
+    const auto baselineInstanceCount = LifetimeComp::instanceCount;
+    const std::string originalValue = "original component value that does not use the small string optimization";
+    {
+        ECRegistry registry0;
+        const auto entity = registry0.Create();
+        registry0.Emplace<LifetimeComp>(entity, std::string(originalValue));
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 1);
+
+        {
+            ECRegistry registry1 = registry0;
+            ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 2);
+            registry1.Get<LifetimeComp>(entity).value = "copied registry component with independent string storage";
+            ASSERT_EQ(registry0.Get<LifetimeComp>(entity).value, originalValue);
+
+            ECRegistry registry2;
+            const auto replacedEntity = registry2.Create();
+            registry2.Emplace<LifetimeComp>(replacedEntity, std::string("component replaced by copy assignment"));
+            ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
+            registry2 = registry0;
+            ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
+            ASSERT_EQ(registry2.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+
+            ECRegistry registry3 = std::move(registry2);
+            ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
+            ASSERT_EQ(registry3.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+        }
+        ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 1);
+    }
+    ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount);
+}
+
 TEST(ECSTest, ECSRegistrySaveLoadTest)
 {
     ECArchive archive;
@@ -430,6 +629,9 @@ TEST(ECSTest, ECSRegistrySaveLoadTest)
         registry.Emplace<CompB>(entity1, 2.0f);
         registry.GEmplace<GCompA>(1);
         registry.GEmplace<GCompB>(2.0f);
+        const auto transientEntity = registry.Create();
+        registry.Emplace<CompA>(transientEntity, 3);
+        registry.Emplace<TransientTag>(transientEntity);
 
         registry.Save(archive);
     }

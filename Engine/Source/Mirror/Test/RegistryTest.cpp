@@ -761,6 +761,7 @@ TEST(RegistryTest, ClassMiscMetadataTest)
 
     ASSERT_EQ(clazz.GetTypeInfo()->id, Mirror::GetTypeInfo<C2>()->id);
     ASSERT_EQ(clazz.SizeOf(), sizeof(C2));
+    ASSERT_EQ(clazz.AlignOf(), alignof(C2));
 }
 
 TEST(RegistryTest, ClassInplaceGetObjectTest)
