@@ -38,7 +38,6 @@ namespace Runtime {
 
     Engine::~Engine()
     {
-        Render::RenderWorkerThreads::Get().Stop();
         renderModule->DeInitialize();
         ::Core::ModuleManager::Get().Unload("Render");
 
@@ -69,8 +68,6 @@ namespace Runtime {
 
         Core::ThreadContext::IncFrameNumber();
 
-        // the shader artifact copy and pool forfeits intentionally run through this module's Render.Static singleton
-        // copies: the renderer itself executes in this module too, so these are the instances it reads
         auto& renderThread = renderModule->GetRenderThread();
         renderThread.EmplaceTask([device = renderModule->GetDevice()]() -> void {
             Core::ThreadContext::IncFrameNumber();
@@ -112,9 +109,6 @@ namespace Runtime {
         Render::RenderModuleInitParams initParams;
         initParams.rhiType = RHI::GetRHITypeByAbbrString(inRhiTypeStr);
         renderModule->Initialize(initParams);
-        // the render module started its own module-local worker threads, render-layer code inlined into this module
-        // (e.g. render graph buffer uploads) binds to this module's singleton copy which must be started as well
-        Render::RenderWorkerThreads::Get().Start();
         LogInfo(Render, "RHI type: {}", inRhiTypeStr);
     }
 
