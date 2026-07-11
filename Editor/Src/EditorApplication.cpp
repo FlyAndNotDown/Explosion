@@ -81,13 +81,14 @@ namespace Editor::Internal {
         ImGui::DockBuilderAddNode(inDockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(inDockSpaceId, inSize);
 
-        ImGuiID sceneNodeId = inDockSpaceId;
+        ImGuiID sceneNodeId = 0;
+        ImGuiID rightColumnNodeId = 0;
         ImGuiID outlinerNodeId = 0;
         ImGuiID inspectorNodeId = 0;
         ImGuiID logNodeId = 0;
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Left, 0.22f, &outlinerNodeId, &sceneNodeId);
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Right, 0.28f, &inspectorNodeId, &sceneNodeId);
-        sceneNodeId = ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, 0.26f, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(inDockSpaceId, ImGuiDir_Right, 0.25f, &rightColumnNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, 0.25f, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(rightColumnNodeId, ImGuiDir_Down, 0.5f, &inspectorNodeId, &outlinerNodeId);
 
         ImGui::DockBuilderDockWindow("Scene", sceneNodeId);
         ImGui::DockBuilderDockWindow("Outliner", outlinerNodeId);
