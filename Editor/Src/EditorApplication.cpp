@@ -188,7 +188,14 @@ namespace Editor {
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         io.BackendPlatformName = "ExplosionGLFW";
         io.BackendRendererName = "ExplosionRHI";
-        io.IniFilename = "ExplosionEditor.ini";
+        if (desc.mode == EditorApplicationMode::editor) {
+            const Common::Path iniFilePath = Core::Paths::GameCacheDir() / "Editor" / "Layout" / "Main.ini";
+            iniFilePath.Parent().MakeDir();
+            imguiIniFilename = iniFilePath.String();
+            io.IniFilename = imguiIniFilename.c_str();
+        } else {
+            io.IniFilename = nullptr;
+        }
         ImFontConfig defaultFontConfig;
         defaultFontConfig.SizePixels = Internal::defaultFontSize;
         io.FontDefault = io.Fonts->AddFontDefaultVector(&defaultFontConfig);

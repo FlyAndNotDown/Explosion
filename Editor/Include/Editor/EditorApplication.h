@@ -49,6 +49,7 @@ namespace Editor {
         float NextDeltaSeconds();
 
         EditorApplicationDesc desc;
+        std::string imguiIniFilename;
         Common::UniquePtr<EditorWindow> window;
         Common::UniquePtr<EditorContext> context;
         Common::UniquePtr<Runtime::Canvas> sceneRenderCanvas;
