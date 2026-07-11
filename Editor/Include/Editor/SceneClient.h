@@ -55,7 +55,6 @@ namespace Editor {
         Runtime::Entity editorCamera;
         std::set<int> pressedKeys;
         bool sceneHovered;
-        bool sceneFocused;
         bool cameraLooking;
         bool cameraAnglesInitialized;
         float cameraYaw;

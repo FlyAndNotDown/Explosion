@@ -137,7 +137,6 @@ namespace Editor {
         , renderSurface(nullptr)
         , editorCamera(Runtime::entityNull)
         , sceneHovered(false)
-        , sceneFocused(false)
         , cameraLooking(false)
         , cameraAnglesInitialized(false)
         , cameraYaw(0.0f)
@@ -269,8 +268,7 @@ namespace Editor {
 
     void SceneClient::SetSceneFocused(bool inFocused)
     {
-        sceneFocused = inFocused;
-        if (!sceneFocused) {
+        if (!inFocused && !cameraLooking) {
             pressedKeys.clear();
         }
     }
