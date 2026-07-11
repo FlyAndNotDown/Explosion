@@ -46,7 +46,7 @@ namespace Editor {
 
     private:
         void CreateEditorCamera();
-        Common::FVec3 CameraMoveInput() const;
+        Common::FVec2 CameraMoveInput() const;
 
         Core::Uri levelUri;
         Runtime::World world;
