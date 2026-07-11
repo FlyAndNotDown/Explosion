@@ -311,13 +311,11 @@ namespace Runtime {
             return;
         }
 
-        // the compiler/artifact-registry singletons used here are this module's Render.Static copies, matching the
-        // ones the renderer executing in this module reads
         const RHI::RHIType rhiType = EngineHolder::Get().GetRenderModule().GetDevice()->GetGpu().GetInstance().GetRHIType();
         Render::ShaderCompileOptions options;
         options.byteCodeType = rhiType == RHI::RHIType::directX12 ? Render::ShaderByteCodeType::dxil : Render::ShaderByteCodeType::spirv;
         options.withDebugInfo = static_cast<bool>(BUILD_CONFIG_DEBUG); // NOLINT
-        (void) Render::ShaderTypeCompiler::Get().Compile(typesToCompile, options);
+        (void) EngineHolder::Get().GetRenderModule().CompileShaderTypes(typesToCompile, options);
     }
 
     MaterialInstance::MaterialInstance(Core::Uri inUri)

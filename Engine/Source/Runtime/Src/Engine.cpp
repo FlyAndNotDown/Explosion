@@ -10,9 +10,6 @@
 #include <Core/Paths.h>
 #include <Core/Thread.h>
 #include <Mirror/Mirror.h>
-#include <Render/RenderCache.h>
-#include <Render/RenderThread.h>
-#include <Render/ResourcePool.h>
 #include <Runtime/Engine.h>
 #include <Runtime/GameThread.h>
 #include <Runtime/Settings/Registry.h>
@@ -69,14 +66,10 @@ namespace Runtime {
         Core::ThreadContext::IncFrameNumber();
 
         auto& renderThread = renderModule->GetRenderThread();
-        renderThread.EmplaceTask([device = renderModule->GetDevice()]() -> void {
+        renderThread.EmplaceTask([renderModule = renderModule]() -> void {
             Core::ThreadContext::IncFrameNumber();
             Core::Console::Get().PerformRenderThreadSettingsCopy();
-            Render::ShaderArtifactRegistry::Get().PerformThreadCopy();
-            Render::BufferPool::Get(*device).Forfeit();
-            Render::TexturePool::Get(*device).Forfeit();
-            Render::ResourceViewCache::Get(*device).Forfeit();
-            Render::BindGroupCache::Get(*device).Forfeit();
+            renderModule->BeginFrame();
         });
 
         for (auto* world : worlds) {

@@ -75,12 +75,11 @@ namespace Runtime {
                 rendererParams.signalFence = fence;
 
                 auto renderer = renderModule->CreateStandardRenderer(rendererParams);
-                renderer.Render(inDeltaTimeSeconds);
+                renderer->Render(inDeltaTimeSeconds);
                 if (window != nullptr) {
                     window->Present();
                 }
-                // this frame's gpu work must finish before the renderer (and its recorded command buffers /
-                // transient resources) goes out of scope, and it keeps the shared semaphores safe to reuse
+                // Renderer-owned command buffers and transient resources must outlive the submitted GPU work.
                 fence->Wait();
             });
     }

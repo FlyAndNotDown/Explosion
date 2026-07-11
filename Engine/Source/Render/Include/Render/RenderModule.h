@@ -8,6 +8,7 @@
 #include <RHI/RHI.h>
 #include <Render/Api.h>
 #include <Render/Renderer.h>
+#include <Render/ShaderCompiler.h>
 #include <Render/RenderThread.h>
 #include <Render/Scene.h>
 #include <Render/View.h>
@@ -30,10 +31,12 @@ namespace Render {
         void DeInitialize();
         RHI::Device* GetDevice() const;
         Render::RenderThread& GetRenderThread() const;
+        void BeginFrame() const;
         Scene* NewScene() const;
         ViewState* NewViewState() const;
         View CreateView() const;
-        StandardRenderer CreateStandardRenderer(const StandardRenderer::Params& inParams) const;
+        std::future<ShaderTypeCompileResult> CompileShaderTypes(const std::vector<const ShaderType*>& inShaderTypes, const ShaderCompileOptions& inOptions) const;
+        Common::UniquePtr<Renderer> CreateStandardRenderer(const StandardRenderer::Params& inParams) const;
 
     private:
         bool initialized;

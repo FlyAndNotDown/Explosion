@@ -5,6 +5,7 @@
 #include <Core/Thread.h>
 #include <Render/RenderCache.h>
 #include <Render/RenderModule.h>
+#include <Render/ResourcePool.h>
 #include <Render/Scene.h>
 
 namespace Render {
@@ -70,6 +71,15 @@ namespace Render {
         return RenderThread::Get();
     }
 
+    void RenderModule::BeginFrame() const // NOLINT
+    {
+        ShaderArtifactRegistry::Get().PerformThreadCopy();
+        BufferPool::Get(*rhiDevice).Forfeit();
+        TexturePool::Get(*rhiDevice).Forfeit();
+        ResourceViewCache::Get(*rhiDevice).Forfeit();
+        BindGroupCache::Get(*rhiDevice).Forfeit();
+    }
+
     Scene* RenderModule::NewScene() const // NOLINT
     {
         return new Scene();
@@ -85,9 +95,14 @@ namespace Render {
         return View();
     }
 
-    StandardRenderer RenderModule::CreateStandardRenderer(const StandardRenderer::Params& inParams) const // NOLINT
+    std::future<ShaderTypeCompileResult> RenderModule::CompileShaderTypes(const std::vector<const ShaderType*>& inShaderTypes, const ShaderCompileOptions& inOptions) const
     {
-        return StandardRenderer(inParams);
+        return ShaderTypeCompiler::Get().Compile(inShaderTypes, inOptions);
+    }
+
+    Common::UniquePtr<Renderer> RenderModule::CreateStandardRenderer(const StandardRenderer::Params& inParams) const // NOLINT
+    {
+        return Common::UniquePtr<Renderer>(new StandardRenderer(inParams));
     }
 } // namespace Render
 
