@@ -20,6 +20,7 @@ namespace RHI::DirectX12 {
     struct RootParameterKey {
         uint8_t layoutIndex;
         HlslBinding binding;
+        ShaderStageFlags shaderVisibility;
 
         bool operator==(const RootParameterKey& inOther) const;
     };
@@ -38,7 +39,10 @@ namespace RHI::DirectX12 {
         DX12PipelineLayout(DX12Device& inDevice, const PipelineLayoutCreateInfo& inCreateInfo);
         ~DX12PipelineLayout() override;
 
-        std::optional<BindingTypeAndRootParameterIndex> QueryRootDescriptorParameterIndex(uint8_t inLayoutIndex, const HlslBinding& inBinding);
+        std::optional<BindingTypeAndRootParameterIndex> QueryRootDescriptorParameterIndex(
+            uint8_t inLayoutIndex,
+            const HlslBinding& inBinding,
+            ShaderStageFlags inShaderVisibility);
         RootParameterIndex QueryRootConstantParameterIndex(uint32_t inPipelineConstantIndex) const;
         ID3D12RootSignature* GetNative() const;
 

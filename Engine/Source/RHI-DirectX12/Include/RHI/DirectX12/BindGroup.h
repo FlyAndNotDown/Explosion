@@ -14,6 +14,12 @@
 namespace RHI::DirectX12 {
     class DX12BindGroupLayout;
 
+    struct NativeBinding {
+        HlslBinding binding;
+        ShaderStageFlags shaderVisibility;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle;
+    };
+
     class DX12BindGroup final : public BindGroup {
     public:
         NonCopyable(DX12BindGroup)
@@ -21,13 +27,13 @@ namespace RHI::DirectX12 {
         ~DX12BindGroup() override;
 
         DX12BindGroupLayout& GetBindGroupLayout() const;
-        const std::vector<std::pair<HlslBinding, CD3DX12_CPU_DESCRIPTOR_HANDLE>>& GetNativeBindings();
+        const std::vector<NativeBinding>& GetNativeBindings();
 
     private:
         void SaveBindGroupLayout(const BindGroupCreateInfo& inCreateInfo);
         void CacheBindings(const BindGroupCreateInfo& inCreateInfo);
 
         DX12BindGroupLayout* bindGroupLayout;
-        std::vector<std::pair<HlslBinding, CD3DX12_CPU_DESCRIPTOR_HANDLE>> nativeBindings;
+        std::vector<NativeBinding> nativeBindings;
     };
 }

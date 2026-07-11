@@ -7,8 +7,12 @@
 #include <utility>
 
 namespace RHI {
-    BindGroupEntry::BindGroupEntry(const ResourceBinding& inBinding, const std::variant<Sampler*, BufferView*, TextureView*>& inEntity)
+    BindGroupEntry::BindGroupEntry(
+        const ResourceBinding& inBinding,
+        const ShaderStageFlags inShaderVisibility,
+        const std::variant<Sampler*, BufferView*, TextureView*>& inEntity)
         : binding(inBinding)
+        , shaderVisibility(inShaderVisibility)
         , entity(inEntity)
     {
     }

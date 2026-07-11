@@ -434,6 +434,12 @@ namespace Render {
         return &iter->second.second;
     }
 
+    const std::pair<RHI::ShaderStageFlags, RHI::ResourceBinding>* BindGroupLayout::GetBindingInfo(const std::string& name) const
+    {
+        const auto iter = bindings.find(name);
+        return iter == bindings.end() ? nullptr : &iter->second;
+    }
+
     RHI::BindGroupLayout* BindGroupLayout::GetRHI() const
     {
         return rhiHandle.Get();
