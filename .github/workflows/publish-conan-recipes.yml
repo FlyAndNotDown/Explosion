@@ -14,7 +14,7 @@ concurrency:
 env:
   CONAN_REMOTE_NAME: explosion
   CONAN_REMOTE_URL: https://conan.kindem.online/artifactory/api/conan/conan
-  CMAKE_VERSION: '4.1.2'
+  CMAKE_VERSION: '4.3.2'
 
 jobs:
   publish:
@@ -29,7 +29,7 @@ jobs:
         # cppstd is pinned per platform to match the binaries already on the remote; consumers on a
         # higher standard (the engine uses C++20) still match via Conan's default compatibility plugin.
         include:
-          - os: windows-2022
+          - os: windows-latest
             cppstd: '17'
           - os: macOS-latest
             cppstd: gnu17

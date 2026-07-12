@@ -1,7 +1,7 @@
 from conan import ConanFile
 from conan.tools.build import check_min_cppstd, can_run
 from conan.tools.cmake import cmake_layout, CMakeToolchain, CMakeDeps, CMake
-from conan.tools.files import apply_conandata_patches, copy
+from conan.tools.files import apply_conandata_patches, copy, export_conandata_patches
 from conan.tools.scm import Git
 import os
 
@@ -18,6 +18,9 @@ class DXCConan(ConanFile):
     settings = "os", "arch", "compiler", "build_type"
     options = {}
     default_options = {}
+
+    def export_sources(self):
+        export_conandata_patches(self)
 
     def layout(self):
         cmake_layout(self, src_folder="src")

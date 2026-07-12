@@ -13,7 +13,7 @@ on:
 env:
   BUILD_TYPE: Release
   MAKE_THREAD_NUM: 16
-  CMAKE_VERSION: '4.1.2'
+  CMAKE_VERSION: '4.3.2'
 
 jobs:
   build:
@@ -22,7 +22,7 @@ jobs:
       # not yet verified -- keep a failing Linux leg from cancelling the others.
       fail-fast: false
       matrix:
-        os: ['windows-2022', 'macOS-latest', 'ubuntu-latest']
+        os: ['windows-latest', 'macOS-latest', 'ubuntu-latest']
 
     runs-on: ${{ matrix.os }}
 
