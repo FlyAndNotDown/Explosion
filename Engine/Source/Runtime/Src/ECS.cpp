@@ -220,7 +220,7 @@ namespace Runtime::Internal {
         ElemPtr result = AllocateNewElemBack();
         auto backElem = count - 1;
         entityMap.emplace(inEntity, backElem);
-        elemMap.emplace(backElem, inEntity);
+        elemMap.emplace_back(inEntity);
         return result;
     }
 
@@ -263,11 +263,11 @@ namespace Runtime::Internal {
 
             const auto entityToLastElem = elemMap.at(lastElemIndex);
             entityMap.at(entityToLastElem) = elemIndex;
-            elemMap.at(elemIndex) = entityToLastElem;
+            elemMap[elemIndex] = entityToLastElem;
         }
 
         entityMap.erase(inEntity);
-        elemMap.erase(lastElemIndex);
+        elemMap.pop_back();
         count--;
     }
 
@@ -286,6 +286,11 @@ namespace Runtime::Internal {
     {
         ElemPtr element = GetElem(inEntity);
         return GetCompRtti(inCompClass).Get(element).ConstRef();
+    }
+
+    size_t Archetype::GetCompOffset(CompClass inCompClass) const
+    {
+        return GetCompRtti(inCompClass).Offset();
     }
 
     size_t Archetype::Count() const
@@ -327,8 +332,9 @@ namespace Runtime::Internal {
 
     const CompRtti& Archetype::GetCompRtti(CompClass clazz) const
     {
-        Assert(rttiMap.contains(clazz));
-        return rttiVec[rttiMap.at(clazz)];
+        const auto iter = rttiMap.find(clazz);
+        Assert(iter != rttiMap.end());
+        return rttiVec[iter->second];
     }
 
     ElemPtr Archetype::ElemAt(ElemPtr inMemory, size_t inIndex) const
@@ -394,7 +400,7 @@ namespace Runtime::Internal {
     }
 
     EntityPool::EntityPool()
-        : counter(1)
+        : records(1)
     {
     }
 
@@ -405,52 +411,67 @@ namespace Runtime::Internal {
 
     bool EntityPool::Valid(Entity inEntity) const
     {
-        return allocated.contains(inEntity);
+        return inEntity < records.size() && records[inEntity].allocated;
     }
 
     Entity EntityPool::Allocate()
     {
-        Entity result = entityNull;
+        Entity result;
         if (!free.empty()) {
-            result = *free.begin();
-            free.erase(result);
+            result = free.back();
+            free.pop_back();
         } else {
-            result = counter++;
+            result = static_cast<Entity>(records.size());
+            records.emplace_back();
         }
-        allocated.emplace(result);
-        SetArchetype(result, 0);
+        auto& record = records[result];
+        record.allocated = true;
+        record.archetype = 0;
+        record.allocatedIndex = allocated.size();
+        allocated.emplace_back(result);
         return result;
     }
 
     void EntityPool::Allocate(Entity inEntity)
     {
-        if (inEntity < counter) {
-            Assert(free.contains(inEntity));
-            free.erase(inEntity);
+        if (inEntity < records.size()) {
+            Assert(!records[inEntity].allocated);
+            const auto iter = std::ranges::find(free, inEntity);
+            Assert(iter != free.end());
+            *iter = free.back();
+            free.pop_back();
         } else {
-            for (uint32_t i = counter; i < inEntity; i++) {
-                free.emplace(i);
+            for (Entity i = static_cast<Entity>(records.size()); i < inEntity; i++) {
+                free.emplace_back(i);
             }
-            counter = inEntity + 1;
+            records.resize(static_cast<size_t>(inEntity) + 1);
         }
-        allocated.emplace(inEntity);
-        SetArchetype(inEntity, 0);
+        auto& record = records[inEntity];
+        record.allocated = true;
+        record.archetype = 0;
+        record.allocatedIndex = allocated.size();
+        allocated.emplace_back(inEntity);
     }
 
     void EntityPool::Free(Entity inEntity)
     {
         Assert(Valid(inEntity));
-        allocated.erase(inEntity);
-        free.emplace(inEntity);
-        archetypeMap.erase(inEntity);
+        auto& record = records[inEntity];
+        const auto lastEntity = allocated.back();
+        allocated[record.allocatedIndex] = lastEntity;
+        records[lastEntity].allocatedIndex = record.allocatedIndex;
+        allocated.pop_back();
+        record.allocated = false;
+        record.archetype = 0;
+        free.emplace_back(inEntity);
     }
 
     void EntityPool::Clear()
     {
-        counter = 1;
+        records.clear();
+        records.resize(1);
         free.clear();
         allocated.clear();
-        archetypeMap.clear();
     }
 
     void EntityPool::Each(const EntityTraverseFunc& inFunc) const
@@ -462,12 +483,14 @@ namespace Runtime::Internal {
 
     void EntityPool::SetArchetype(Entity inEntity, ArchetypeId inArchetypeId)
     {
-        archetypeMap[inEntity] = inArchetypeId;
+        Assert(Valid(inEntity));
+        records[inEntity].archetype = inArchetypeId;
     }
 
     ArchetypeId EntityPool::GetArchetype(Entity inEntity) const
     {
-        return archetypeMap.at(inEntity);
+        Assert(Valid(inEntity));
+        return records[inEntity].archetype;
     }
 
     EntityPool::ConstIter EntityPool::Begin() const
