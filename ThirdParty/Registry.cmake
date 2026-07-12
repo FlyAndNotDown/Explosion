@@ -36,6 +36,11 @@ find_package(VulkanLoader REQUIRED GLOBAL)
 find_package(vulkan-validationlayers REQUIRED GLOBAL)
 find_package(spirv-cross REQUIRED GLOBAL)
 
+if (BUILD_BENCHMARK)
+    find_package(EnTT REQUIRED GLOBAL)
+    find_package(flecs REQUIRED GLOBAL)
+endif ()
+
 # The official vulkan-validationlayers package only ships a runtime layer with no headers or link libraries, so the
 # generator declares no usable target. Recreate it as an imported target so it can carry the RUNTIME_DEP layer files
 # and still be linked by RHI-Vulkan the same way as before.
