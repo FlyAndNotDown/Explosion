@@ -20,6 +20,15 @@
 #include <Runtime/ECS.h>
 
 namespace Editor::Internal {
+    static std::string ComponentDisplayName(const Mirror::Class& inClass)
+    {
+        const std::string& qualifiedName = inClass.GetName();
+        const size_t namespaceSeparator = qualifiedName.rfind("::");
+        return namespaceSeparator == std::string::npos
+            ? qualifiedName
+            : qualifiedName.substr(namespaceSeparator + 2);
+    }
+
     static std::string EntityDisplayName(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity)
     {
         const auto* name = inRegistry.Find<Runtime::Name>(inEntity);
@@ -162,15 +171,19 @@ namespace Editor {
 
         if (!addableComponents.empty()) {
             selectedAddComponentIndex = std::clamp(selectedAddComponentIndex, 0, static_cast<int>(addableComponents.size() - 1));
-            if (ImGui::BeginCombo("Add Component", addableComponents[selectedAddComponentIndex]->GetName().c_str())) {
+            const std::string selectedComponentName = Internal::ComponentDisplayName(*addableComponents[selectedAddComponentIndex]);
+            if (ImGui::BeginCombo("Add Component", selectedComponentName.c_str())) {
                 for (int i = 0; i < static_cast<int>(addableComponents.size()); i++) {
                     const bool selected = i == selectedAddComponentIndex;
-                    if (ImGui::Selectable(addableComponents[i]->GetName().c_str(), selected)) {
+                    const std::string componentName = Internal::ComponentDisplayName(*addableComponents[i]);
+                    ImGui::PushID(addableComponents[i]->GetName().c_str());
+                    if (ImGui::Selectable(componentName.c_str(), selected)) {
                         selectedAddComponentIndex = i;
                     }
                     if (selected) {
                         ImGui::SetItemDefaultFocus();
                     }
+                    ImGui::PopID();
                 }
                 ImGui::EndCombo();
             }
@@ -187,7 +200,8 @@ namespace Editor {
                 return;
             }
             ImGui::PushID(compClass->GetName().c_str());
-            const bool open = ImGui::CollapsingHeader(compClass->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+            const std::string componentName = Internal::ComponentDisplayName(*compClass);
+            const bool open = ImGui::CollapsingHeader(componentName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
             if (ImGui::BeginPopupContextItem("ComponentMenu")) {
                 if (ImGui::MenuItem("Remove")) {
                     componentToRemove = compClass;
