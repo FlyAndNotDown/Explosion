@@ -40,6 +40,18 @@ TEST(AssetTest, AssetRefTest1)
     ASSERT_TRUE(w1.Expired());
 }
 
+TEST(AssetTest, AssetRefToStringTest)
+{
+    AssetPtr<TestAsset> emptyAsset;
+    ASSERT_EQ(Common::ToString(emptyAsset), "");
+    ASSERT_EQ(Mirror::Any(std::ref(emptyAsset)).ToString(), "");
+
+    static Core::Uri uri("asset://Engine/Test/Generated/Runtime/AssetTest.AssetRefToStringTest");
+    AssetPtr<TestAsset> asset = MakeShared<TestAsset>(uri);
+    ASSERT_EQ(Common::ToString(asset), uri.Str());
+    ASSERT_EQ(Mirror::Any(std::ref(asset)).ToString(), uri.Str());
+}
+
 TEST(AssetTest, SaveLoadTest)
 {
     static Core::Uri uri("asset://Engine/Test/Generated/Runtime/AssetTest.SaveLoadTest");
