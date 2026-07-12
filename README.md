@@ -71,10 +71,10 @@ The following table contains supported platform, toolchain and generator:
         <td rowspan="4">Windows</td>
         <td rowspan="4">x64</td>
         <td rowspan="4">Visual Studio</td>
-        <td>Visual Studio 2019</td>
+        <td>Visual Studio 18 2026</td>
     </tr>
     <tr>
-        <td>Visual Studio 2022</td>
+        <td>Visual Studio 17 2022</td>
     </tr>
     <tr>
         <td>Ninja</td>
@@ -125,7 +125,7 @@ cmake --build <build_dir> --config <build_config>
 The parameters' meaning:
 * `<build_dir>`: Build directory for saving cmake temporal files and dist binaries. You can transfer a `build` or any directory you like.
 * `<build_config>`: Build config of cmake, such as `Debug` or `Release`.
-* `<generator_name>`: C++ generator which cmake will use to build project, you can transfer any generator in table list above, such as `Visual Studio 2019`.
+* `<generator_name>`: C++ generator which cmake will use to build project, you can transfer any generator in table list above, such as `Visual Studio 18 2026`.
 
 After build the project, you can get all dist binaries in `<build_dir>/dist`.
 
