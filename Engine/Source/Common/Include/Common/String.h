@@ -211,7 +211,7 @@ namespace Common {
         template <size_t N, typename TupleType, size_t... I>
         static void ContactInternal(std::stringstream& stream, const TupleType& tuple, std::index_sequence<I...>)
         {
-            std::initializer_list<int> { ([&]() -> void {
+            (void) std::initializer_list<int> { ([&]() -> void {
                 stream << StringConverter<std::tuple_element_t<I, TupleType>>::ToString(std::get<I>(tuple));
                 if (I != N - 1) {
                     stream << ", ";

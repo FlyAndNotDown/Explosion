@@ -21,7 +21,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() SceneSystem final : public System {
-        EPolyClassBody(SceneSystem)
+        EPolyDerivedClassBody(SceneSystem)
 
     public:
         explicit SceneSystem(ECRegistry& inRegistry, const SystemSetupContext& inContext);

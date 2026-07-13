@@ -10,7 +10,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() PlayerSystem final : public System {
-        EClassBody(PlayerSystem)
+        EPolyDerivedClassBody(PlayerSystem)
 
     public:
         NonCopyable(PlayerSystem)

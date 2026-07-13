@@ -958,7 +958,7 @@ namespace Common {
         static size_t SerializeInternal(BinarySerializeStream& stream, const std::tuple<T...>& value, std::index_sequence<I...>)
         {
             size_t serialized = 0;
-            std::initializer_list<int> { ([&]() -> void {
+            (void) std::initializer_list<int> { ([&]() -> void {
                 serialized += Serializer<T>::Serialize(stream, std::get<I>(value));
             }(), 0)... };
             return serialized;
@@ -968,7 +968,7 @@ namespace Common {
         static size_t DeserializeInternal(BinaryDeserializeStream& stream, std::tuple<T...>& value, std::index_sequence<I...>)
         {
             size_t deserialized = 0;
-            std::initializer_list<int> { ([&]() -> void {
+            (void) std::initializer_list<int> { ([&]() -> void {
                 deserialized += Serializer<T>::Deserialize(stream, std::get<I>(value));
             }(), 0)... };
             return deserialized;
@@ -1507,7 +1507,7 @@ namespace Common {
         template <size_t... I>
         static void JsonSerializeInternal(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const std::tuple<T...>& inValue, std::index_sequence<I...>)
         {
-            std::initializer_list<int> { ([&]() -> void {
+            (void) std::initializer_list<int> { ([&]() -> void {
                 const auto key = std::to_string(I);
 
                 rapidjson::Value jsonKey;
@@ -1523,7 +1523,7 @@ namespace Common {
         template <size_t... I>
         static void JsonDeserializeInternal(const rapidjson::Value& inJsonValue, std::tuple<T...>& outValue, std::index_sequence<I...>)
         {
-            std::initializer_list<int> { ([&]() -> void {
+            (void) std::initializer_list<int> { ([&]() -> void {
                 const auto key = std::to_string(I);
                 if (!inJsonValue.HasMember(key.c_str())) {
                     return;

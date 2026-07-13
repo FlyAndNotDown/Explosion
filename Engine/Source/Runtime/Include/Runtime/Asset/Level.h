@@ -11,7 +11,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() Level final : public Asset {
-        EPolyClassBody(Level)
+        EPolyDerivedClassBody(Level)
 
     public:
         explicit Level(Core::Uri inUri);

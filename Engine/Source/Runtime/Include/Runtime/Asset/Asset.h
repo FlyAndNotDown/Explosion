@@ -21,7 +21,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() Asset {
-        EPolyClassBody(Asset)
+        EPolyBaseClassBody(Asset)
 
     public:
         Asset();

@@ -10,7 +10,7 @@ using namespace Common;
 using namespace Runtime;
 
 struct EClass() TestAsset : public Asset {
-    EClassBody(TestAsset)
+    EPolyDerivedClassBody(TestAsset)
 
     explicit TestAsset(Core::Uri uri)
         : Asset(std::move(uri))

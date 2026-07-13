@@ -34,7 +34,7 @@ namespace Runtime {
     };
 
     class RUNTIME_API EClass() StaticMesh final : public Asset {
-        EPolyClassBody(StaticMesh)
+        EPolyDerivedClassBody(StaticMesh)
 
     public:
         explicit StaticMesh(Core::Uri inUri);

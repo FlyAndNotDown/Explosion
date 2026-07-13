@@ -32,9 +32,16 @@ public: \
     static const Mirror::Class& GetStaticClass(); \
     const Mirror::Class& GetClass() const; \
 
-#define EPolyClassBody(className) \
+#define EPolyBaseClassBody(className) \
 private: \
     static Mirror::Internal::ScopedReleaser _mirrorRegistry; \
 public: \
     static const Mirror::Class& GetStaticClass(); \
     virtual const Mirror::Class& GetClass() const; \
+
+#define EPolyDerivedClassBody(className) \
+private: \
+    static Mirror::Internal::ScopedReleaser _mirrorRegistry; \
+public: \
+    static const Mirror::Class& GetStaticClass(); \
+    const Mirror::Class& GetClass() const override; \

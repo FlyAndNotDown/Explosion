@@ -79,7 +79,7 @@ namespace Runtime {
     static_assert(static_cast<uint8_t>(TextureFormat::max) == static_cast<uint8_t>(RHI::PixelFormat::max));
 
     class RUNTIME_API EClass() Texture final : public Asset {
-        EPolyClassBody(Texture)
+        EPolyDerivedClassBody(Texture)
 
     public:
         using Pixels = std::vector<uint8_t>;
@@ -127,7 +127,7 @@ namespace Runtime {
     };
 
     class RUNTIME_API EClass() RenderTarget final : public Asset {
-        EPolyClassBody(RenderTarget)
+        EPolyDerivedClassBody(RenderTarget)
 
     public:
         explicit RenderTarget(Core::Uri inUri);

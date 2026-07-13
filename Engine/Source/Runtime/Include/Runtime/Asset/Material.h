@@ -128,7 +128,7 @@ namespace Runtime {
     };
 
     class RUNTIME_API EClass() Material final : public Asset {
-        EPolyClassBody(Material)
+        EPolyDerivedClassBody(Material)
 
     public:
         using VariantField = std::variant<
@@ -196,7 +196,7 @@ namespace Runtime {
     };
 
     class RUNTIME_API EClass() MaterialInstance final : public Asset {
-        EPolyClassBody(MaterialInstance)
+        EPolyDerivedClassBody(MaterialInstance)
 
     public:
         using Variant = std::variant<

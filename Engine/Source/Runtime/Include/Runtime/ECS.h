@@ -34,7 +34,7 @@ namespace Runtime {
 
     class RUNTIME_API EClass() System {
     public:
-        EPolyClassBody(System)
+        EPolyBaseClassBody(System)
 
         explicit System(ECRegistry& inRegistry, const SystemSetupContext&);
         virtual ~System();
