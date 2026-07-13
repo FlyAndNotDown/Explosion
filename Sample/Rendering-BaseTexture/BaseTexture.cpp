@@ -259,8 +259,6 @@ void BaseTexApp::CreateSwapChain()
         PixelFormat::bgra8Unorm
     };
 
-    surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
-
     for (const auto format : swapChainFormatQualifiers) {
         if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
             swapChainFormat = format;
@@ -317,7 +315,7 @@ void BaseTexApp::CreateVertexAndIndexBuffer()
     indexBuffer = device->CreateBuffer(indexInfo);
     if (indexBuffer != nullptr) {
         auto* data = indexBuffer->Map(MapMode::write, 0, indexInfo.size);
-        memcpy(data, indices.data(), bufferCreateInfo.size);
+        memcpy(data, indices.data(), indexInfo.size);
         indexBuffer->Unmap();
     }
 }
