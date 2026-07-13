@@ -53,44 +53,6 @@ exp_add_library(
     NOT_INSTALL
 )
 
-file(GLOB sources RHI-Triangle/*.cpp)
-add_sample(
-    NAME RHISample-Triangle
-    SRC ${sources}
-    INC RHI-Triangle
-    SHADER RHI-Triangle/Triangle.esl
-)
-
-file(GLOB sources RHI-TexSampling/*.cpp)
-add_sample(
-    NAME RHISample-TexSampling
-    SRC ${sources}
-    INC RHI-TexSampling
-    SHADER RHI-TexSampling/TexSampling.esl
-    IMAGE RHI-TexSampling/Awesomeface.png
-)
-
-file(GLOB sources RHI-SSAO/*.cpp)
-add_sample(
-    NAME RHISample-SSAO
-    SRC ${sources}
-    INC RHI-SSAO
-    SHADER
-        RHI-SSAO/Shader/Gbuffer.esl
-        RHI-SSAO/Shader/SSAO.esl
-        RHI-SSAO/Shader/Blur.esl
-        RHI-SSAO/Shader/Composition.esl
-    MODEL
-        RHI-SSAO/Model/Voyager.gltf
-)
-
-file(GLOB sources RHI-ParallelCompute/*.cpp)
-add_sample(
-    NAME RHISample-ParallelCompute
-    SRC ${sources}
-    SHADER RHI-ParallelCompute/Compute.esl
-)
-
 file(GLOB sources Rendering-Triangle/*.cpp)
 add_sample(
     NAME RenderingSample-Triangle
@@ -122,4 +84,3 @@ add_sample(
     MODEL
         Rendering-SSAO/Model/Voyager.gltf
 )
-
