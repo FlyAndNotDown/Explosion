@@ -23,6 +23,7 @@ namespace Editor {
         std::string title;
         uint32_t width;
         uint32_t height;
+        bool maximized;
     };
 
     class EditorWindow final : public Runtime::Window {
