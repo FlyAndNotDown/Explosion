@@ -330,7 +330,7 @@ namespace Editor {
     {
         auto& registry = world.GetRegistry();
         editorCamera = registry.Create();
-        registry.Emplace<Runtime::TransientTag>(editorCamera);
+        registry.AddTag<Runtime::TransientTag>(editorCamera);
         registry.Emplace<Runtime::Camera>(editorCamera);
         // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
         const Common::FTransform cameraTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));

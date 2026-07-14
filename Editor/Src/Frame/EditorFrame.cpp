@@ -123,7 +123,7 @@ namespace Editor {
 
         auto& registry = inContext.GetSceneClient().GetWorld().GetRegistry();
         registry.Each([&](Runtime::Entity entity) -> void {
-            if (registry.Has<Runtime::TransientTag>(entity)) {
+            if (registry.HasTag<Runtime::TransientTag>(entity)) {
                 return;
             }
             const std::string label = Internal::EntityDisplayName(registry, entity);
@@ -161,7 +161,9 @@ namespace Editor {
 
         std::vector<const Mirror::Class*> addableComponents;
         for (const auto* clazz : Mirror::Class::GetAll()) {
-            if (clazz->HasMeta("comp") && !registry.HasDyn(clazz, selectedEntity) && clazz->HasDefaultConstructor()) {
+            const bool isTag = clazz->HasMeta(Runtime::MetaPresets::tag);
+            const bool hasType = isTag ? registry.HasTagDyn(clazz, selectedEntity) : registry.HasDyn(clazz, selectedEntity);
+            if (clazz->HasMeta("comp") && !hasType && (isTag || clazz->HasDefaultConstructor())) {
                 addableComponents.emplace_back(clazz);
             }
         }
@@ -189,12 +191,18 @@ namespace Editor {
             }
             ImGui::SameLine();
             if (ImGui::Button("Add")) {
-                registry.EmplaceDyn(addableComponents[selectedAddComponentIndex], selectedEntity, {});
+                const auto* selectedClass = addableComponents[selectedAddComponentIndex];
+                if (selectedClass->HasMeta(Runtime::MetaPresets::tag)) {
+                    registry.AddTagDyn(selectedClass, selectedEntity);
+                } else {
+                    registry.EmplaceDyn(selectedClass, selectedEntity, {});
+                }
                 inContext.NotifyComponentsChanged(selectedEntity);
             }
         }
 
         Runtime::CompClass componentToRemove = nullptr;
+        bool tagToRemove = false;
         registry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {
             if (compClass->HasMeta("transient")) {
                 return;
@@ -205,6 +213,7 @@ namespace Editor {
             if (ImGui::BeginPopupContextItem("ComponentMenu")) {
                 if (ImGui::MenuItem("Remove")) {
                     componentToRemove = compClass;
+                    tagToRemove = false;
                 }
                 ImGui::EndPopup();
             }
@@ -224,8 +233,28 @@ namespace Editor {
             }
             ImGui::PopID();
         });
+        registry.TagEach(selectedEntity, [&](Runtime::TagClass tagClass) -> void {
+            if (tagClass->HasMeta("transient")) {
+                return;
+            }
+            ImGui::PushID(tagClass->GetName().c_str());
+            const std::string tagName = Internal::ComponentDisplayName(*tagClass);
+            ImGui::TextUnformatted(tagName.c_str());
+            if (ImGui::BeginPopupContextItem("ComponentMenu")) {
+                if (ImGui::MenuItem("Remove")) {
+                    componentToRemove = tagClass;
+                    tagToRemove = true;
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::PopID();
+        });
         if (componentToRemove != nullptr) {
-            registry.RemoveDyn(componentToRemove, selectedEntity);
+            if (tagToRemove) {
+                registry.RemoveTagDyn(componentToRemove, selectedEntity);
+            } else {
+                registry.RemoveDyn(componentToRemove, selectedEntity);
+            }
             inContext.NotifyComponentsChanged(selectedEntity);
         }
         ImGui::End();

@@ -38,7 +38,7 @@ namespace Runtime {
         Assert(playerStartQuery.size() == 1);
 
         const auto playerEntity = registry.Create();
-        registry.Emplace<TransientTag>(playerEntity);
+        registry.AddTag<TransientTag>(playerEntity);
         registry.Emplace<Camera>(playerEntity);
         // the registered reflected constructor takes an FTransform, passing a WorldTransform copy would silently
         // match the wrong constructor and lose the data
