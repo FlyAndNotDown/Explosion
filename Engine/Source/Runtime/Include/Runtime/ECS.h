@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <unordered_set>
@@ -64,6 +65,7 @@ namespace Runtime::Internal {
         void Destruct(ElemPtr inElem) const;
         Mirror::Any Get(ElemPtr inElem) const;
         CompClass Class() const;
+        bool TriviallyRelocatable() const;
         size_t MemorySize() const;
         size_t MemoryAlignment() const;
 
@@ -75,10 +77,22 @@ namespace Runtime::Internal {
         ConstructFromFunc copyConstructFrom;
         ConstructFromFunc moveConstructFrom;
         DestructFunc destruct;
+        bool triviallyRelocatable;
     };
 
     class RUNTIME_API Archetype {
     public:
+        struct CompMapping {
+            size_t srcCompIndex;
+            size_t dstCompIndex;
+        };
+
+        struct Transition {
+            CompClass compClass;
+            Archetype* archetype;
+            std::vector<CompMapping> compMappings;
+        };
+
         explicit Archetype(const std::vector<CompRtti>& inRttiVec);
         ~Archetype();
 
@@ -91,7 +105,7 @@ namespace Runtime::Internal {
         bool ContainsAll(const std::vector<CompClass>& inClasses) const;
         bool NotContainsAny(const std::vector<CompClass>& inClasses) const;
         size_t EmplaceElem(Entity inEntity);
-        size_t EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex);
+        size_t EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex, const std::vector<CompMapping>& inCompMappings);
         Mirror::Any EmplaceComp(size_t inElemIndex, CompClass inCompClass, const Mirror::Any& inCompRef);
         template <typename C, typename... Args> C& EmplaceComp(size_t inElemIndex, Args&&... inArgs);
         Entity EraseElem(size_t inElemIndex);
@@ -112,20 +126,20 @@ namespace Runtime::Internal {
         ArchetypeId Id() const;
         std::vector<CompRtti> NewRttiVecByAdd(const CompRtti& inRtti) const;
         std::vector<CompRtti> NewRttiVecByRemove(const CompRtti& inRtti) const;
-        Archetype* FindAddTransition(CompClass inClass) const;
-        Archetype* FindRemoveTransition(CompClass inClass) const;
-        void CacheAddTransition(CompClass inClass, Archetype& inArchetype);
-        void CacheRemoveTransition(CompClass inClass, Archetype& inArchetype);
+        const Transition* FindAddTransition(CompClass inClass) const;
+        const Transition* FindRemoveTransition(CompClass inClass) const;
+        const Transition& CacheAddTransition(CompClass inClass, Archetype& inArchetype);
+        const Transition& CacheRemoveTransition(CompClass inClass, Archetype& inArchetype);
 
     private:
         using CompRttiIndex = size_t;
-        const CompRtti* FindCompRtti(CompClass clazz) const;
         size_t Capacity() const;
         void Reserve(float inRatio = 1.5f);
         void DestroyElements();
         void ReleaseMemory();
         void AllocateNewElemBack();
         ElemPtr CompAt(ElemPtr inMemory, size_t inCompIndex, size_t inElemIndex) const;
+        const Transition& CacheTransition(std::vector<Transition>& inTransitions, CompClass inClass, Archetype& inArchetype);
 
         ArchetypeId id;
         size_t count;
@@ -135,14 +149,24 @@ namespace Runtime::Internal {
         std::vector<ElemPtr> compMemory;
         std::vector<size_t> compStrides;
         std::vector<Entity> elemMap;
-        std::vector<std::pair<CompClass, Archetype*>> addTransitions;
-        std::vector<std::pair<CompClass, Archetype*>> removeTransitions;
+        std::vector<Transition> addTransitions;
+        std::vector<Transition> removeTransitions;
     };
 
     class RUNTIME_API EntityPool {
     public:
         using EntityTraverseFunc = std::function<void(Entity)>;
         using ConstIter = std::vector<Entity>::const_iterator;
+
+        struct Location {
+            Archetype* archetype;
+            size_t elemIndex;
+        };
+
+        struct ConstLocation {
+            const Archetype* archetype;
+            size_t elemIndex;
+        };
 
         EntityPool();
 
@@ -160,19 +184,26 @@ namespace Runtime::Internal {
         Archetype* GetArchetypePtr(Entity inEntity);
         const Archetype* GetArchetypePtr(Entity inEntity) const;
         size_t GetElemIndex(Entity inEntity) const;
+        Location GetLocation(Entity inEntity);
+        ConstLocation GetLocation(Entity inEntity) const;
         ConstIter Begin() const;
         ConstIter End() const;
 
     private:
-        struct EntityRecord {
-            bool allocated = false;
-            ArchetypeId archetype = 0;
-            Archetype* archetypePtr = nullptr;
-            size_t elemIndex = 0;
-            size_t allocatedIndex = 0;
+        static constexpr Entity invalidIndex = std::numeric_limits<Entity>::max();
+
+        struct LocationRecord {
+            Archetype* archetype = nullptr;
+            Entity elemIndex = 0;
         };
 
-        std::vector<EntityRecord> records;
+        struct StateRecord {
+            ArchetypeId archetype = 0;
+            Entity allocatedIndex = invalidIndex;
+        };
+
+        std::vector<LocationRecord> locations;
+        std::vector<StateRecord> states;
         std::vector<Entity> free;
         std::vector<Entity> allocated;
     };
@@ -612,7 +643,7 @@ namespace Runtime {
         void NotifyRemoveDyn(CompClass inClass, Entity inEntity);
         void GNotifyConstructedDyn(GCompClass inClass);
         void GNotifyRemoveDyn(CompClass inClass);
-        Internal::Archetype& MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity);
+        Internal::EntityPool::Location MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity);
         void MoveEntityForRemove(CompClass inClass, Entity inEntity);
         void EraseArchetypeElem(Internal::Archetype& inArchetype, size_t inElemIndex);
         void RebindEntityArchetypes();
@@ -739,12 +770,18 @@ namespace Runtime::Internal {
     template <typename T>
     const Mirror::Class* GetClass()
     {
-        return &Mirror::Class::Get<T>();
+        static const Mirror::Class* result = &Mirror::Class::Get<T>();
+        return result;
     }
 
     inline CompClass CompRtti::Class() const
     {
         return clazz;
+    }
+
+    inline bool CompRtti::TriviallyRelocatable() const
+    {
+        return triviallyRelocatable;
     }
 
     template <typename C>
@@ -764,6 +801,7 @@ namespace Runtime::Internal {
         result.destruct = [](ElemPtr elem) -> void {
             std::destroy_at(static_cast<C*>(elem));
         };
+        result.triviallyRelocatable = std::is_trivially_copyable_v<C>;
         return result;
     }
 
@@ -852,6 +890,20 @@ namespace Runtime::Internal {
         }
         Assert(false);
         return 0;
+    }
+
+    inline EntityPool::Location EntityPool::GetLocation(Entity inEntity)
+    {
+        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
+        const LocationRecord& location = locations[inEntity];
+        return { location.archetype, location.elemIndex };
+    }
+
+    inline EntityPool::ConstLocation EntityPool::GetLocation(Entity inEntity) const
+    {
+        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
+        const LocationRecord& location = locations[inEntity];
+        return { location.archetype, location.elemIndex };
     }
 } // namespace Runtime::Internal
 
@@ -1341,9 +1393,11 @@ namespace Runtime {
     C& ECRegistry::Emplace(Entity inEntity, Args&&... inArgs)
     {
         const Internal::CompRtti rtti = Internal::CompRtti::Create<C>();
-        Internal::Archetype& archetype = MoveEntityForAdd(rtti, inEntity);
-        C& result = archetype.template EmplaceComp<C>(entities.GetElemIndex(inEntity), std::forward<Args>(inArgs)...);
-        NotifyConstructedDyn(Internal::GetClass<C>(), inEntity);
+        const auto location = MoveEntityForAdd(rtti, inEntity);
+        C& result = location.archetype->template EmplaceComp<C>(location.elemIndex, std::forward<Args>(inArgs)...);
+        if (!compEvents.empty()) {
+            NotifyConstructedDyn(Internal::GetClass<C>(), inEntity);
+        }
         return result;
     }
 
@@ -1371,8 +1425,8 @@ namespace Runtime {
     template <typename C>
     bool ECRegistry::Has(Entity inEntity) const
     {
-        Assert(Valid(inEntity));
-        return entities.GetArchetypePtr(inEntity)->Contains(Internal::GetClass<C>());
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->Contains(Internal::GetClass<C>());
     }
 
     template <typename C>
@@ -1390,15 +1444,15 @@ namespace Runtime {
     template <typename C>
     C& ECRegistry::Get(Entity inEntity)
     {
-        Assert(Valid(inEntity));
-        return entities.GetArchetypePtr(inEntity)->template GetComp<C>(entities.GetElemIndex(inEntity));
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->template GetComp<C>(location.elemIndex);
     }
 
     template <typename C>
     const C& ECRegistry::Get(Entity inEntity) const
     {
-        Assert(Valid(inEntity));
-        return entities.GetArchetypePtr(inEntity)->template GetComp<C>(entities.GetElemIndex(inEntity));
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->template GetComp<C>(location.elemIndex);
     }
 
     template <typename... C, typename... E>

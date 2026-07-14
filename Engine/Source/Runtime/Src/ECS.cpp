@@ -5,6 +5,7 @@
 #include <taskflow/taskflow.hpp>
 
 #include <cstddef>
+#include <cstring>
 #include <new>
 #include <utility>
 
@@ -33,6 +34,7 @@ namespace Runtime::Internal {
         , copyConstructFrom(nullptr)
         , moveConstructFrom(nullptr)
         , destruct(nullptr)
+        , triviallyRelocatable(false)
     {
     }
 
@@ -131,8 +133,14 @@ namespace Runtime::Internal {
             if (capacity > 0) {
                 compMemory[compIndex] = ::operator new(capacity * rtti.MemorySize(), std::align_val_t(rtti.MemoryAlignment()));
             }
-            for (size_t elemIndex = 0; elemIndex < count; elemIndex++) {
-                rtti.CopyConstructFrom(GetCompAt(elemIndex, compIndex), const_cast<void*>(inOther.GetCompAt(elemIndex, compIndex)));
+            if (rtti.TriviallyRelocatable()) {
+                if (count > 0) {
+                    std::memcpy(compMemory[compIndex], inOther.compMemory[compIndex], count * compStrides[compIndex]);
+                }
+            } else {
+                for (size_t elemIndex = 0; elemIndex < count; elemIndex++) {
+                    rtti.CopyConstructFrom(GetCompAt(elemIndex, compIndex), const_cast<void*>(inOther.GetCompAt(elemIndex, compIndex)));
+                }
             }
         }
     }
@@ -215,17 +223,16 @@ namespace Runtime::Internal {
         return count - 1;
     }
 
-    size_t Archetype::EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex)
+    size_t Archetype::EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex, const std::vector<CompMapping>& inCompMappings)
     {
         const auto newElemIndex = EmplaceElem(inEntity);
-        for (const auto& srcRtti : inSrcArchetype.rttiVec) {
-            const auto* dstRtti = FindCompRtti(srcRtti.Class());
-            if (dstRtti == nullptr) {
-                continue;
+        for (const auto& mapping : inCompMappings) {
+            const auto& dstRtti = rttiVec[mapping.dstCompIndex];
+            if (dstRtti.TriviallyRelocatable()) {
+                std::memcpy(GetCompAt(newElemIndex, mapping.dstCompIndex), inSrcArchetype.GetCompAt(inSrcElemIndex, mapping.srcCompIndex), compStrides[mapping.dstCompIndex]);
+            } else {
+                dstRtti.MoveConstructFrom(GetCompAt(newElemIndex, mapping.dstCompIndex), inSrcArchetype.GetCompAt(inSrcElemIndex, mapping.srcCompIndex));
             }
-            const auto srcCompIndex = inSrcArchetype.GetCompIndex(srcRtti.Class());
-            const auto dstCompIndex = GetCompIndex(srcRtti.Class());
-            dstRtti->MoveConstructFrom(GetCompAt(newElemIndex, dstCompIndex), inSrcArchetype.GetCompAt(inSrcElemIndex, srcCompIndex));
         }
         return newElemIndex;
     }
@@ -245,16 +252,22 @@ namespace Runtime::Internal {
 
         if (inElemIndex == lastElemIndex) {
             for (size_t compIndex = 0; compIndex < rttiVec.size(); compIndex++) {
-                rttiVec[compIndex].Destruct(GetCompAt(inElemIndex, compIndex));
+                if (!rttiVec[compIndex].TriviallyRelocatable()) {
+                    rttiVec[compIndex].Destruct(GetCompAt(inElemIndex, compIndex));
+                }
             }
         } else {
             for (size_t compIndex = 0; compIndex < rttiVec.size(); compIndex++) {
                 const auto& rtti = rttiVec[compIndex];
                 ElemPtr elem = GetCompAt(inElemIndex, compIndex);
                 ElemPtr lastElem = GetCompAt(lastElemIndex, compIndex);
-                rtti.Destruct(elem);
-                rtti.MoveConstructFrom(elem, lastElem);
-                rtti.Destruct(lastElem);
+                if (rtti.TriviallyRelocatable()) {
+                    std::memcpy(elem, lastElem, compStrides[compIndex]);
+                } else {
+                    rtti.Destruct(elem);
+                    rtti.MoveConstructFrom(elem, lastElem);
+                    rtti.Destruct(lastElem);
+                }
             }
 
             const auto entityToLastElem = elemMap.at(lastElemIndex);
@@ -317,34 +330,41 @@ namespace Runtime::Internal {
         return result;
     }
 
-    Archetype* Archetype::FindAddTransition(CompClass inClass) const
+    const Archetype::Transition* Archetype::FindAddTransition(CompClass inClass) const
     {
-        const auto iter = std::ranges::find_if(addTransitions, [&](const auto& transition) -> bool { return transition.first == inClass; });
-        return iter != addTransitions.end() ? iter->second : nullptr;
+        const auto iter = std::ranges::find_if(addTransitions, [&](const Transition& transition) -> bool { return transition.compClass == inClass; });
+        return iter != addTransitions.end() ? &*iter : nullptr;
     }
 
-    Archetype* Archetype::FindRemoveTransition(CompClass inClass) const
+    const Archetype::Transition* Archetype::FindRemoveTransition(CompClass inClass) const
     {
-        const auto iter = std::ranges::find_if(removeTransitions, [&](const auto& transition) -> bool { return transition.first == inClass; });
-        return iter != removeTransitions.end() ? iter->second : nullptr;
+        const auto iter = std::ranges::find_if(removeTransitions, [&](const Transition& transition) -> bool { return transition.compClass == inClass; });
+        return iter != removeTransitions.end() ? &*iter : nullptr;
     }
 
-    void Archetype::CacheAddTransition(CompClass inClass, Archetype& inArchetype)
+    const Archetype::Transition& Archetype::CacheAddTransition(CompClass inClass, Archetype& inArchetype)
     {
         Assert(FindAddTransition(inClass) == nullptr);
-        addTransitions.emplace_back(inClass, &inArchetype);
+        return CacheTransition(addTransitions, inClass, inArchetype);
     }
 
-    void Archetype::CacheRemoveTransition(CompClass inClass, Archetype& inArchetype)
+    const Archetype::Transition& Archetype::CacheRemoveTransition(CompClass inClass, Archetype& inArchetype)
     {
         Assert(FindRemoveTransition(inClass) == nullptr);
-        removeTransitions.emplace_back(inClass, &inArchetype);
+        return CacheTransition(removeTransitions, inClass, inArchetype);
     }
 
-    const CompRtti* Archetype::FindCompRtti(CompClass clazz) const
+    const Archetype::Transition& Archetype::CacheTransition(std::vector<Transition>& inTransitions, CompClass inClass, Archetype& inArchetype)
     {
-        const auto iter = rttiMap.find(clazz);
-        return iter != rttiMap.end() ? &rttiVec[iter->second] : nullptr;
+        auto& transition = inTransitions.emplace_back(Transition { inClass, &inArchetype, {} });
+        transition.compMappings.reserve(rttiVec.size());
+        for (size_t srcCompIndex = 0; srcCompIndex < rttiVec.size(); srcCompIndex++) {
+            const auto dstIter = inArchetype.rttiMap.find(rttiVec[srcCompIndex].Class());
+            if (dstIter != inArchetype.rttiMap.end()) {
+                transition.compMappings.emplace_back(srcCompIndex, dstIter->second);
+            }
+        }
+        return transition;
     }
 
     size_t Archetype::Capacity() const
@@ -361,11 +381,17 @@ namespace Runtime::Internal {
         for (size_t compIndex = 0; compIndex < rttiVec.size(); compIndex++) {
             const auto& rtti = rttiVec[compIndex];
             newCompMemory[compIndex] = ::operator new(newCapacity * rtti.MemorySize(), std::align_val_t(rtti.MemoryAlignment()));
-            for (size_t elemIndex = 0; elemIndex < count; elemIndex++) {
-                ElemPtr dstElem = CompAt(newCompMemory[compIndex], compIndex, elemIndex);
-                ElemPtr srcElem = GetCompAt(elemIndex, compIndex);
-                rtti.MoveConstructFrom(dstElem, srcElem);
-                rtti.Destruct(srcElem);
+            if (rtti.TriviallyRelocatable()) {
+                if (count > 0) {
+                    std::memcpy(newCompMemory[compIndex], compMemory[compIndex], count * compStrides[compIndex]);
+                }
+            } else {
+                for (size_t elemIndex = 0; elemIndex < count; elemIndex++) {
+                    ElemPtr dstElem = CompAt(newCompMemory[compIndex], compIndex, elemIndex);
+                    ElemPtr srcElem = GetCompAt(elemIndex, compIndex);
+                    rtti.MoveConstructFrom(dstElem, srcElem);
+                    rtti.Destruct(srcElem);
+                }
             }
             if (compMemory[compIndex] != nullptr) {
                 ::operator delete(compMemory[compIndex], std::align_val_t(rtti.MemoryAlignment()));
@@ -379,6 +405,9 @@ namespace Runtime::Internal {
     {
         for (size_t compIndex = 0; compIndex < rttiVec.size(); compIndex++) {
             const auto& rtti = rttiVec[compIndex];
+            if (rtti.TriviallyRelocatable()) {
+                continue;
+            }
             for (size_t elemIndex = 0; elemIndex < count; elemIndex++) {
                 rtti.Destruct(GetCompAt(elemIndex, compIndex));
             }
@@ -406,7 +435,8 @@ namespace Runtime::Internal {
     }
 
     EntityPool::EntityPool()
-        : records(1)
+        : locations(1)
+        , states(1)
     {
     }
 
@@ -417,7 +447,7 @@ namespace Runtime::Internal {
 
     bool EntityPool::Valid(Entity inEntity) const
     {
-        return inEntity < records.size() && records[inEntity].allocated;
+        return inEntity < locations.size() && locations[inEntity].archetype != nullptr;
     }
 
     Entity EntityPool::Allocate()
@@ -427,61 +457,58 @@ namespace Runtime::Internal {
             result = free.back();
             free.pop_back();
         } else {
-            result = static_cast<Entity>(records.size());
-            records.emplace_back();
+            Assert(locations.size() < invalidIndex);
+            result = static_cast<Entity>(locations.size());
+            locations.emplace_back();
+            states.emplace_back();
         }
-        auto& record = records[result];
-        record.allocated = true;
-        record.archetype = 0;
-        record.archetypePtr = nullptr;
-        record.elemIndex = 0;
-        record.allocatedIndex = allocated.size();
+        locations[result] = {};
+        states[result].archetype = 0;
+        Assert(allocated.size() < invalidIndex);
+        states[result].allocatedIndex = static_cast<Entity>(allocated.size());
         allocated.emplace_back(result);
         return result;
     }
 
     void EntityPool::Allocate(Entity inEntity)
     {
-        if (inEntity < records.size()) {
-            Assert(!records[inEntity].allocated);
+        if (inEntity < locations.size()) {
+            Assert(states[inEntity].allocatedIndex == invalidIndex);
             const auto iter = std::ranges::find(free, inEntity);
             Assert(iter != free.end());
             *iter = free.back();
             free.pop_back();
         } else {
-            for (Entity i = static_cast<Entity>(records.size()); i < inEntity; i++) {
+            for (Entity i = static_cast<Entity>(locations.size()); i < inEntity; i++) {
                 free.emplace_back(i);
             }
-            records.resize(static_cast<size_t>(inEntity) + 1);
+            const size_t newSize = static_cast<size_t>(inEntity) + 1;
+            locations.resize(newSize);
+            states.resize(newSize);
         }
-        auto& record = records[inEntity];
-        record.allocated = true;
-        record.archetype = 0;
-        record.archetypePtr = nullptr;
-        record.elemIndex = 0;
-        record.allocatedIndex = allocated.size();
+        locations[inEntity] = {};
+        states[inEntity].archetype = 0;
+        Assert(allocated.size() < invalidIndex);
+        states[inEntity].allocatedIndex = static_cast<Entity>(allocated.size());
         allocated.emplace_back(inEntity);
     }
 
     void EntityPool::Free(Entity inEntity)
     {
         Assert(Valid(inEntity));
-        auto& record = records[inEntity];
         const auto lastEntity = allocated.back();
-        allocated[record.allocatedIndex] = lastEntity;
-        records[lastEntity].allocatedIndex = record.allocatedIndex;
+        allocated[states[inEntity].allocatedIndex] = lastEntity;
+        states[lastEntity].allocatedIndex = states[inEntity].allocatedIndex;
         allocated.pop_back();
-        record.allocated = false;
-        record.archetype = 0;
-        record.archetypePtr = nullptr;
-        record.elemIndex = 0;
+        locations[inEntity] = {};
+        states[inEntity] = {};
         free.emplace_back(inEntity);
     }
 
     void EntityPool::Clear()
     {
-        records.clear();
-        records.resize(1);
+        locations.assign(1, {});
+        states.assign(1, {});
         free.clear();
         allocated.clear();
     }
@@ -495,46 +522,45 @@ namespace Runtime::Internal {
 
     void EntityPool::SetLocation(Entity inEntity, Archetype& inArchetype, size_t inElemIndex)
     {
-        Assert(Valid(inEntity));
-        records[inEntity].archetype = inArchetype.Id();
-        records[inEntity].archetypePtr = &inArchetype;
-        records[inEntity].elemIndex = inElemIndex;
+        Assert(inEntity < states.size() && states[inEntity].allocatedIndex != invalidIndex && inElemIndex < invalidIndex);
+        states[inEntity].archetype = inArchetype.Id();
+        locations[inEntity] = { &inArchetype, static_cast<Entity>(inElemIndex) };
     }
 
     void EntityPool::SetElemIndex(Entity inEntity, size_t inElemIndex)
     {
-        Assert(Valid(inEntity));
-        records[inEntity].elemIndex = inElemIndex;
+        Assert(Valid(inEntity) && inElemIndex < invalidIndex);
+        locations[inEntity].elemIndex = static_cast<Entity>(inElemIndex);
     }
 
     void EntityPool::SetArchetypePtr(Entity inEntity, Archetype& inArchetype)
     {
-        Assert(Valid(inEntity) && records[inEntity].archetype == inArchetype.Id());
-        records[inEntity].archetypePtr = &inArchetype;
+        Assert(Valid(inEntity) && states[inEntity].archetype == inArchetype.Id());
+        locations[inEntity].archetype = &inArchetype;
     }
 
     ArchetypeId EntityPool::GetArchetype(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return records[inEntity].archetype;
+        return states[inEntity].archetype;
     }
 
     Archetype* EntityPool::GetArchetypePtr(Entity inEntity)
     {
-        Assert(Valid(inEntity) && records[inEntity].archetypePtr != nullptr);
-        return records[inEntity].archetypePtr;
+        Assert(Valid(inEntity));
+        return locations[inEntity].archetype;
     }
 
     const Archetype* EntityPool::GetArchetypePtr(Entity inEntity) const
     {
-        Assert(Valid(inEntity) && records[inEntity].archetypePtr != nullptr);
-        return records[inEntity].archetypePtr;
+        Assert(Valid(inEntity));
+        return locations[inEntity].archetype;
     }
 
     size_t EntityPool::GetElemIndex(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return records[inEntity].elemIndex;
+        return locations[inEntity].elemIndex;
     }
 
     EntityPool::ConstIter EntityPool::Begin() const
@@ -886,13 +912,14 @@ namespace Runtime {
 
     void ECRegistry::Destroy(Entity inEntity)
     {
-        Assert(Valid(inEntity));
-        Internal::Archetype& archetype = *entities.GetArchetypePtr(inEntity);
-        const auto elemIndex = entities.GetElemIndex(inEntity);
-        for (const auto& compRtti : archetype.GetRttiVec()) {
-            NotifyRemoveDyn(compRtti.Class(), inEntity);
+        const auto location = entities.GetLocation(inEntity);
+        Internal::Archetype& archetype = *location.archetype;
+        if (!compEvents.empty()) {
+            for (const auto& compRtti : archetype.GetRttiVec()) {
+                NotifyRemoveDyn(compRtti.Class(), inEntity);
+            }
         }
-        EraseArchetypeElem(archetype, elemIndex);
+        EraseArchetypeElem(archetype, location.elemIndex);
         entities.Free(inEntity);
     }
 
@@ -975,6 +1002,9 @@ namespace Runtime {
 
     void ECRegistry::NotifyUpdatedDyn(CompClass inClass, Entity inEntity)
     {
+        if (compEvents.empty()) {
+            return;
+        }
         const auto iter = compEvents.find(inClass);
         if (iter == compEvents.end()) {
             return;
@@ -984,6 +1014,9 @@ namespace Runtime {
 
     void ECRegistry::NotifyConstructedDyn(CompClass inClass, Entity inEntity)
     {
+        if (compEvents.empty()) {
+            return;
+        }
         const auto iter = compEvents.find(inClass);
         if (iter == compEvents.end()) {
             return;
@@ -993,6 +1026,9 @@ namespace Runtime {
 
     void ECRegistry::NotifyRemoveDyn(CompClass inClass, Entity inEntity)
     {
+        if (compEvents.empty()) {
+            return;
+        }
         const auto iter = compEvents.find(inClass);
         if (iter == compEvents.end()) {
             return;
@@ -1099,9 +1135,9 @@ namespace Runtime {
 
     Mirror::Any ECRegistry::EmplaceDyn(CompClass inClass, Entity inEntity, const Mirror::ArgumentList& inArgs)
     {
-        Internal::Archetype& archetype = MoveEntityForAdd(Internal::CompRtti(inClass), inEntity);
+        const auto location = MoveEntityForAdd(Internal::CompRtti(inClass), inEntity);
         Mirror::Any tempObj = inClass->ConstructDyn(inArgs);
-        Mirror::Any compRef = archetype.EmplaceComp(entities.GetElemIndex(inEntity), inClass, tempObj.Ref());
+        Mirror::Any compRef = location.archetype->EmplaceComp(location.elemIndex, inClass, tempObj.Ref());
         NotifyConstructedDyn(inClass, inEntity);
         return compRef;
     }
@@ -1111,55 +1147,58 @@ namespace Runtime {
         MoveEntityForRemove(inClass, inEntity);
     }
 
-    Internal::Archetype& ECRegistry::MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity)
+    Internal::EntityPool::Location ECRegistry::MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity)
     {
-        Assert(Valid(inEntity));
         const CompClass inClass = inRtti.Class();
-        const auto elemIndex = entities.GetElemIndex(inEntity);
-        Internal::Archetype& archetype = *entities.GetArchetypePtr(inEntity);
-        Internal::Archetype* newArchetype = archetype.FindAddTransition(inClass);
+        const auto location = entities.GetLocation(inEntity);
+        Internal::Archetype& archetype = *location.archetype;
+        const Internal::Archetype::Transition* transition = archetype.FindAddTransition(inClass);
 
-        if (newArchetype == nullptr) {
+        if (transition == nullptr) {
             const Internal::ArchetypeId newArchetypeId = archetype.Id() + inClass->GetTypeInfo()->id;
             if (!archetypes.contains(newArchetypeId)) {
                 archetypes.emplace(newArchetypeId, Internal::Archetype(archetype.NewRttiVecByAdd(inRtti)));
             }
-            newArchetype = &archetypes.at(newArchetypeId);
-            archetype.CacheAddTransition(inClass, *newArchetype);
-            if (newArchetype->FindRemoveTransition(inClass) == nullptr) {
-                newArchetype->CacheRemoveTransition(inClass, archetype);
+            Internal::Archetype& newArchetype = archetypes.at(newArchetypeId);
+            transition = &archetype.CacheAddTransition(inClass, newArchetype);
+            if (newArchetype.FindRemoveTransition(inClass) == nullptr) {
+                newArchetype.CacheRemoveTransition(inClass, archetype);
             }
         }
 
-        const auto newElemIndex = newArchetype->EmplaceElem(inEntity, archetype, elemIndex);
-        entities.SetLocation(inEntity, *newArchetype, newElemIndex);
-        EraseArchetypeElem(archetype, elemIndex);
-        return *newArchetype;
+        Internal::Archetype& newArchetype = *transition->archetype;
+        const auto newElemIndex = newArchetype.EmplaceElem(inEntity, archetype, location.elemIndex, transition->compMappings);
+        entities.SetLocation(inEntity, newArchetype, newElemIndex);
+        EraseArchetypeElem(archetype, location.elemIndex);
+        return { &newArchetype, newElemIndex };
     }
 
     void ECRegistry::MoveEntityForRemove(CompClass inClass, Entity inEntity)
     {
-        Assert(Valid(inEntity) && HasDyn(inClass, inEntity));
-        const auto elemIndex = entities.GetElemIndex(inEntity);
-        Internal::Archetype& archetype = *entities.GetArchetypePtr(inEntity);
-        Internal::Archetype* newArchetype = archetype.FindRemoveTransition(inClass);
+        const auto location = entities.GetLocation(inEntity);
+        Internal::Archetype& archetype = *location.archetype;
+        const Internal::Archetype::Transition* transition = archetype.FindRemoveTransition(inClass);
 
-        if (newArchetype == nullptr) {
+        if (transition == nullptr) {
+            Assert(archetype.Contains(inClass));
             const Internal::ArchetypeId newArchetypeId = archetype.Id() - inClass->GetTypeInfo()->id;
             if (!archetypes.contains(newArchetypeId)) {
                 archetypes.emplace(newArchetypeId, Internal::Archetype(archetype.NewRttiVecByRemove(Internal::CompRtti(inClass))));
             }
-            newArchetype = &archetypes.at(newArchetypeId);
-            archetype.CacheRemoveTransition(inClass, *newArchetype);
-            if (newArchetype->FindAddTransition(inClass) == nullptr) {
-                newArchetype->CacheAddTransition(inClass, archetype);
+            Internal::Archetype& newArchetype = archetypes.at(newArchetypeId);
+            transition = &archetype.CacheRemoveTransition(inClass, newArchetype);
+            if (newArchetype.FindAddTransition(inClass) == nullptr) {
+                newArchetype.CacheAddTransition(inClass, archetype);
             }
         }
 
-        NotifyRemoveDyn(inClass, inEntity);
-        const auto newElemIndex = newArchetype->EmplaceElem(inEntity, archetype, elemIndex);
-        entities.SetLocation(inEntity, *newArchetype, newElemIndex);
-        EraseArchetypeElem(archetype, elemIndex);
+        if (!compEvents.empty()) {
+            NotifyRemoveDyn(inClass, inEntity);
+        }
+        Internal::Archetype& newArchetype = *transition->archetype;
+        const auto newElemIndex = newArchetype.EmplaceElem(inEntity, archetype, location.elemIndex, transition->compMappings);
+        entities.SetLocation(inEntity, newArchetype, newElemIndex);
+        EraseArchetypeElem(archetype, location.elemIndex);
     }
 
     void ECRegistry::UpdateDyn(CompClass inClass, Entity inEntity, const DynUpdateFunc& inFunc)
