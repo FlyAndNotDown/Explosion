@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <tuple>
 #include <unordered_set>
 #include <unordered_map>
@@ -52,29 +53,28 @@ namespace Runtime::Internal {
     template <typename T> const Mirror::Class* GetClass();
     template <typename T> struct MemberFuncPtrTraits;
 
-    class CompRtti {
+    class RUNTIME_API CompRtti {
     public:
         explicit CompRtti(CompClass inClass);
-        void Bind(size_t inOffset);
+        template <typename C> static CompRtti Create();
         Mirror::Any CopyConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
         Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
+        void CopyConstructFrom(ElemPtr inDstElem, ElemPtr inSrcElem) const;
+        void MoveConstructFrom(ElemPtr inDstElem, ElemPtr inSrcElem) const;
         void Destruct(ElemPtr inElem) const;
         Mirror::Any Get(ElemPtr inElem) const;
         CompClass Class() const;
-        size_t Offset() const;
         size_t MemorySize() const;
         size_t MemoryAlignment() const;
 
     private:
-        using MoveConstructFunc = Mirror::Any(ElemPtr, size_t, const Mirror::Any&);
-        using MoveAssignFunc = Mirror::Any(ElemPtr, size_t, const Mirror::Any&);
-        using DestructorFunc = void(ElemPtr, size_t);
-        using GetFunc = Mirror::Any(ElemPtr, size_t);
+        using ConstructFromFunc = void(*)(ElemPtr, ElemPtr);
+        using DestructFunc = void(*)(ElemPtr);
 
         CompClass clazz;
-        // runtime, need Bind()
-        bool bound;
-        size_t offset;
+        ConstructFromFunc copyConstructFrom;
+        ConstructFromFunc moveConstructFrom;
+        DestructFunc destruct;
     };
 
     class RUNTIME_API Archetype {
@@ -90,18 +90,21 @@ namespace Runtime::Internal {
         bool Contains(CompClass inClazz) const;
         bool ContainsAll(const std::vector<CompClass>& inClasses) const;
         bool NotContainsAny(const std::vector<CompClass>& inClasses) const;
-        ElemPtr EmplaceElem(Entity inEntity);
-        ElemPtr EmplaceElem(Entity inEntity, ElemPtr inSrcElem, const std::vector<CompRtti>& inSrcRttiVec);
-        Mirror::Any EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Any& inCompRef);
-        void EraseElem(Entity inEntity);
-        ElemPtr GetElem(Entity inEntity) const;
-        Mirror::Any GetComp(Entity inEntity, CompClass inCompClass);
-        Mirror::Any GetComp(Entity inEntity, CompClass inCompClass) const;
-        template <typename C> C& GetComp(Entity inEntity);
-        template <typename C> const C& GetComp(Entity inEntity) const;
-        ElemPtr GetCompAt(size_t inElemIndex, size_t inCompOffset);
-        const void* GetCompAt(size_t inElemIndex, size_t inCompOffset) const;
-        size_t GetCompOffset(CompClass inCompClass) const;
+        size_t EmplaceElem(Entity inEntity);
+        size_t EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex);
+        Mirror::Any EmplaceComp(size_t inElemIndex, CompClass inCompClass, const Mirror::Any& inCompRef);
+        template <typename C, typename... Args> C& EmplaceComp(size_t inElemIndex, Args&&... inArgs);
+        Entity EraseElem(size_t inElemIndex);
+        Mirror::Any GetComp(size_t inElemIndex, CompClass inCompClass);
+        Mirror::Any GetComp(size_t inElemIndex, CompClass inCompClass) const;
+        template <typename C> C& GetComp(size_t inElemIndex);
+        template <typename C> const C& GetComp(size_t inElemIndex) const;
+        ElemPtr GetCompAt(size_t inElemIndex, size_t inCompIndex);
+        const void* GetCompAt(size_t inElemIndex, size_t inCompIndex) const;
+        ElemPtr GetCompColumn(size_t inCompIndex);
+        const void* GetCompColumn(size_t inCompIndex) const;
+        size_t GetCompIndex(CompClass inCompClass) const;
+        template <typename C> size_t GetCompIndex() const;
         Entity EntityAt(size_t inElemIndex) const;
         size_t Count() const;
         auto All() const;
@@ -109,31 +112,31 @@ namespace Runtime::Internal {
         ArchetypeId Id() const;
         std::vector<CompRtti> NewRttiVecByAdd(const CompRtti& inRtti) const;
         std::vector<CompRtti> NewRttiVecByRemove(const CompRtti& inRtti) const;
+        Archetype* FindAddTransition(CompClass inClass) const;
+        Archetype* FindRemoveTransition(CompClass inClass) const;
+        void CacheAddTransition(CompClass inClass, Archetype& inArchetype);
+        void CacheRemoveTransition(CompClass inClass, Archetype& inArchetype);
 
     private:
         using CompRttiIndex = size_t;
-        using ElemIndex = size_t;
-
         const CompRtti* FindCompRtti(CompClass clazz) const;
-        const CompRtti& GetCompRtti(CompClass clazz) const;
         size_t Capacity() const;
         void Reserve(float inRatio = 1.5f);
         void DestroyElements();
         void ReleaseMemory();
-        ElemPtr AllocateNewElemBack();
-        ElemPtr ElemAt(ElemPtr inMemory, size_t inIndex) const;
-        ElemPtr ElemAt(size_t inIndex) const;
+        void AllocateNewElemBack();
+        ElemPtr CompAt(ElemPtr inMemory, size_t inCompIndex, size_t inElemIndex) const;
 
         ArchetypeId id;
         size_t count;
-        size_t elemSize;
-        size_t elemAlignment;
         size_t capacity;
         std::vector<CompRtti> rttiVec;
         std::unordered_map<CompClass, CompRttiIndex> rttiMap;
-        std::unordered_map<Entity, ElemIndex> entityMap;
+        std::vector<ElemPtr> compMemory;
+        std::vector<size_t> compStrides;
         std::vector<Entity> elemMap;
-        ElemPtr memory;
+        std::vector<std::pair<CompClass, Archetype*>> addTransitions;
+        std::vector<std::pair<CompClass, Archetype*>> removeTransitions;
     };
 
     class RUNTIME_API EntityPool {
@@ -150,8 +153,13 @@ namespace Runtime::Internal {
         void Free(Entity inEntity);
         void Clear();
         void Each(const EntityTraverseFunc& inFunc) const;
-        void SetArchetype(Entity inEntity, ArchetypeId inArchetypeId);
+        void SetLocation(Entity inEntity, Archetype& inArchetype, size_t inElemIndex);
+        void SetElemIndex(Entity inEntity, size_t inElemIndex);
+        void SetArchetypePtr(Entity inEntity, Archetype& inArchetype);
         ArchetypeId GetArchetype(Entity inEntity) const;
+        Archetype* GetArchetypePtr(Entity inEntity);
+        const Archetype* GetArchetypePtr(Entity inEntity) const;
+        size_t GetElemIndex(Entity inEntity) const;
         ConstIter Begin() const;
         ConstIter End() const;
 
@@ -159,6 +167,8 @@ namespace Runtime::Internal {
         struct EntityRecord {
             bool allocated = false;
             ArchetypeId archetype = 0;
+            Archetype* archetypePtr = nullptr;
+            size_t elemIndex = 0;
             size_t allocatedIndex = 0;
         };
 
@@ -278,13 +288,17 @@ namespace Runtime {
         ConstIter end() const;
 
     private:
+        using CompColumnPtr = std::conditional_t<std::is_const_v<R>, const void*, void*>;
+        using CompColumns = std::array<CompColumnPtr, sizeof...(C)>;
+
         struct QueryEntry {
             Internal::ArchetypeId archetype;
-            std::array<size_t, sizeof...(C)> compOffsets;
+            std::array<size_t, sizeof...(C)> compIndices;
         };
 
-        template <size_t... I> auto MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, std::index_sequence<I...>) const;
-        template <size_t... I> auto MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, std::index_sequence<I...>) const;
+        template <typename A, size_t... I> CompColumns ResolveCompColumns(A& inArchetype, const QueryEntry& inEntry, std::index_sequence<I...>) const;
+        template <size_t... I> auto MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
+        template <size_t... I> auto MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
         void Materialize() const;
         void Evaluate(R& inRegistry);
 
@@ -330,14 +344,16 @@ namespace Runtime {
         ConstIter end() const;
 
     private:
+        using CompColumnPtr = std::conditional_t<std::is_const_v<R>, const void*, void*>;
+
         struct QueryEntry {
             Internal::ArchetypeId archetype;
-            std::vector<size_t> compOffsets;
+            std::vector<size_t> compIndices;
         };
 
         template <typename ArgTuple, size_t... I> auto BuildCompSlots(std::index_sequence<I...>) const;
-        template <typename F, typename ArgTuple, typename A, size_t... I> void InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const;
-        template <typename C, typename A> decltype(auto) GetCompRef(A& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, size_t inCompSlot) const;
+        template <typename F, typename ArgTuple, typename A, size_t... I> void InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const;
+        template <typename C> decltype(auto) GetCompRef(size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, size_t inCompSlot) const;
         void MaterializeEntities() const;
         void Evaluate(R& inRegistry, const RuntimeFilter& inFilter);
 
@@ -596,6 +612,10 @@ namespace Runtime {
         void NotifyRemoveDyn(CompClass inClass, Entity inEntity);
         void GNotifyConstructedDyn(GCompClass inClass);
         void GNotifyRemoveDyn(CompClass inClass);
+        Internal::Archetype& MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity);
+        void MoveEntityForRemove(CompClass inClass, Entity inEntity);
+        void EraseArchetypeElem(Internal::Archetype& inArchetype, size_t inElemIndex);
+        void RebindEntityArchetypes();
 
         Internal::EntityPool entities;
         std::unordered_map<GCompClass, Mirror::Any> globalComps;
@@ -722,6 +742,31 @@ namespace Runtime::Internal {
         return &Mirror::Class::Get<T>();
     }
 
+    inline CompClass CompRtti::Class() const
+    {
+        return clazz;
+    }
+
+    template <typename C>
+    CompRtti CompRtti::Create()
+    {
+        CompRtti result(GetClass<C>());
+        result.copyConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
+            std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
+        };
+        result.moveConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
+            if constexpr (std::is_move_constructible_v<C>) {
+                std::construct_at(static_cast<C*>(dst), std::move(*static_cast<C*>(src)));
+            } else {
+                std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
+            }
+        };
+        result.destruct = [](ElemPtr elem) -> void {
+            std::destroy_at(static_cast<C*>(elem));
+        };
+        return result;
+    }
+
     template <typename Class, typename Ret, typename... Args>
     struct MemberFuncPtrTraits<Ret(Class::*)(Args...)> {
         static constexpr auto ArgSize = sizeof...(Args);
@@ -741,14 +786,31 @@ namespace Runtime::Internal {
         return std::views::all(elemMap);
     }
 
-    inline ElemPtr Archetype::GetCompAt(size_t inElemIndex, size_t inCompOffset)
+    inline ElemPtr Archetype::GetCompAt(size_t inElemIndex, size_t inCompIndex)
     {
-        return static_cast<uint8_t*>(memory) + (inElemIndex * elemSize) + inCompOffset;
+        return CompAt(compMemory[inCompIndex], inCompIndex, inElemIndex);
     }
 
-    inline const void* Archetype::GetCompAt(size_t inElemIndex, size_t inCompOffset) const
+    inline const void* Archetype::GetCompAt(size_t inElemIndex, size_t inCompIndex) const
     {
-        return static_cast<const uint8_t*>(memory) + (inElemIndex * elemSize) + inCompOffset;
+        return CompAt(compMemory[inCompIndex], inCompIndex, inElemIndex);
+    }
+
+    inline ElemPtr Archetype::GetCompColumn(size_t inCompIndex)
+    {
+        Assert(inCompIndex < compMemory.size());
+        return compMemory[inCompIndex];
+    }
+
+    inline const void* Archetype::GetCompColumn(size_t inCompIndex) const
+    {
+        Assert(inCompIndex < compMemory.size());
+        return compMemory[inCompIndex];
+    }
+
+    inline ElemPtr Archetype::CompAt(ElemPtr inMemory, size_t inCompIndex, size_t inElemIndex) const
+    {
+        return static_cast<uint8_t*>(inMemory) + (inElemIndex * compStrides[inCompIndex]);
     }
 
     inline Entity Archetype::EntityAt(size_t inElemIndex) const
@@ -758,19 +820,38 @@ namespace Runtime::Internal {
     }
 
     template <typename C>
-    C& Archetype::GetComp(Entity inEntity)
+    C& Archetype::GetComp(size_t inElemIndex)
     {
-        const auto elemIter = entityMap.find(inEntity);
-        Assert(elemIter != entityMap.end());
-        return *static_cast<C*>(GetCompAt(elemIter->second, GetCompOffset(GetClass<C>())));
+        Assert(inElemIndex < count);
+        return *static_cast<C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
     }
 
     template <typename C>
-    const C& Archetype::GetComp(Entity inEntity) const
+    const C& Archetype::GetComp(size_t inElemIndex) const
     {
-        const auto elemIter = entityMap.find(inEntity);
-        Assert(elemIter != entityMap.end());
-        return *static_cast<const C*>(GetCompAt(elemIter->second, GetCompOffset(GetClass<C>())));
+        Assert(inElemIndex < count);
+        return *static_cast<const C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
+    }
+
+    template <typename C, typename... Args>
+    C& Archetype::EmplaceComp(size_t inElemIndex, Args&&... inArgs)
+    {
+        Assert(inElemIndex < count);
+        auto* comp = static_cast<C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
+        return *std::construct_at(comp, std::forward<Args>(inArgs)...);
+    }
+
+    template <typename C>
+    size_t Archetype::GetCompIndex() const
+    {
+        const CompClass clazz = GetClass<C>();
+        for (size_t i = 0; i < rttiVec.size(); i++) {
+            if (rttiVec[i].Class() == clazz) {
+                return i;
+            }
+        }
+        Assert(false);
+        return 0;
     }
 } // namespace Runtime::Internal
 
@@ -843,11 +924,14 @@ namespace Runtime {
         for (const auto& entry : query) {
             auto& archetype = registry->archetypes.at(entry.archetype);
             const auto count = archetype.Count();
-            for (size_t i = 0; i < count; i++) {
-                if constexpr (Traits::ArgSize == 1) {
+            if constexpr (Traits::ArgSize == 1) {
+                for (size_t i = 0; i < count; i++) {
                     inFunc(archetype.EntityAt(i));
-                } else {
-                    std::apply(inFunc, MakeResult(archetype, i, entry, std::index_sequence_for<C...> {}));
+                }
+            } else {
+                const CompColumns compColumns = ResolveCompColumns(archetype, entry, std::index_sequence_for<C...> {});
+                for (size_t i = 0; i < count; i++) {
+                    std::apply(inFunc, MakeResult(archetype, i, compColumns, std::index_sequence_for<C...> {}));
                 }
             }
         }
@@ -897,21 +981,28 @@ namespace Runtime {
     }
 
     template <ECRegistryOrConst R, typename... C, typename... E>
-    template <size_t... I>
-    auto BasicView<R, Exclude<E...>, C...>::MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, std::index_sequence<I...>) const
+    template <typename A, size_t... I>
+    typename BasicView<R, Exclude<E...>, C...>::CompColumns BasicView<R, Exclude<E...>, C...>::ResolveCompColumns(A& inArchetype, const QueryEntry& inEntry, std::index_sequence<I...>) const
     {
-        return typename BasicView<R, Exclude<E...>, C...>::ResultVector::value_type(
-            inArchetype.EntityAt(inElemIndex),
-            *static_cast<std::conditional_t<std::is_const_v<C>, const std::remove_const_t<C>, std::remove_const_t<C>>*>(inArchetype.GetCompAt(inElemIndex, inEntry.compOffsets[I]))...);
+        return { inArchetype.GetCompColumn(inEntry.compIndices[I])... };
     }
 
     template <ECRegistryOrConst R, typename... C, typename... E>
     template <size_t... I>
-    auto BasicView<R, Exclude<E...>, C...>::MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, std::index_sequence<I...>) const
+    auto BasicView<R, Exclude<E...>, C...>::MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const
     {
         return typename BasicView<R, Exclude<E...>, C...>::ResultVector::value_type(
             inArchetype.EntityAt(inElemIndex),
-            *static_cast<const std::remove_const_t<C>*>(inArchetype.GetCompAt(inElemIndex, inEntry.compOffsets[I]))...);
+            static_cast<std::conditional_t<std::is_const_v<C>, const std::remove_const_t<C>, std::remove_const_t<C>>*>(inCompColumns[I])[inElemIndex]...);
+    }
+
+    template <ECRegistryOrConst R, typename... C, typename... E>
+    template <size_t... I>
+    auto BasicView<R, Exclude<E...>, C...>::MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const
+    {
+        return typename BasicView<R, Exclude<E...>, C...>::ResultVector::value_type(
+            inArchetype.EntityAt(inElemIndex),
+            static_cast<const std::remove_const_t<C>*>(inCompColumns[I])[inElemIndex]...);
     }
 
     template <ECRegistryOrConst R, typename... C, typename... E>
@@ -925,8 +1016,9 @@ namespace Runtime {
         for (const auto& entry : query) {
             auto& archetype = registry->archetypes.at(entry.archetype);
             const auto count = archetype.Count();
+            const CompColumns compColumns = ResolveCompColumns(archetype, entry, std::index_sequence_for<C...> {});
             for (size_t i = 0; i < count; i++) {
-                result.emplace_back(MakeResult(archetype, i, entry, std::index_sequence_for<C...> {}));
+                result.emplace_back(MakeResult(archetype, i, compColumns, std::index_sequence_for<C...> {}));
             }
         }
         materialized = true;
@@ -954,7 +1046,7 @@ namespace Runtime {
 
             query.emplace_back(QueryEntry {
                 archetype.Id(),
-                { archetype.GetCompOffset(Internal::GetClass<std::decay_t<C>>())... }
+                { archetype.GetCompIndex(Internal::GetClass<std::decay_t<C>>())... }
             });
         }
     }
@@ -973,12 +1065,18 @@ namespace Runtime {
     {
         using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
         const auto compSlots = BuildCompSlots<typename Traits::ArgsTupleType>(std::make_index_sequence<Traits::ArgSize - 1> {});
+        std::vector<CompColumnPtr> compColumns;
+        compColumns.reserve(includes.size());
 
         for (const auto& entry : query) {
             auto& archetype = registry->archetypes.at(entry.archetype);
             const auto count = archetype.Count();
+            compColumns.clear();
+            for (const size_t compIndex : entry.compIndices) {
+                compColumns.emplace_back(archetype.GetCompColumn(compIndex));
+            }
             for (size_t i = 0; i < count; i++) {
-                InvokeTraverseFuncInternal<F, typename Traits::ArgsTupleType>(std::forward<F>(inFunc), archetype, i, entry, compSlots, std::make_index_sequence<Traits::ArgSize - 1> {});
+                InvokeTraverseFuncInternal<F, typename Traits::ArgsTupleType>(std::forward<F>(inFunc), archetype, i, compColumns, compSlots, std::make_index_sequence<Traits::ArgSize - 1> {});
             }
         }
     }
@@ -1030,21 +1128,21 @@ namespace Runtime {
 
     template <ECRegistryOrConst R>
     template <typename F, typename ArgTuple, typename A, size_t... I>
-    void BasicRuntimeView<R>::InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const
+    void BasicRuntimeView<R>::InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const
     {
-        inFunc(inArchetype.EntityAt(inElemIndex), GetCompRef<std::tuple_element_t<I + 1, ArgTuple>>(inArchetype, inElemIndex, inEntry, inCompSlots[I])...);
+        inFunc(inArchetype.EntityAt(inElemIndex), GetCompRef<std::tuple_element_t<I + 1, ArgTuple>>(inElemIndex, inCompColumns, inCompSlots[I])...);
     }
 
     template <ECRegistryOrConst R>
-    template <typename C, typename A>
-    decltype(auto) BasicRuntimeView<R>::GetCompRef(A& inArchetype, size_t inElemIndex, const QueryEntry& inEntry, size_t inCompSlot) const
+    template <typename C>
+    decltype(auto) BasicRuntimeView<R>::GetCompRef(size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, size_t inCompSlot) const
     {
         static_assert(std::is_reference_v<C>);
         using Value = std::remove_cv_t<std::remove_reference_t<C>>;
-        if constexpr (std::is_const_v<std::remove_reference_t<C>> || std::is_const_v<A>) {
-            return *static_cast<const Value*>(inArchetype.GetCompAt(inElemIndex, inEntry.compOffsets[inCompSlot]));
+        if constexpr (std::is_const_v<std::remove_reference_t<C>> || std::is_const_v<R>) {
+            return static_cast<const Value*>(inCompColumns[inCompSlot])[inElemIndex];
         } else {
-            return *static_cast<Value*>(inArchetype.GetCompAt(inElemIndex, inEntry.compOffsets[inCompSlot]));
+            return static_cast<Value*>(inCompColumns[inCompSlot])[inElemIndex];
         }
     }
 
@@ -1084,9 +1182,9 @@ namespace Runtime {
 
             auto& entry = query.emplace_back();
             entry.archetype = archetype.Id();
-            entry.compOffsets.reserve(includes.size());
+            entry.compIndices.reserve(includes.size());
             for (const auto* clazz : includes) {
-                entry.compOffsets.emplace_back(archetype.GetCompOffset(clazz));
+                entry.compIndices.emplace_back(archetype.GetCompIndex(clazz));
             }
         }
     }
@@ -1242,13 +1340,17 @@ namespace Runtime {
     template <typename C, typename ... Args>
     C& ECRegistry::Emplace(Entity inEntity, Args&&... inArgs)
     {
-        return EmplaceDyn(Internal::GetClass<C>(), inEntity, Mirror::ForwardAsArgList(std::forward<Args>(inArgs)...)).template As<C&>();
+        const Internal::CompRtti rtti = Internal::CompRtti::Create<C>();
+        Internal::Archetype& archetype = MoveEntityForAdd(rtti, inEntity);
+        C& result = archetype.template EmplaceComp<C>(entities.GetElemIndex(inEntity), std::forward<Args>(inArgs)...);
+        NotifyConstructedDyn(Internal::GetClass<C>(), inEntity);
+        return result;
     }
 
     template <typename C>
     void ECRegistry::Remove(Entity inEntity)
     {
-        RemoveDyn(Internal::GetClass<C>(), inEntity);
+        MoveEntityForRemove(Internal::GetClass<C>(), inEntity);
     }
 
     template <typename C, typename F>
@@ -1270,7 +1372,7 @@ namespace Runtime {
     bool ECRegistry::Has(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return archetypes.at(entities.GetArchetype(inEntity)).Contains(Internal::GetClass<C>());
+        return entities.GetArchetypePtr(inEntity)->Contains(Internal::GetClass<C>());
     }
 
     template <typename C>
@@ -1289,14 +1391,14 @@ namespace Runtime {
     C& ECRegistry::Get(Entity inEntity)
     {
         Assert(Valid(inEntity));
-        return archetypes.at(entities.GetArchetype(inEntity)).template GetComp<C>(inEntity);
+        return entities.GetArchetypePtr(inEntity)->template GetComp<C>(entities.GetElemIndex(inEntity));
     }
 
     template <typename C>
     const C& ECRegistry::Get(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return archetypes.at(entities.GetArchetype(inEntity)).template GetComp<C>(inEntity);
+        return entities.GetArchetypePtr(inEntity)->template GetComp<C>(entities.GetElemIndex(inEntity));
     }
 
     template <typename... C, typename... E>

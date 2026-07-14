@@ -162,6 +162,30 @@ TEST(ECSTest, ComponentStaticTest)
     ASSERT_EQ(reinterpret_cast<uintptr_t>(registry.Find<CompB>(entity2)) % alignof(CompB), 0);
 }
 
+TEST(ECSTest, ViewArchetypeGrowthTest)
+{
+    ECRegistry registry;
+    const auto firstEntity = registry.Create();
+    registry.Emplace<CompA>(firstEntity, 0);
+    const auto staticView = registry.View<CompA>();
+    const auto runtimeView = registry.RuntimeView(RuntimeFilter().Include<CompA>());
+
+    for (int32_t value = 1; value <= 64; value++) {
+        const auto entity = registry.Create();
+        registry.Emplace<CompA>(entity, value);
+    }
+
+    int32_t staticSum = 0;
+    staticView.Each([&](Entity, const CompA& comp) -> void { staticSum += comp.value; });
+    ASSERT_EQ(staticView.Count(), 65);
+    ASSERT_EQ(staticSum, 2080);
+
+    int32_t runtimeSum = 0;
+    runtimeView.Each([&](Entity, const CompA& comp) -> void { runtimeSum += comp.value; });
+    ASSERT_EQ(runtimeView.Count(), 65);
+    ASSERT_EQ(runtimeSum, 2080);
+}
+
 TEST(ECSTest, ComponentLifetimeTest)
 {
     const auto baselineInstanceCount = LifetimeComp::instanceCount;
@@ -582,6 +606,12 @@ TEST(ECSTest, ECRegistryCopyTest)
     ECRegistry registry1 = registry0;
     ASSERT_EQ(registry1.Get<CompA>(entity0).value, 1);
     ASSERT_EQ(registry1.Get<CompB>(entity1).value, 2.0f);
+
+    registry1.Remove<CompA>(entity0);
+    registry1.Emplace<CompB>(entity0, 3.0f);
+    ASSERT_FALSE(registry1.Has<CompA>(entity0));
+    ASSERT_EQ(registry1.Get<CompB>(entity0).value, 3.0f);
+    ASSERT_EQ(registry0.Get<CompA>(entity0).value, 1);
 }
 
 TEST(ECSTest, ECRegistryValueSemanticsTest)
@@ -607,10 +637,13 @@ TEST(ECSTest, ECRegistryValueSemanticsTest)
             registry2 = registry0;
             ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
             ASSERT_EQ(registry2.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+            registry2.Emplace<CompA>(entity, 1);
 
             ECRegistry registry3 = std::move(registry2);
             ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
             ASSERT_EQ(registry3.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+            registry3.Remove<CompA>(entity);
+            ASSERT_FALSE(registry3.Has<CompA>(entity));
         }
         ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 1);
     }
