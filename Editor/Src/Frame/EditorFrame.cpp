@@ -210,14 +210,16 @@ namespace Editor {
             }
             if (open && componentToRemove != compClass) {
                 const Mirror::Any compRef = registry.GetDyn(compClass, selectedEntity);
+                bool componentEdited = false;
                 for (const auto& memberVariable : compClass->GetMemberVariables() | std::views::values) {
                     if (memberVariable.IsTransient()) {
                         continue;
                     }
                     Mirror::Any memberRef = memberVariable.GetDyn(compRef);
-                    if (RenderInputWidget(memberVariable.GetName(), memberRef)) {
-                        inContext.NotifyComponentsChanged(selectedEntity);
-                    }
+                    componentEdited |= RenderInputWidget(memberVariable.GetName(), memberRef);
+                }
+                if (componentEdited) {
+                    inContext.NotifyComponentEdited(selectedEntity, compClass);
                 }
             }
             ImGui::PopID();
