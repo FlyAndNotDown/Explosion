@@ -23,6 +23,7 @@ namespace Editor {
         Runtime::Entity CreateEntity(const std::string& inName);
         void DestroyEntity(Runtime::Entity inEntity);
         void RenameEntity(Runtime::Entity inEntity, const std::string& inName);
+        void NotifyComponentEdited(Runtime::Entity inEntity, Runtime::CompClass inClass);
         void NotifyComponentsChanged(Runtime::Entity inEntity);
 
     private:

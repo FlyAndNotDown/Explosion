@@ -13,7 +13,6 @@
 #else
 #define __EMULATE_UUID 1
 #endif
-#include "Core/Thread.h"
 
 #include <dxc/dxcapi.h>
 
@@ -35,6 +34,7 @@ using namespace Microsoft::WRL;
 #include <Common/Container.h>
 #include <Common/String.h>
 #include <Core/Paths.h>
+#include <Core/Thread.h>
 
 namespace Render::Internal {
     static std::vector<std::string> GetPresetIncludeDirectories()

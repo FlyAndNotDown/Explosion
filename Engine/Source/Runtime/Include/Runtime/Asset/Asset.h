@@ -13,6 +13,7 @@
 #include <Common/Serialization.h>
 #include <Common/Concurrent.h>
 #include <Common/Concepts.h>
+#include <Common/String.h>
 #include <Core/Uri.h>
 #include <Runtime/Meta.h>
 #include <Mirror/Mirror.h>
@@ -20,7 +21,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() Asset {
-        EPolyClassBody(Asset)
+        EPolyBaseClassBody(Asset)
 
     public:
         Asset();
@@ -145,6 +146,11 @@ namespace Runtime {
 }
 
 namespace Common {
+    template <DerivedFrom<Runtime::Asset> A>
+    struct StringConverter<Runtime::AssetPtr<A>> {
+        static std::string ToString(const Runtime::AssetPtr<A>& inValue);
+    };
+
     template <DerivedFrom<Runtime::Asset> A>
     struct Serializer<Runtime::AssetPtr < A>> {
         static constexpr size_t typeId = Common::HashUtils::StrCrc32("Runtime::AssetRef");
@@ -634,5 +640,13 @@ namespace Runtime {
         result->SetUri(uri);
         result->PostLoad();
         return result;
+    }
+}
+
+namespace Common {
+    template <DerivedFrom<Runtime::Asset> A>
+    std::string StringConverter<Runtime::AssetPtr<A>>::ToString(const Runtime::AssetPtr<A>& inValue)
+    {
+        return inValue.Valid() ? inValue.Uri().Str() : "";
     }
 }

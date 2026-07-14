@@ -7,8 +7,7 @@
 #include <RHI/Vulkan/Common.h>
 #include <RHI/Vulkan/Instance.h>
 
-#include "Common/Platform.h"
-
+#include <Common/Platform.h>
 #include <Common/IO.h>
 #include <RHI/Vulkan/Gpu.h>
 

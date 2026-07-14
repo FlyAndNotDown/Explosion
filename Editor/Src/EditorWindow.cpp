@@ -78,6 +78,7 @@ namespace Editor {
     {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_MAXIMIZED, inDesc.maximized ? GLFW_TRUE : GLFW_FALSE);
         window = glfwCreateWindow(
             static_cast<int>(inDesc.width),
             static_cast<int>(inDesc.height),

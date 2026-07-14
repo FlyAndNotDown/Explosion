@@ -2104,7 +2104,7 @@ TEST(AnyTest, NonRefArgumentVariantTest)
 
 TEST(AnyTest, ClassCastViaPolyClassTest)
 {
-    // AnyDerivedClassTest2 / AnyBaseClassTest2 use EPolyClassBody (virtual GetClass);
+    // AnyDerivedClassTest2 / AnyBaseClassTest2 use the polymorphic class body macros (virtual GetClass);
     // PolyAsTest above already exercises As<Derived*>/As<Derived&>, so Class::Cast
     // should round-trip cleanly here.
     AnyDerivedClassTest2 derived(1, 2.0f, "3");

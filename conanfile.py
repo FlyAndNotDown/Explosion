@@ -21,6 +21,10 @@ class ExplosionConan(ConanFile):
         if self.settings.os == "Windows":
             self.requires("directx-headers/1.610.2")
 
+        # benchmark only
+        self.requires("entt/3.16.0")
+        self.requires("flecs/4.1.5")
+
         # private repo
         self.requires("libclang/22.1.6-exp")
         self.requires("debugbreak/1.0-exp")

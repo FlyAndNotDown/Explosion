@@ -11,7 +11,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() TransformSystem final : public System {
-        EPolyClassBody(TransformSystem)
+        EPolyDerivedClassBody(TransformSystem)
 
     public:
         explicit TransformSystem(ECRegistry& inRegistry, const SystemSetupContext& inContext);

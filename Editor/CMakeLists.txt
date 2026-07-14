@@ -13,7 +13,7 @@ endif ()
 exp_add_executable(
     NAME Editor
     SRC ${editor_sources} ${imgui_stdlib_path}/imgui_stdlib.cpp
-    LIB Core RHI Runtime glfw imgui::imgui ${editor_platform_libs}
+    LIB Core Runtime glfw imgui::imgui ${editor_platform_libs}
     INC Include ${imgui_stdlib_path}
     DEP_TARGET ${platform_rhi_targets}
     REFLECT Include

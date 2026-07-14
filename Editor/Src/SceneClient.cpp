@@ -5,6 +5,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 #include <GLFW/glfw3.h>
 #include <Editor/EditorWindow.h>
@@ -14,6 +15,7 @@
 #include <Runtime/Asset/Material.h>
 #include <Runtime/Asset/Mesh.h>
 #include <Runtime/Component/Camera.h>
+#include <Runtime/Component/Name.h>
 #include <Runtime/Component/Player.h>
 #include <Runtime/Component/Primitive.h>
 #include <Runtime/Component/Transform.h>
@@ -108,6 +110,7 @@ namespace Editor::Internal {
 
         // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
         const auto ground = inRegistry.Create();
+        inRegistry.Emplace<Runtime::Name>(ground, std::string("Ground"));
         Common::FTransform groundTransform;
         groundTransform.scale = Common::FVec3(10.0f, 10.0f, 0.2f);
         groundTransform.translation = Common::FVec3(0.0f, 0.0f, -0.1f);
@@ -116,6 +119,7 @@ namespace Editor::Internal {
         groundPrimitive.mesh = cubeMesh;
 
         const auto cube = inRegistry.Create();
+        inRegistry.Emplace<Runtime::Name>(cube, std::string("Cube"));
         Common::FTransform cubeTransform;
         cubeTransform.translation = Common::FVec3(0.0f, 0.0f, 0.5f);
         inRegistry.Emplace<Runtime::WorldTransform>(cube, cubeTransform);
@@ -123,6 +127,7 @@ namespace Editor::Internal {
         cubePrimitive.mesh = cubeMesh;
 
         const auto playerStart = inRegistry.Create();
+        inRegistry.Emplace<Runtime::Name>(playerStart, std::string("Player Start"));
         const Common::FTransform playerStartTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
         inRegistry.Emplace<Runtime::WorldTransform>(playerStart, playerStartTransform);
         inRegistry.Emplace<Runtime::PlayerStart>(playerStart);
@@ -325,7 +330,7 @@ namespace Editor {
     {
         auto& registry = world.GetRegistry();
         editorCamera = registry.Create();
-        registry.Emplace<Runtime::TransientTag>(editorCamera);
+        registry.AddTag<Runtime::TransientTag>(editorCamera);
         registry.Emplace<Runtime::Camera>(editorCamera);
         // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
         const Common::FTransform cameraTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));

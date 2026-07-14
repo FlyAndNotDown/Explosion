@@ -20,6 +20,6 @@ file(GLOB test_sources Test/*.cpp)
 exp_add_test(
     NAME Render.Test
     SRC ${test_sources}
-    LIB RHI Render.Static
+    LIB Render.Static
     DEP_TARGET RHI-Dummy
 )

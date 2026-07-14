@@ -18,3 +18,12 @@ exp_add_test(
     REFLECT Test
     DEP_TARGET RHI-Dummy
 )
+
+file(GLOB benchmark_sources Benchmark/*.cpp)
+exp_add_benchmark(
+    NAME Runtime.Benchmark
+    SRC ${benchmark_sources}
+    INC Benchmark
+    LIB Runtime EnTT::EnTT flecs::flecs_static
+    REFLECT Benchmark
+)

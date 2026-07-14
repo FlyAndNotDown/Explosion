@@ -14,7 +14,7 @@
 
 namespace Runtime {
     class RUNTIME_API EClass() RenderSystem final : public System {
-        EPolyClassBody(RenderSystem)
+        EPolyDerivedClassBody(RenderSystem)
 
     public:
         explicit RenderSystem(ECRegistry& inRegistry, const SystemSetupContext& inContext);

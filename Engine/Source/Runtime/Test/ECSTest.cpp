@@ -162,6 +162,114 @@ TEST(ECSTest, ComponentStaticTest)
     ASSERT_EQ(reinterpret_cast<uintptr_t>(registry.Find<CompB>(entity2)) % alignof(CompB), 0);
 }
 
+TEST(ECSTest, TagStaticTest)
+{
+    static_assert(std::is_empty_v<TestTag>);
+    static_assert(sizeof(TestTag) == 1 && alignof(TestTag) == 1);
+
+    ECRegistry registry;
+    const auto entity0 = registry.Create();
+    const auto entity1 = registry.Create();
+    registry.Emplace<CompA>(entity0, 7);
+    registry.AddTag<TestTag>(entity0);
+    registry.AddTag<TestTag>(entity1);
+    registry.AddTag<OtherTestTag>(entity1);
+
+    ASSERT_TRUE(registry.HasTag<TestTag>(entity0));
+    ASSERT_TRUE(registry.HasTag<TestTag>(entity1));
+    ASSERT_FALSE(registry.HasTag<OtherTestTag>(entity0));
+    ASSERT_EQ(registry.Get<CompA>(entity0).value, 7);
+    ASSERT_EQ(registry.CompCount(entity0), 1);
+    ASSERT_EQ(registry.TagCount(entity0), 1);
+    ASSERT_EQ(registry.TagCount(entity1), 2);
+
+    std::unordered_set<TagClass> tags;
+    registry.TagEach(entity1, [&](TagClass tag) -> void { tags.emplace(tag); });
+    ASSERT_EQ(tags, (std::unordered_set<TagClass> {
+        &Mirror::Class::Get<TestTag>(),
+        &Mirror::Class::Get<OtherTestTag>()
+    }));
+
+    std::unordered_set expected = { entity0, entity1 };
+    const auto tagView = registry.View(Tags<TestTag> {});
+    ASSERT_EQ(tagView.Count(), 2);
+    tagView.Each([&](Entity entity) -> void { ASSERT_TRUE(expected.contains(entity)); });
+
+    const auto compAndTagView = registry.View<CompA>(Tags<TestTag> {});
+    ASSERT_EQ(compAndTagView.Count(), 1);
+    compAndTagView.Each([&](Entity entity, const CompA& comp) -> void {
+        ASSERT_EQ(entity, entity0);
+        ASSERT_EQ(comp.value, 7);
+    });
+
+    const auto excludedTagView = registry.View(Tags<TestTag> {}, Exclude<OtherTestTag> {});
+    ASSERT_EQ(excludedTagView.Count(), 1);
+    ASSERT_EQ(std::get<0>(*excludedTagView.begin()), entity0);
+
+    registry.RemoveTag<TestTag>(entity0);
+    ASSERT_FALSE(registry.HasTag<TestTag>(entity0));
+    ASSERT_EQ(registry.Get<CompA>(entity0).value, 7);
+    ASSERT_EQ(registry.TagCount(entity0), 0);
+
+    ECRegistry dataRegistry;
+    const auto dataEntity = dataRegistry.Create();
+    dataRegistry.Emplace<TestTag>(dataEntity);
+    ASSERT_TRUE(dataRegistry.Has<TestTag>(dataEntity));
+    ASSERT_FALSE(dataRegistry.HasTag<TestTag>(dataEntity));
+    ASSERT_EQ(dataRegistry.CompCount(dataEntity), 1);
+    ASSERT_EQ(dataRegistry.TagCount(dataEntity), 0);
+}
+
+TEST(ECSTest, TagDynamicTest)
+{
+    const auto* tagClass = &Mirror::Class::Get<TestTag>();
+    ECRegistry registry;
+    const auto entity0 = registry.Create();
+    const auto entity1 = registry.Create();
+    registry.Emplace<CompA>(entity0, 3);
+    registry.AddTagDyn(tagClass, entity0);
+    registry.AddTagDyn(tagClass, entity1);
+
+    ASSERT_TRUE(registry.HasTagDyn(tagClass, entity0));
+    ASSERT_TRUE(registry.HasTagDyn(tagClass, entity1));
+
+    const auto tagView = registry.RuntimeView(RuntimeFilter().IncludeTagDyn(tagClass));
+    ASSERT_EQ(tagView.Count(), 2);
+
+    int32_t sum = 0;
+    const auto compAndTagView = registry.ConstRuntimeView(RuntimeFilter().Include<CompA>().IncludeTag<TestTag>());
+    compAndTagView.Each([&](Entity, const CompA& comp) -> void { sum += comp.value; });
+    ASSERT_EQ(sum, 3);
+
+    registry.RemoveTagDyn(tagClass, entity0);
+    ASSERT_FALSE(registry.HasTagDyn(tagClass, entity0));
+    ASSERT_TRUE(registry.HasTagDyn(tagClass, entity1));
+}
+
+TEST(ECSTest, ViewArchetypeGrowthTest)
+{
+    ECRegistry registry;
+    const auto firstEntity = registry.Create();
+    registry.Emplace<CompA>(firstEntity, 0);
+    const auto staticView = registry.View<CompA>();
+    const auto runtimeView = registry.RuntimeView(RuntimeFilter().Include<CompA>());
+
+    for (int32_t value = 1; value <= 64; value++) {
+        const auto entity = registry.Create();
+        registry.Emplace<CompA>(entity, value);
+    }
+
+    int32_t staticSum = 0;
+    staticView.Each([&](Entity, const CompA& comp) -> void { staticSum += comp.value; });
+    ASSERT_EQ(staticView.Count(), 65);
+    ASSERT_EQ(staticSum, 2080);
+
+    int32_t runtimeSum = 0;
+    runtimeView.Each([&](Entity, const CompA& comp) -> void { runtimeSum += comp.value; });
+    ASSERT_EQ(runtimeView.Count(), 65);
+    ASSERT_EQ(runtimeSum, 2080);
+}
+
 TEST(ECSTest, ComponentLifetimeTest)
 {
     const auto baselineInstanceCount = LifetimeComp::instanceCount;
@@ -409,6 +517,25 @@ TEST(ECSTest, ComponentEventDynamicTest)
     registry.EventsDyn(compAClass).onRemove.Unbind(removeCallback);
 }
 
+TEST(ECSTest, TagEventTest)
+{
+    EventCounts count;
+    ECRegistry registry;
+    const auto constructedCallback = registry.Events<TestTag>().onConstructed.BindLambda([&](ECRegistry&, Entity) -> void { count.onConstructed++; });
+    const auto removeCallback = registry.Events<TestTag>().onRemove.BindLambda([&](ECRegistry&, Entity) -> void { count.onRemove++; });
+
+    const auto entity0 = registry.Create();
+    const auto entity1 = registry.Create();
+    registry.AddTag<TestTag>(entity0);
+    registry.AddTag<TestTag>(entity1);
+    registry.RemoveTag<TestTag>(entity0);
+    registry.Destroy(entity1);
+
+    ASSERT_EQ(count, EventCounts(2, 0, 2));
+    registry.Events<TestTag>().onConstructed.Unbind(constructedCallback);
+    registry.Events<TestTag>().onRemove.Unbind(removeCallback);
+}
+
 TEST(ECSTest, GlobalComponentEventStaticTest)
 {
     EventCounts count;
@@ -578,10 +705,18 @@ TEST(ECSTest, ECRegistryCopyTest)
     const auto entity1 = registry0.Create();
     registry0.Emplace<CompA>(entity0, 1);
     registry0.Emplace<CompB>(entity1, 2.0f);
+    registry0.AddTag<TestTag>(entity0);
 
     ECRegistry registry1 = registry0;
     ASSERT_EQ(registry1.Get<CompA>(entity0).value, 1);
     ASSERT_EQ(registry1.Get<CompB>(entity1).value, 2.0f);
+    ASSERT_TRUE(registry1.HasTag<TestTag>(entity0));
+
+    registry1.Remove<CompA>(entity0);
+    registry1.Emplace<CompB>(entity0, 3.0f);
+    ASSERT_FALSE(registry1.Has<CompA>(entity0));
+    ASSERT_EQ(registry1.Get<CompB>(entity0).value, 3.0f);
+    ASSERT_EQ(registry0.Get<CompA>(entity0).value, 1);
 }
 
 TEST(ECSTest, ECRegistryValueSemanticsTest)
@@ -607,10 +742,13 @@ TEST(ECSTest, ECRegistryValueSemanticsTest)
             registry2 = registry0;
             ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
             ASSERT_EQ(registry2.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+            registry2.Emplace<CompA>(entity, 1);
 
             ECRegistry registry3 = std::move(registry2);
             ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 3);
             ASSERT_EQ(registry3.Get<LifetimeComp>(entity).value, registry0.Get<LifetimeComp>(entity).value);
+            registry3.Remove<CompA>(entity);
+            ASSERT_FALSE(registry3.Has<CompA>(entity));
         }
         ASSERT_EQ(LifetimeComp::instanceCount, baselineInstanceCount + 1);
     }
@@ -627,11 +765,12 @@ TEST(ECSTest, ECSRegistrySaveLoadTest)
         (void) registry.Create();
         registry.Emplace<CompA>(entity0, 1);
         registry.Emplace<CompB>(entity1, 2.0f);
+        registry.AddTag<TestTag>(entity0);
         registry.GEmplace<GCompA>(1);
         registry.GEmplace<GCompB>(2.0f);
         const auto transientEntity = registry.Create();
         registry.Emplace<CompA>(transientEntity, 3);
-        registry.Emplace<TransientTag>(transientEntity);
+        registry.AddTag<TransientTag>(transientEntity);
 
         registry.Save(archive);
     }
@@ -642,6 +781,8 @@ TEST(ECSTest, ECSRegistrySaveLoadTest)
 
         ASSERT_EQ(registry.Count(), 3);
         ASSERT_EQ(registry.Get<CompA>(1u).value, 1);
+        ASSERT_TRUE(registry.HasTag<TestTag>(1u));
+        ASSERT_EQ(registry.TagCount(1u), 1);
         ASSERT_EQ(registry.Get<CompB>(2u).value, 2.0f);
         ASSERT_EQ(registry.CompCount(3u), 0);
         ASSERT_EQ(registry.GGet<GCompA>().value, 1);

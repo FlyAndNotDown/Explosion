@@ -22,6 +22,15 @@ namespace Editor::Internal {
     constexpr uint32_t projectHubWindowWidth = 560;
     constexpr uint32_t projectHubWindowHeight = 720;
     constexpr float defaultFontSize = 15.0f;
+    constexpr float defaultRightColumnRatio = 0.22f;
+    constexpr float minRightColumnWidth = 360.0f;
+    constexpr float maxRightColumnWidth = 480.0f;
+    constexpr float defaultLogRatio = 0.22f;
+    constexpr float minLogHeight = 200.0f;
+    constexpr float maxLogHeight = 300.0f;
+    constexpr float defaultOutlinerRatio = 0.35f;
+    constexpr float minOutlinerHeight = 280.0f;
+    constexpr float maxOutlinerHeight = 420.0f;
     constexpr uint32_t defaultSceneWidth = 1280;
     constexpr uint32_t defaultSceneHeight = 720;
     constexpr RHI::PixelFormat sceneColorFormat = RHI::PixelFormat::rgba8Unorm;
@@ -72,6 +81,15 @@ namespace Editor::Internal {
         style.TabRounding = 2.0f;
     }
 
+    static float CalculatePanelRatio(float inAvailableSize, float inDefaultRatio, float inMinSize, float inMaxSize)
+    {
+        if (inAvailableSize <= 0.0f) {
+            return inDefaultRatio;
+        }
+        const float panelSize = std::clamp(inAvailableSize * inDefaultRatio, inMinSize, inMaxSize);
+        return std::min(panelSize / inAvailableSize, 0.5f);
+    }
+
     static void BuildInitialEditorDockLayout(ImGuiID inDockSpaceId, const ImVec2& inSize)
     {
         if (ImGui::DockBuilderGetNode(inDockSpaceId) != nullptr) {
@@ -86,9 +104,12 @@ namespace Editor::Internal {
         ImGuiID outlinerNodeId = 0;
         ImGuiID inspectorNodeId = 0;
         ImGuiID logNodeId = 0;
-        ImGui::DockBuilderSplitNode(inDockSpaceId, ImGuiDir_Right, 0.25f, &rightColumnNodeId, &sceneNodeId);
-        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, 0.25f, &logNodeId, &sceneNodeId);
-        ImGui::DockBuilderSplitNode(rightColumnNodeId, ImGuiDir_Down, 0.5f, &inspectorNodeId, &outlinerNodeId);
+        const float rightColumnRatio = CalculatePanelRatio(inSize.x, defaultRightColumnRatio, minRightColumnWidth, maxRightColumnWidth);
+        const float logRatio = CalculatePanelRatio(inSize.y, defaultLogRatio, minLogHeight, maxLogHeight);
+        const float outlinerRatio = CalculatePanelRatio(inSize.y, defaultOutlinerRatio, minOutlinerHeight, maxOutlinerHeight);
+        ImGui::DockBuilderSplitNode(inDockSpaceId, ImGuiDir_Right, rightColumnRatio, &rightColumnNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, logRatio, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(rightColumnNodeId, ImGuiDir_Up, outlinerRatio, &outlinerNodeId, &inspectorNodeId);
 
         ImGui::DockBuilderDockWindow("Scene", sceneNodeId);
         ImGui::DockBuilderDockWindow("Outliner", outlinerNodeId);
@@ -132,7 +153,8 @@ namespace Editor {
             EditorWindowDesc {
                 .title = Internal::MakeWindowTitle(desc),
                 .width = Internal::GetInitialWindowWidth(desc),
-                .height = Internal::GetInitialWindowHeight(desc)
+                .height = Internal::GetInitialWindowHeight(desc),
+                .maximized = desc.mode == EditorApplicationMode::editor
             });
         InstallCallbacks();
 

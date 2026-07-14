@@ -42,6 +42,14 @@ struct EClass() CompB {
     EProperty() float value;
 };
 
+struct EClass(tag) TestTag final {
+    EClassBody(TestTag)
+};
+
+struct EClass() OtherTestTag final {
+    EClassBody(OtherTestTag)
+};
+
 struct EClass() LifetimeComp {
     EClassBody(LifetimeComp)
 

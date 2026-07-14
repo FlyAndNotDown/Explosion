@@ -4,9 +4,14 @@
 
 #pragma once
 
-#include <set>
+#include <algorithm>
+#include <array>
+#include <limits>
+#include <memory>
+#include <tuple>
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 
 #include <Common/Delegate.h>
 #include <Common/Utility.h>
@@ -20,6 +25,7 @@ namespace Runtime {
     static constexpr Entity entityNull = 0;
 
     using CompClass = const Mirror::Class*;
+    using TagClass = const Mirror::Class*;
     using GCompClass = const Mirror::Class*;
     using SystemClass = const Mirror::Class*;
 
@@ -32,7 +38,7 @@ namespace Runtime {
 
     class RUNTIME_API EClass() System {
     public:
-        EPolyClassBody(System)
+        EPolyBaseClassBody(System)
 
         explicit System(ECRegistry& inRegistry, const SystemSetupContext&);
         virtual ~System();
@@ -50,34 +56,83 @@ namespace Runtime::Internal {
     template <typename T> const Mirror::Class* GetClass();
     template <typename T> struct MemberFuncPtrTraits;
 
-    class CompRtti {
+    class RUNTIME_API TagStorage {
+    public:
+        TagStorage();
+        explicit TagStorage(std::vector<TagClass> inTags);
+
+        bool Contains(TagClass inClass) const;
+        size_t Count() const;
+        const std::vector<TagClass>& All() const;
+        TagStorage With(TagClass inClass) const;
+        TagStorage Without(TagClass inClass) const;
+
+    private:
+        std::vector<TagClass> tags;
+        std::unordered_set<TagClass> tagSet;
+    };
+
+    class RUNTIME_API CompRtti {
     public:
         explicit CompRtti(CompClass inClass);
-        void Bind(size_t inOffset);
+        template <typename C> static CompRtti Create();
         Mirror::Any CopyConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
         Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
+        void CopyConstructFrom(ElemPtr inDstElem, ElemPtr inSrcElem) const;
+        void MoveConstructFrom(ElemPtr inDstElem, ElemPtr inSrcElem) const;
         void Destruct(ElemPtr inElem) const;
         Mirror::Any Get(ElemPtr inElem) const;
         CompClass Class() const;
-        size_t Offset() const;
+        bool TriviallyRelocatable() const;
         size_t MemorySize() const;
         size_t MemoryAlignment() const;
 
     private:
-        using MoveConstructFunc = Mirror::Any(ElemPtr, size_t, const Mirror::Any&);
-        using MoveAssignFunc = Mirror::Any(ElemPtr, size_t, const Mirror::Any&);
-        using DestructorFunc = void(ElemPtr, size_t);
-        using GetFunc = Mirror::Any(ElemPtr, size_t);
+        using ConstructFromFunc = void(*)(ElemPtr, ElemPtr);
+        using DestructFunc = void(*)(ElemPtr);
 
         CompClass clazz;
-        // runtime, need Bind()
-        bool bound;
-        size_t offset;
+        ConstructFromFunc copyConstructFrom;
+        ConstructFromFunc moveConstructFrom;
+        DestructFunc destruct;
+        bool triviallyRelocatable;
+    };
+
+    class RUNTIME_API ArchetypeLayout {
+    public:
+        ArchetypeLayout();
+        ArchetypeLayout(std::vector<CompRtti> inCompRttis, TagStorage inTags);
+
+        bool ContainsComp(CompClass inClass) const;
+        bool ContainsTag(TagClass inClass) const;
+        bool Contains(CompClass inClass) const;
+        ArchetypeId Id() const;
+        const std::vector<CompRtti>& CompRttis() const;
+        const TagStorage& Tags() const;
+        ArchetypeLayout WithComp(const CompRtti& inRtti) const;
+        ArchetypeLayout WithTag(TagClass inClass) const;
+        ArchetypeLayout Without(CompClass inClass) const;
+
+    private:
+        ArchetypeId id;
+        std::vector<CompRtti> compRttis;
+        TagStorage tags;
     };
 
     class RUNTIME_API Archetype {
     public:
-        explicit Archetype(const std::vector<CompRtti>& inRttiVec);
+        struct CompMapping {
+            size_t srcCompIndex;
+            size_t dstCompIndex;
+        };
+
+        struct Transition {
+            CompClass compClass;
+            Archetype* archetype;
+            std::vector<CompMapping> compMappings;
+        };
+
+        explicit Archetype(ArchetypeLayout inLayout = {});
         ~Archetype();
 
         Archetype(const Archetype& inOther);
@@ -85,53 +140,74 @@ namespace Runtime::Internal {
         Archetype& operator=(const Archetype& inOther);
         Archetype& operator=(Archetype&& inOther) noexcept;
 
+        bool ContainsComp(CompClass inClass) const;
+        bool ContainsTag(TagClass inClass) const;
         bool Contains(CompClass inClazz) const;
-        bool ContainsAll(const std::vector<CompClass>& inClasses) const;
         bool NotContainsAny(const std::vector<CompClass>& inClasses) const;
-        ElemPtr EmplaceElem(Entity inEntity);
-        ElemPtr EmplaceElem(Entity inEntity, ElemPtr inSrcElem, const std::vector<CompRtti>& inSrcRttiVec);
-        Mirror::Any EmplaceComp(Entity inEntity, CompClass inCompClass, const Mirror::Any& inCompRef);
-        void EraseElem(Entity inEntity);
-        ElemPtr GetElem(Entity inEntity) const;
-        Mirror::Any GetComp(Entity inEntity, CompClass inCompClass);
-        Mirror::Any GetComp(Entity inEntity, CompClass inCompClass) const;
+        size_t EmplaceElem(Entity inEntity);
+        size_t EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex, const std::vector<CompMapping>& inCompMappings);
+        Mirror::Any EmplaceComp(size_t inElemIndex, CompClass inCompClass, const Mirror::Any& inCompRef);
+        template <typename C, typename... Args> C& EmplaceComp(size_t inElemIndex, Args&&... inArgs);
+        Entity EraseElem(size_t inElemIndex);
+        Mirror::Any GetComp(size_t inElemIndex, CompClass inCompClass);
+        Mirror::Any GetComp(size_t inElemIndex, CompClass inCompClass) const;
+        template <typename C> C& GetComp(size_t inElemIndex);
+        template <typename C> const C& GetComp(size_t inElemIndex) const;
+        ElemPtr GetCompAt(size_t inElemIndex, size_t inCompIndex);
+        const void* GetCompAt(size_t inElemIndex, size_t inCompIndex) const;
+        ElemPtr GetCompColumn(size_t inCompIndex);
+        const void* GetCompColumn(size_t inCompIndex) const;
+        size_t GetCompIndex(CompClass inCompClass) const;
+        template <typename C> size_t GetCompIndex() const;
+        Entity EntityAt(size_t inElemIndex) const;
         size_t Count() const;
         auto All() const;
-        const std::vector<CompRtti>& GetRttiVec() const;
+        const std::vector<CompRtti>& GetCompRttis() const;
+        const TagStorage& GetTags() const;
+        ArchetypeLayout GetLayout() const;
         ArchetypeId Id() const;
-        std::vector<CompRtti> NewRttiVecByAdd(const CompRtti& inRtti) const;
-        std::vector<CompRtti> NewRttiVecByRemove(const CompRtti& inRtti) const;
+        const Transition* FindAddTransition(CompClass inClass) const;
+        const Transition* FindRemoveTransition(CompClass inClass) const;
+        const Transition& CacheAddTransition(CompClass inClass, Archetype& inArchetype);
+        const Transition& CacheRemoveTransition(CompClass inClass, Archetype& inArchetype);
 
     private:
         using CompRttiIndex = size_t;
-        using ElemIndex = size_t;
-
-        const CompRtti* FindCompRtti(CompClass clazz) const;
-        const CompRtti& GetCompRtti(CompClass clazz) const;
         size_t Capacity() const;
         void Reserve(float inRatio = 1.5f);
         void DestroyElements();
         void ReleaseMemory();
-        ElemPtr AllocateNewElemBack();
-        ElemPtr ElemAt(ElemPtr inMemory, size_t inIndex) const;
-        ElemPtr ElemAt(size_t inIndex) const;
+        void AllocateNewElemBack();
+        ElemPtr CompAt(ElemPtr inMemory, size_t inCompIndex, size_t inElemIndex) const;
+        const Transition& CacheTransition(std::vector<Transition>& inTransitions, CompClass inClass, Archetype& inArchetype);
 
         ArchetypeId id;
         size_t count;
-        size_t elemSize;
-        size_t elemAlignment;
         size_t capacity;
         std::vector<CompRtti> rttiVec;
+        TagStorage tags;
         std::unordered_map<CompClass, CompRttiIndex> rttiMap;
-        std::unordered_map<Entity, ElemIndex> entityMap;
-        std::unordered_map<ElemIndex, Entity> elemMap;
-        ElemPtr memory;
+        std::vector<ElemPtr> compMemory;
+        std::vector<size_t> compStrides;
+        std::vector<Entity> elemMap;
+        std::vector<Transition> addTransitions;
+        std::vector<Transition> removeTransitions;
     };
 
-    class EntityPool {
+    class RUNTIME_API EntityPool {
     public:
         using EntityTraverseFunc = std::function<void(Entity)>;
-        using ConstIter = std::set<Entity>::const_iterator;
+        using ConstIter = std::vector<Entity>::const_iterator;
+
+        struct Location {
+            Archetype* archetype;
+            size_t elemIndex;
+        };
+
+        struct ConstLocation {
+            const Archetype* archetype;
+            size_t elemIndex;
+        };
 
         EntityPool();
 
@@ -142,16 +218,35 @@ namespace Runtime::Internal {
         void Free(Entity inEntity);
         void Clear();
         void Each(const EntityTraverseFunc& inFunc) const;
-        void SetArchetype(Entity inEntity, ArchetypeId inArchetypeId);
+        void SetLocation(Entity inEntity, Archetype& inArchetype, size_t inElemIndex);
+        void SetElemIndex(Entity inEntity, size_t inElemIndex);
+        void SetArchetypePtr(Entity inEntity, Archetype& inArchetype);
         ArchetypeId GetArchetype(Entity inEntity) const;
+        Archetype* GetArchetypePtr(Entity inEntity);
+        const Archetype* GetArchetypePtr(Entity inEntity) const;
+        size_t GetElemIndex(Entity inEntity) const;
+        Location GetLocation(Entity inEntity);
+        ConstLocation GetLocation(Entity inEntity) const;
         ConstIter Begin() const;
         ConstIter End() const;
 
     private:
-        uint32_t counter;
-        std::set<Entity> free;
-        std::set<Entity> allocated;
-        std::unordered_map<Entity, ArchetypeId> archetypeMap;
+        static constexpr Entity invalidIndex = std::numeric_limits<Entity>::max();
+
+        struct LocationRecord {
+            Archetype* archetype = nullptr;
+            Entity elemIndex = 0;
+        };
+
+        struct StateRecord {
+            ArchetypeId archetype = 0;
+            Entity allocatedIndex = invalidIndex;
+        };
+
+        std::vector<LocationRecord> locations;
+        std::vector<StateRecord> states;
+        std::vector<Entity> free;
+        std::vector<Entity> allocated;
     };
 
     class SystemFactory {
@@ -238,7 +333,10 @@ namespace Runtime {
     };
 
     template <typename... T>
-    struct Contains {};
+    struct Tags {};
+
+    template <typename... T>
+    using Contains = Tags<T...>;
 
     template <typename... T>
     struct Exclude {};
@@ -246,8 +344,8 @@ namespace Runtime {
     template <typename... T>
     class BasicView;
 
-    template <ECRegistryOrConst R, typename... C, typename... E>
-    class BasicView<R, Exclude<E...>, C...> {
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    class BasicView<R, Tags<T...>, Exclude<E...>, C...> {
     public:
         using ResultVector = std::vector<std::tuple<Entity, C&...>>;
         using ConstIter = typename ResultVector::const_iterator;
@@ -265,27 +363,48 @@ namespace Runtime {
         ConstIter end() const;
 
     private:
+        using CompColumnPtr = std::conditional_t<std::is_const_v<R>, const void*, void*>;
+        using CompColumns = std::array<CompColumnPtr, sizeof...(C)>;
+
+        struct QueryEntry {
+            Internal::ArchetypeId archetype;
+            std::array<size_t, sizeof...(C)> compIndices;
+        };
+
+        template <typename A, size_t... I> CompColumns ResolveCompColumns(A& inArchetype, const QueryEntry& inEntry, std::index_sequence<I...>) const;
+        template <size_t... I> auto MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
+        template <size_t... I> auto MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
+        void Materialize() const;
         void Evaluate(R& inRegistry);
 
-        ResultVector result;
+        R* registry;
+        std::vector<QueryEntry> query;
+        mutable ResultVector result;
+        mutable bool materialized;
     };
 
-    template <typename R, typename E, typename... C> using View = BasicView<R, E, C...>;
-    template <typename R, typename E, typename... C> using ConstView = BasicView<const R, E, const C...>;
+    template <typename R, typename I, typename E, typename... C> using View = BasicView<R, I, E, C...>;
+    template <typename R, typename I, typename E, typename... C> using ConstView = BasicView<const R, I, E, const C...>;
 
     class RUNTIME_API RuntimeFilter {
     public:
         RuntimeFilter();
         template <typename C> RuntimeFilter& Include();
         template <typename C> RuntimeFilter& Exclude();
+        template <typename T> RuntimeFilter& IncludeTag();
+        template <typename T> RuntimeFilter& ExcludeTag();
         RuntimeFilter& IncludeDyn(CompClass inClass);
         RuntimeFilter& ExcludeDyn(CompClass inClass);
+        RuntimeFilter& IncludeTagDyn(TagClass inClass);
+        RuntimeFilter& ExcludeTagDyn(TagClass inClass);
 
     private:
         template <ECRegistryOrConst R> friend class BasicRuntimeView;
 
         std::unordered_set<CompClass> includes;
         std::unordered_set<CompClass> excludes;
+        std::unordered_set<TagClass> tagIncludes;
+        std::unordered_set<TagClass> tagExcludes;
     };
 
     template <ECRegistryOrConst R>
@@ -306,15 +425,25 @@ namespace Runtime {
         ConstIter end() const;
 
     private:
-        using ResultVector = std::vector<std::pair<Entity, std::vector<Mirror::Any>>>;
+        using CompColumnPtr = std::conditional_t<std::is_const_v<R>, const void*, void*>;
 
-        template <typename F, typename ArgTuple, size_t... I> void InvokeTraverseFuncInternal(F&& inFunc, const std::pair<Entity, std::vector<Mirror::Any>>& inEntityAndComps, std::index_sequence<I...>) const;
-        template <typename C> decltype(auto) GetCompRef(const std::vector<Mirror::Any>& inComps) const;
+        struct QueryEntry {
+            Internal::ArchetypeId archetype;
+            std::vector<size_t> compIndices;
+        };
+
+        template <typename ArgTuple, size_t... I> auto BuildCompSlots(std::index_sequence<I...>) const;
+        template <typename F, typename ArgTuple, typename A, size_t... I> void InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const;
+        template <typename C> decltype(auto) GetCompRef(size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, size_t inCompSlot) const;
+        void MaterializeEntities() const;
         void Evaluate(R& inRegistry, const RuntimeFilter& inFilter);
 
+        R* registry;
+        std::vector<CompClass> includes;
         std::unordered_map<CompClass, size_t> slotMap;
-        ResultEntitiesVector resultEntities;
-        ResultVector result;
+        std::vector<QueryEntry> query;
+        mutable ResultEntitiesVector resultEntities;
+        mutable bool materialized;
     };
 
     using RuntimeView = BasicRuntimeView<ECRegistry>;
@@ -420,9 +549,9 @@ namespace Runtime {
         Observer removedObserver;
     };
 
-    // entities carrying this component are skipped entirely by ECRegistry::Save, use it to mark runtime-created
-    // entities (e.g. players spawned by systems) that must not be serialized into a level
-    struct RUNTIME_API EClass(transient) TransientTag {
+    // entities carrying this tag are skipped entirely by ECRegistry::Save, use it to mark runtime-created entities
+    // (e.g. players spawned by systems) that must not be serialized into a level
+    struct RUNTIME_API EClass(tag, transient) TransientTag final {
         EClassBody(TransientTag)
     };
 
@@ -430,6 +559,7 @@ namespace Runtime {
         EClassBody(EntityArchive)
 
         EProperty() std::unordered_map<CompClass, std::vector<uint8_t>> comps;
+        EProperty() std::vector<TagClass> tags;
     };
 
     struct RUNTIME_API EClass() ECArchive {
@@ -443,6 +573,7 @@ namespace Runtime {
     public:
         using EntityTraverseFunc = Internal::EntityPool::EntityTraverseFunc;
         using CompTraverseFunc = std::function<void(CompClass)>;
+        using TagTraverseFunc = std::function<void(TagClass)>;
         using GCompTraverseFunc = std::function<void(GCompClass)>;
         using DynUpdateFunc = std::function<void(const Mirror::Any&)>;
         using ConstIter = Internal::EntityPool::ConstIter;
@@ -483,6 +614,8 @@ namespace Runtime {
         ConstIter end() const;
         void CompEach(Entity inEntity, const CompTraverseFunc& inFunc) const;
         size_t CompCount(Entity inEntity) const;
+        void TagEach(Entity inEntity, const TagTraverseFunc& inFunc) const;
+        size_t TagCount(Entity inEntity) const;
 
         // component static
         template <typename C, typename... Args> C& Emplace(Entity inEntity, Args&&... inArgs);
@@ -495,11 +628,19 @@ namespace Runtime {
         template <typename C> const C* Find(Entity inEntity) const;
         template <typename C> C& Get(Entity inEntity);
         template <typename C> const C& Get(Entity inEntity) const;
-        template <typename... C, typename... E> Runtime::View<ECRegistry, Exclude<E...>, C...> View(Exclude<E...> = {});
-        template <typename... C, typename... E> Runtime::ConstView<ECRegistry, Exclude<E...>, C...> View(Exclude<E...> = {}) const;
-        template <typename... C, typename... E> Runtime::ConstView<ECRegistry, Exclude<E...>, C...> ConstView(Exclude<E...> = {}) const;
+        template <typename... C, typename... E> Runtime::View<ECRegistry, Tags<>, Exclude<E...>, C...> View(Exclude<E...> = {});
+        template <typename... C, typename... E> Runtime::ConstView<ECRegistry, Tags<>, Exclude<E...>, C...> View(Exclude<E...> = {}) const;
+        template <typename... C, typename... E> Runtime::ConstView<ECRegistry, Tags<>, Exclude<E...>, C...> ConstView(Exclude<E...> = {}) const;
+        template <typename... C, typename... T, typename... E> Runtime::View<ECRegistry, Tags<T...>, Exclude<E...>, C...> View(Tags<T...>, Exclude<E...> = {});
+        template <typename... C, typename... T, typename... E> Runtime::ConstView<ECRegistry, Tags<T...>, Exclude<E...>, C...> View(Tags<T...>, Exclude<E...> = {}) const;
+        template <typename... C, typename... T, typename... E> Runtime::ConstView<ECRegistry, Tags<T...>, Exclude<E...>, C...> ConstView(Tags<T...>, Exclude<E...> = {}) const;
         template <typename C> CompEvents& Events();
         template <typename C> EventsObserver<C> EventsObserver();
+
+        // tag static
+        template <typename T> void AddTag(Entity inEntity);
+        template <typename T> void RemoveTag(Entity inEntity);
+        template <typename T> bool HasTag(Entity inEntity) const;
 
         // component dynamic
         Mirror::Any EmplaceDyn(CompClass inClass, Entity inEntity, const Mirror::ArgumentList& inArgs);
@@ -517,6 +658,11 @@ namespace Runtime {
         Runtime::ConstRuntimeView RuntimeView(const RuntimeFilter& inFilter) const;
         Runtime::ConstRuntimeView ConstRuntimeView(const RuntimeFilter& inFilter) const;
         Runtime::EventsObserverDyn EventsObserverDyn(CompClass inClass);
+
+        // tag dynamic
+        void AddTagDyn(TagClass inClass, Entity inEntity);
+        void RemoveTagDyn(TagClass inClass, Entity inEntity);
+        bool HasTagDyn(TagClass inClass, Entity inEntity) const;
 
         // global component static
         template <typename G, typename... Args> G& GEmplace(Args&&... inArgs);
@@ -564,10 +710,21 @@ namespace Runtime {
         void NotifyRemoveDyn(CompClass inClass, Entity inEntity);
         void GNotifyConstructedDyn(GCompClass inClass);
         void GNotifyRemoveDyn(CompClass inClass);
+        void RegisterDataCompClass(CompClass inClass);
+        void RegisterTagClass(TagClass inClass);
+        Internal::EntityPool::Location MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity);
+        Internal::EntityPool::Location MoveEntityForAddTag(TagClass inClass, Entity inEntity);
+        Internal::EntityPool::Location MoveEntityForAdd(CompClass inClass, Entity inEntity, const Internal::EntityPool::Location& inLocation, Internal::ArchetypeLayout inLayout);
+        Internal::EntityPool::Location MoveEntityThroughTransition(Entity inEntity, const Internal::EntityPool::Location& inLocation, const Internal::Archetype::Transition& inTransition);
+        void MoveEntityForRemove(CompClass inClass, Entity inEntity);
+        void EraseArchetypeElem(Internal::Archetype& inArchetype, size_t inElemIndex);
+        void RebindEntityArchetypes();
 
         Internal::EntityPool entities;
         std::unordered_map<GCompClass, Mirror::Any> globalComps;
         std::unordered_map<Internal::ArchetypeId, Internal::Archetype> archetypes;
+        std::unordered_set<CompClass> dataCompClasses;
+        std::unordered_set<TagClass> tagClasses;
         // transients, not copy or move
         std::unordered_map<CompClass, CompEvents> compEvents;
         std::unordered_map<GCompClass, GCompEvents> globalCompEvents;
@@ -687,7 +844,39 @@ namespace Runtime::Internal {
     template <typename T>
     const Mirror::Class* GetClass()
     {
-        return &Mirror::Class::Get<T>();
+        static const Mirror::Class* result = &Mirror::Class::Get<T>();
+        return result;
+    }
+
+    inline CompClass CompRtti::Class() const
+    {
+        return clazz;
+    }
+
+    inline bool CompRtti::TriviallyRelocatable() const
+    {
+        return triviallyRelocatable;
+    }
+
+    template <typename C>
+    CompRtti CompRtti::Create()
+    {
+        CompRtti result(GetClass<C>());
+        result.copyConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
+            std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
+        };
+        result.moveConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
+            if constexpr (std::is_move_constructible_v<C>) {
+                std::construct_at(static_cast<C*>(dst), std::move(*static_cast<C*>(src)));
+            } else {
+                std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
+            }
+        };
+        result.destruct = [](ElemPtr elem) -> void {
+            std::destroy_at(static_cast<C*>(elem));
+        };
+        result.triviallyRelocatable = std::is_trivially_copyable_v<C>;
+        return result;
     }
 
     template <typename Class, typename Ret, typename... Args>
@@ -706,7 +895,89 @@ namespace Runtime::Internal {
 
     inline auto Archetype::All() const
     {
-        return elemMap | std::ranges::views::values;
+        return std::views::all(elemMap);
+    }
+
+    inline ElemPtr Archetype::GetCompAt(size_t inElemIndex, size_t inCompIndex)
+    {
+        return CompAt(compMemory[inCompIndex], inCompIndex, inElemIndex);
+    }
+
+    inline const void* Archetype::GetCompAt(size_t inElemIndex, size_t inCompIndex) const
+    {
+        return CompAt(compMemory[inCompIndex], inCompIndex, inElemIndex);
+    }
+
+    inline ElemPtr Archetype::GetCompColumn(size_t inCompIndex)
+    {
+        Assert(inCompIndex < compMemory.size());
+        return compMemory[inCompIndex];
+    }
+
+    inline const void* Archetype::GetCompColumn(size_t inCompIndex) const
+    {
+        Assert(inCompIndex < compMemory.size());
+        return compMemory[inCompIndex];
+    }
+
+    inline ElemPtr Archetype::CompAt(ElemPtr inMemory, size_t inCompIndex, size_t inElemIndex) const
+    {
+        return static_cast<uint8_t*>(inMemory) + (inElemIndex * compStrides[inCompIndex]);
+    }
+
+    inline Entity Archetype::EntityAt(size_t inElemIndex) const
+    {
+        Assert(inElemIndex < elemMap.size());
+        return elemMap[inElemIndex];
+    }
+
+    template <typename C>
+    C& Archetype::GetComp(size_t inElemIndex)
+    {
+        Assert(inElemIndex < count);
+        return *static_cast<C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
+    }
+
+    template <typename C>
+    const C& Archetype::GetComp(size_t inElemIndex) const
+    {
+        Assert(inElemIndex < count);
+        return *static_cast<const C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
+    }
+
+    template <typename C, typename... Args>
+    C& Archetype::EmplaceComp(size_t inElemIndex, Args&&... inArgs)
+    {
+        Assert(inElemIndex < count);
+        auto* comp = static_cast<C*>(GetCompAt(inElemIndex, GetCompIndex<C>()));
+        return *std::construct_at(comp, std::forward<Args>(inArgs)...);
+    }
+
+    template <typename C>
+    size_t Archetype::GetCompIndex() const
+    {
+        const CompClass clazz = GetClass<C>();
+        for (size_t i = 0; i < rttiVec.size(); i++) {
+            if (rttiVec[i].Class() == clazz) {
+                return i;
+            }
+        }
+        Assert(false);
+        return 0;
+    }
+
+    inline EntityPool::Location EntityPool::GetLocation(Entity inEntity)
+    {
+        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
+        const LocationRecord& location = locations[inEntity];
+        return { location.archetype, location.elemIndex };
+    }
+
+    inline EntityPool::ConstLocation EntityPool::GetLocation(Entity inEntity) const
+    {
+        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
+        const LocationRecord& location = locations[inEntity];
+        return { location.archetype, location.elemIndex };
     }
 } // namespace Runtime::Internal
 
@@ -762,68 +1033,139 @@ namespace Runtime {
         return globalCompRef.As<T>();
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    BasicView<R, Exclude<E...>, C...>::BasicView(R& inRegistry)
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    BasicView<R, Contains<T...>, Exclude<E...>, C...>::BasicView(R& inRegistry)
+        : registry(&inRegistry)
+        , materialized(false)
     {
         Evaluate(inRegistry);
     }
 
-    template <ECRegistryOrConst R, typename... C, typename... E>
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
     template <typename F>
-    void BasicView<R, Exclude<E...>, C...>::Each(F&& inFunc) const
+    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Each(F&& inFunc) const
     {
-        for (const auto& entityAndComps : result) {
-            if constexpr (Internal::MemberFuncPtrTraits<decltype(&F::operator())>::ArgSize == 1) {
-                inFunc(std::get<0>(entityAndComps));
+        using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
+
+        for (const auto& entry : query) {
+            auto& archetype = registry->archetypes.at(entry.archetype);
+            const auto count = archetype.Count();
+            if constexpr (Traits::ArgSize == 1) {
+                for (size_t i = 0; i < count; i++) {
+                    inFunc(archetype.EntityAt(i));
+                }
             } else {
-                std::apply(inFunc, entityAndComps);
+                const CompColumns compColumns = ResolveCompColumns(archetype, entry, std::index_sequence_for<C...> {});
+                for (size_t i = 0; i < count; i++) {
+                    std::apply(inFunc, MakeResult(archetype, i, compColumns, std::index_sequence_for<C...> {}));
+                }
             }
         }
     }
 
-    template <ECRegistryOrConst R, typename... C, typename... E>
-    const typename BasicView<R, Exclude<E...>, C...>::ResultVector& BasicView<R, Exclude<E...>, C...>::All() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    const typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ResultVector& BasicView<R, Contains<T...>, Exclude<E...>, C...>::All() const
     {
+        Materialize();
         return result;
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    size_t BasicView<R, Exclude<E...>, C...>::Count() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    size_t BasicView<R, Contains<T...>, Exclude<E...>, C...>::Count() const
     {
-        return result.size();
+        size_t resultCount = 0;
+        for (const auto& entry : query) {
+            resultCount += registry->archetypes.at(entry.archetype).Count();
+        }
+        return resultCount;
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    typename BasicView<R, Exclude<E...>, C...>::ConstIter BasicView<R, Exclude<E...>, C...>::Begin() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ConstIter BasicView<R, Contains<T...>, Exclude<E...>, C...>::Begin() const
     {
+        Materialize();
         return result.begin();
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    typename BasicView<R, Exclude<E...>, C...>::ConstIter BasicView<R, Exclude<E...>, C...>::End() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ConstIter BasicView<R, Contains<T...>, Exclude<E...>, C...>::End() const
     {
+        Materialize();
         return result.end();
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    typename BasicView<R, Exclude<E...>, C...>::ConstIter BasicView<R, Exclude<E...>, C...>::begin() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ConstIter BasicView<R, Contains<T...>, Exclude<E...>, C...>::begin() const
     {
         return Begin();
     }
 
-    template <ECRegistryOrConst R, typename ... C, typename ... E>
-    typename BasicView<R, Exclude<E...>, C...>::ConstIter BasicView<R, Exclude<E...>, C...>::end() const
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ConstIter BasicView<R, Contains<T...>, Exclude<E...>, C...>::end() const
     {
         return End();
     }
 
-    template <ECRegistryOrConst R, typename... C, typename... E>
-    void BasicView<R, Exclude<E...>, C...>::Evaluate(R& inRegistry)
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    template <typename A, size_t... I>
+    typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::CompColumns BasicView<R, Contains<T...>, Exclude<E...>, C...>::ResolveCompColumns(A& inArchetype, const QueryEntry& inEntry, std::index_sequence<I...>) const
     {
+        return { inArchetype.GetCompColumn(inEntry.compIndices[I])... };
+    }
+
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    template <size_t... I>
+    auto BasicView<R, Contains<T...>, Exclude<E...>, C...>::MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const
+    {
+        return typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ResultVector::value_type(
+            inArchetype.EntityAt(inElemIndex),
+            static_cast<std::conditional_t<std::is_const_v<C>, const std::remove_const_t<C>, std::remove_const_t<C>>*>(inCompColumns[I])[inElemIndex]...);
+    }
+
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    template <size_t... I>
+    auto BasicView<R, Contains<T...>, Exclude<E...>, C...>::MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const
+    {
+        return typename BasicView<R, Contains<T...>, Exclude<E...>, C...>::ResultVector::value_type(
+            inArchetype.EntityAt(inElemIndex),
+            static_cast<const std::remove_const_t<C>*>(inCompColumns[I])[inElemIndex]...);
+    }
+
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Materialize() const
+    {
+        if (materialized) {
+            return;
+        }
+
+        result.reserve(Count());
+        for (const auto& entry : query) {
+            auto& archetype = registry->archetypes.at(entry.archetype);
+            const auto count = archetype.Count();
+            const CompColumns compColumns = ResolveCompColumns(archetype, entry, std::index_sequence_for<C...> {});
+            for (size_t i = 0; i < count; i++) {
+                result.emplace_back(MakeResult(archetype, i, compColumns, std::index_sequence_for<C...> {}));
+            }
+        }
+        materialized = true;
+    }
+
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Evaluate(R& inRegistry)
+    {
+        static_assert((std::is_empty_v<T> && ...), "Tags<> accepts only empty tag types");
+        static_assert(((sizeof(T) == 1 && alignof(T) == 1) && ...), "tag components must have the one-byte empty layout");
+
         std::vector<CompClass> includeCompIds;
         includeCompIds.reserve(sizeof...(C));
         (void) std::initializer_list<int> { ([&]() -> void {
             includeCompIds.emplace_back(Internal::GetClass<std::decay_t<C>>());
+        }(), 0)... };
+
+        std::vector<TagClass> includeTagIds;
+        includeTagIds.reserve(sizeof...(T));
+        (void) std::initializer_list<int> { ([&]() -> void {
+            includeTagIds.emplace_back(Internal::GetClass<T>());
         }(), 0)... };
 
         std::vector<CompClass> excludeCompIds;
@@ -833,19 +1175,23 @@ namespace Runtime {
         }(), 0)... };
 
         for (auto& archetype : inRegistry.archetypes | std::views::values) {
-            if (!archetype.ContainsAll(includeCompIds) || !archetype.NotContainsAny(excludeCompIds)) {
+            const bool containsComps = std::ranges::all_of(includeCompIds, [&](CompClass clazz) -> bool { return archetype.ContainsComp(clazz); });
+            const bool containsTags = std::ranges::all_of(includeTagIds, [&](TagClass clazz) -> bool { return archetype.ContainsTag(clazz); });
+            if (!containsComps || !containsTags || !archetype.NotContainsAny(excludeCompIds)) {
                 continue;
             }
 
-            result.reserve(result.size() + archetype.Count());
-            for (auto entity : archetype.All()) {
-                result.emplace_back(entity, inRegistry.template Get<std::decay_t<C>>(entity)...);
-            }
+            query.emplace_back(QueryEntry {
+                archetype.Id(),
+                { archetype.GetCompIndex(Internal::GetClass<std::decay_t<C>>())... }
+            });
         }
     }
 
     template <ECRegistryOrConst R>
     BasicRuntimeView<R>::BasicRuntimeView(R& inRegistry, const RuntimeFilter& inFilter)
+        : registry(&inRegistry)
+        , materialized(false)
     {
         Evaluate(inRegistry, inFilter);
     }
@@ -855,27 +1201,44 @@ namespace Runtime {
     void BasicRuntimeView<R>::Each(F&& inFunc) const
     {
         using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
+        const auto compSlots = BuildCompSlots<typename Traits::ArgsTupleType>(std::make_index_sequence<Traits::ArgSize - 1> {});
+        std::vector<CompColumnPtr> compColumns;
+        compColumns.reserve(includes.size());
 
-        for (const auto& pair : result) {
-            InvokeTraverseFuncInternal<F, typename Traits::ArgsTupleType>(std::forward<F>(inFunc), pair, std::make_index_sequence<Traits::ArgSize - 1> {});
+        for (const auto& entry : query) {
+            auto& archetype = registry->archetypes.at(entry.archetype);
+            const auto count = archetype.Count();
+            compColumns.clear();
+            for (const size_t compIndex : entry.compIndices) {
+                compColumns.emplace_back(archetype.GetCompColumn(compIndex));
+            }
+            for (size_t i = 0; i < count; i++) {
+                InvokeTraverseFuncInternal<F, typename Traits::ArgsTupleType>(std::forward<F>(inFunc), archetype, i, compColumns, compSlots, std::make_index_sequence<Traits::ArgSize - 1> {});
+            }
         }
     }
 
     template <ECRegistryOrConst R>
     size_t BasicRuntimeView<R>::Count() const
     {
-        return resultEntities.size();
+        size_t resultCount = 0;
+        for (const auto& entry : query) {
+            resultCount += registry->archetypes.at(entry.archetype).Count();
+        }
+        return resultCount;
     }
 
     template <ECRegistryOrConst R>
     typename BasicRuntimeView<R>::ConstIter BasicRuntimeView<R>::Begin() const
     {
+        MaterializeEntities();
         return resultEntities.begin();
     }
 
     template <ECRegistryOrConst R>
     typename BasicRuntimeView<R>::ConstIter BasicRuntimeView<R>::End() const
     {
+        MaterializeEntities();
         return resultEntities.end();
     }
 
@@ -892,26 +1255,59 @@ namespace Runtime {
     }
 
     template <ECRegistryOrConst R>
-    template <typename F, typename ArgTuple, size_t... I>
-    void BasicRuntimeView<R>::InvokeTraverseFuncInternal(F&& inFunc, const std::pair<Entity, std::vector<Mirror::Any>>& inEntityAndComps, std::index_sequence<I...>) const
+    template <typename ArgTuple, size_t... I>
+    auto BasicRuntimeView<R>::BuildCompSlots(std::index_sequence<I...>) const
     {
-        inFunc(inEntityAndComps.first, GetCompRef<std::tuple_element_t<I + 1, ArgTuple>>(inEntityAndComps.second)...);
+        return std::array<size_t, sizeof...(I)> {
+            slotMap.at(Internal::GetClass<std::decay_t<std::tuple_element_t<I + 1, ArgTuple>>>())...
+        };
+    }
+
+    template <ECRegistryOrConst R>
+    template <typename F, typename ArgTuple, typename A, size_t... I>
+    void BasicRuntimeView<R>::InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const
+    {
+        inFunc(inArchetype.EntityAt(inElemIndex), GetCompRef<std::tuple_element_t<I + 1, ArgTuple>>(inElemIndex, inCompColumns, inCompSlots[I])...);
     }
 
     template <ECRegistryOrConst R>
     template <typename C>
-    decltype(auto) BasicRuntimeView<R>::GetCompRef(const std::vector<Mirror::Any>& inComps) const
+    decltype(auto) BasicRuntimeView<R>::GetCompRef(size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, size_t inCompSlot) const
     {
         static_assert(std::is_reference_v<C>);
-        const auto compIndex = slotMap.at(Internal::GetClass<std::decay_t<C>>());
-        return inComps[compIndex].template As<C>();
+        using Value = std::remove_cv_t<std::remove_reference_t<C>>;
+        if constexpr (std::is_const_v<std::remove_reference_t<C>> || std::is_const_v<R>) {
+            return static_cast<const Value*>(inCompColumns[inCompSlot])[inElemIndex];
+        } else {
+            return static_cast<Value*>(inCompColumns[inCompSlot])[inElemIndex];
+        }
+    }
+
+    template <ECRegistryOrConst R>
+    void BasicRuntimeView<R>::MaterializeEntities() const
+    {
+        if (materialized) {
+            return;
+        }
+
+        resultEntities.reserve(Count());
+        for (const auto& entry : query) {
+            const auto& archetype = registry->archetypes.at(entry.archetype);
+            const auto count = archetype.Count();
+            for (size_t i = 0; i < count; i++) {
+                resultEntities.emplace_back(archetype.EntityAt(i));
+            }
+        }
+        materialized = true;
     }
 
     template <ECRegistryOrConst R>
     void BasicRuntimeView<R>::Evaluate(R& inRegistry, const RuntimeFilter& inFilter)
     {
-        const std::vector includes(inFilter.includes.begin(), inFilter.includes.end());
+        includes.assign(inFilter.includes.begin(), inFilter.includes.end());
+        const std::vector tagIncludes(inFilter.tagIncludes.begin(), inFilter.tagIncludes.end());
         const std::vector excludes(inFilter.excludes.begin(), inFilter.excludes.end());
+        const std::vector tagExcludes(inFilter.tagExcludes.begin(), inFilter.tagExcludes.end());
 
         slotMap.reserve(includes.size());
         for (auto i = 0; i < includes.size(); i++) {
@@ -919,21 +1315,19 @@ namespace Runtime {
         }
 
         for (auto& archetype : inRegistry.archetypes | std::views::values) {
-            if (!archetype.ContainsAll(includes) || !archetype.NotContainsAny(excludes)) {
+            const bool containsComps = std::ranges::all_of(includes, [&](CompClass clazz) -> bool { return archetype.ContainsComp(clazz); });
+            const bool containsTags = std::ranges::all_of(tagIncludes, [&](TagClass clazz) -> bool { return archetype.ContainsTag(clazz); });
+            const bool excludesComps = std::ranges::none_of(excludes, [&](CompClass clazz) -> bool { return archetype.ContainsComp(clazz); });
+            const bool excludesTags = std::ranges::none_of(tagExcludes, [&](TagClass clazz) -> bool { return archetype.ContainsTag(clazz); });
+            if (!containsComps || !containsTags || !excludesComps || !excludesTags) {
                 continue;
             }
 
-            resultEntities.reserve(result.size() + archetype.Count());
-            result.reserve(result.size() + archetype.Count());
-            for (const auto entity : archetype.All()) {
-                std::vector<Mirror::Any> comps;
-                comps.reserve(includes.size());
-                for (const auto* clazz : includes) {
-                    comps.emplace_back(archetype.GetComp(entity, clazz));
-                }
-
-                resultEntities.emplace_back(entity);
-                result.emplace_back(entity, std::move(comps));
+            auto& entry = query.emplace_back();
+            entry.archetype = archetype.Id();
+            entry.compIndices.reserve(includes.size());
+            for (const auto* clazz : includes) {
+                entry.compIndices.emplace_back(archetype.GetCompIndex(clazz));
             }
         }
     }
@@ -954,6 +1348,20 @@ namespace Runtime {
         Assert(!excludes.contains(clazz));
         excludes.emplace(clazz);
         return *this;
+    }
+
+    template <typename T>
+    RuntimeFilter& RuntimeFilter::IncludeTag()
+    {
+        static_assert(std::is_empty_v<T> && sizeof(T) == 1 && alignof(T) == 1, "tag components must have the one-byte empty layout");
+        return IncludeTagDyn(Internal::GetClass<T>());
+    }
+
+    template <typename T>
+    RuntimeFilter& RuntimeFilter::ExcludeTag()
+    {
+        static_assert(std::is_empty_v<T> && sizeof(T) == 1 && alignof(T) == 1, "tag components must have the one-byte empty layout");
+        return ExcludeTagDyn(Internal::GetClass<T>());
     }
 
     template <typename C>
@@ -1089,13 +1497,20 @@ namespace Runtime {
     template <typename C, typename ... Args>
     C& ECRegistry::Emplace(Entity inEntity, Args&&... inArgs)
     {
-        return EmplaceDyn(Internal::GetClass<C>(), inEntity, Mirror::ForwardAsArgList(std::forward<Args>(inArgs)...)).template As<C&>();
+        const Internal::CompRtti rtti = Internal::CompRtti::Create<C>();
+        const auto location = MoveEntityForAdd(rtti, inEntity);
+        C& result = location.archetype->template EmplaceComp<C>(location.elemIndex, std::forward<Args>(inArgs)...);
+        if (!compEvents.empty()) {
+            NotifyConstructedDyn(Internal::GetClass<C>(), inEntity);
+        }
+        return result;
     }
 
     template <typename C>
     void ECRegistry::Remove(Entity inEntity)
     {
-        RemoveDyn(Internal::GetClass<C>(), inEntity);
+        Assert(Valid(inEntity) && Has<C>(inEntity));
+        MoveEntityForRemove(Internal::GetClass<C>(), inEntity);
     }
 
     template <typename C, typename F>
@@ -1116,7 +1531,8 @@ namespace Runtime {
     template <typename C>
     bool ECRegistry::Has(Entity inEntity) const
     {
-        return HasDyn(Internal::GetClass<C>(), inEntity);
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->ContainsComp(Internal::GetClass<C>());
     }
 
     template <typename C>
@@ -1134,31 +1550,73 @@ namespace Runtime {
     template <typename C>
     C& ECRegistry::Get(Entity inEntity)
     {
-        return GetDyn(Internal::GetClass<C>(), inEntity).template As<C&>();
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->template GetComp<C>(location.elemIndex);
     }
 
     template <typename C>
     const C& ECRegistry::Get(Entity inEntity) const
     {
-        return GetDyn(Internal::GetClass<C>(), inEntity).template As<const C&>();
+        const auto location = entities.GetLocation(inEntity);
+        return location.archetype->template GetComp<C>(location.elemIndex);
     }
 
     template <typename... C, typename... E>
-    Runtime::View<ECRegistry, Exclude<E...>, C...> ECRegistry::View(Exclude<E...>)
+    Runtime::View<ECRegistry, Contains<>, Exclude<E...>, C...> ECRegistry::View(Exclude<E...>)
     {
-        return Runtime::View<ECRegistry, Exclude<E...>, C...>(*this);
+        return Runtime::View<ECRegistry, Contains<>, Exclude<E...>, C...>(*this);
     }
 
     template <typename ... C, typename ... E>
-    Runtime::ConstView<ECRegistry, Exclude<E...>, C...> ECRegistry::View(Exclude<E...>) const
+    Runtime::ConstView<ECRegistry, Contains<>, Exclude<E...>, C...> ECRegistry::View(Exclude<E...>) const
     {
-        return Runtime::ConstView<ECRegistry, Exclude<E...>, C...>(*this);
+        return Runtime::ConstView<ECRegistry, Contains<>, Exclude<E...>, C...>(*this);
     }
 
     template <typename ... C, typename ... E>
-    Runtime::ConstView<ECRegistry, Exclude<E...>, C...> ECRegistry::ConstView(Exclude<E...>) const
+    Runtime::ConstView<ECRegistry, Contains<>, Exclude<E...>, C...> ECRegistry::ConstView(Exclude<E...>) const
     {
-        return Runtime::ConstView<ECRegistry, Exclude<E...>, C...>(*this);
+        return Runtime::ConstView<ECRegistry, Contains<>, Exclude<E...>, C...>(*this);
+    }
+
+    template <typename... C, typename... I, typename... E>
+    Runtime::View<ECRegistry, Contains<I...>, Exclude<E...>, C...> ECRegistry::View(Contains<I...>, Exclude<E...>)
+    {
+        return Runtime::View<ECRegistry, Contains<I...>, Exclude<E...>, C...>(*this);
+    }
+
+    template <typename... C, typename... I, typename... E>
+    Runtime::ConstView<ECRegistry, Contains<I...>, Exclude<E...>, C...> ECRegistry::View(Contains<I...>, Exclude<E...>) const
+    {
+        return Runtime::ConstView<ECRegistry, Contains<I...>, Exclude<E...>, C...>(*this);
+    }
+
+    template <typename... C, typename... I, typename... E>
+    Runtime::ConstView<ECRegistry, Contains<I...>, Exclude<E...>, C...> ECRegistry::ConstView(Contains<I...>, Exclude<E...>) const
+    {
+        return Runtime::ConstView<ECRegistry, Contains<I...>, Exclude<E...>, C...>(*this);
+    }
+
+    template <typename T>
+    void ECRegistry::AddTag(Entity inEntity)
+    {
+        static_assert(std::is_empty_v<T>, "tag components must be empty types");
+        static_assert(sizeof(T) == 1 && alignof(T) == 1, "tag components must have the one-byte empty layout");
+        AddTagDyn(Internal::GetClass<T>(), inEntity);
+    }
+
+    template <typename T>
+    void ECRegistry::RemoveTag(Entity inEntity)
+    {
+        static_assert(std::is_empty_v<T> && sizeof(T) == 1 && alignof(T) == 1, "tag components must have the one-byte empty layout");
+        RemoveTagDyn(Internal::GetClass<T>(), inEntity);
+    }
+
+    template <typename T>
+    bool ECRegistry::HasTag(Entity inEntity) const
+    {
+        static_assert(std::is_empty_v<T> && sizeof(T) == 1 && alignof(T) == 1, "tag components must have the one-byte empty layout");
+        return HasTagDyn(Internal::GetClass<T>(), inEntity);
     }
 
     template <typename C>

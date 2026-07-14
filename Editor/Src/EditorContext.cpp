@@ -90,6 +90,16 @@ namespace Editor {
         worldStructureVersion++;
     }
 
+    void EditorContext::NotifyComponentEdited(Runtime::Entity inEntity, Runtime::CompClass inClass)
+    {
+        auto& registry = sceneClient->GetWorld().GetRegistry();
+        if (!registry.Valid(inEntity) || !registry.HasDyn(inClass, inEntity)) {
+            return;
+        }
+        registry.NotifyUpdatedDyn(inClass, inEntity);
+        NotifyComponentsChanged(inEntity);
+    }
+
     void EditorContext::NotifyComponentsChanged(Runtime::Entity)
     {
         componentsVersion++;

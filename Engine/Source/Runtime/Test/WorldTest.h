@@ -41,7 +41,7 @@ struct EClass(globalComp) GBasicTest_ExpectVerifyResult {
 };
 
 class EClass() BasicTest_MotionSystem : public Runtime::System {
-    EPolyClassBody(BasicTest_MotionSystem)
+    EPolyDerivedClassBody(BasicTest_MotionSystem)
 
     explicit BasicTest_MotionSystem(Runtime::ECRegistry& inRegistry, const Runtime::SystemSetupContext& inContext);
     ~BasicTest_MotionSystem() override;
@@ -59,7 +59,7 @@ struct EClass(globalComp) GConcurrentTest_Context {
 };
 
 struct EClass() ConcurrentTest_SystemA : public Runtime::System {
-    EPolyClassBody(ConcurrentTest_SystemA)
+    EPolyDerivedClassBody(ConcurrentTest_SystemA)
 
     explicit ConcurrentTest_SystemA(Runtime::ECRegistry& inRegistry, const Runtime::SystemSetupContext& inContext);
     ~ConcurrentTest_SystemA() override;
@@ -68,7 +68,7 @@ struct EClass() ConcurrentTest_SystemA : public Runtime::System {
 };
 
 struct EClass() ConcurrentTest_SystemB : public Runtime::System {
-    EPolyClassBody(ConcurrentTest_SystemB)
+    EPolyDerivedClassBody(ConcurrentTest_SystemB)
 
     explicit ConcurrentTest_SystemB(Runtime::ECRegistry& inRegistry, const Runtime::SystemSetupContext& inContext);
     ~ConcurrentTest_SystemB() override;
@@ -77,7 +77,7 @@ struct EClass() ConcurrentTest_SystemB : public Runtime::System {
 };
 
 struct EClass() ConcurrentTest_VerifySystem : public Runtime::System {
-    EPolyClassBody(ConcurrentTest_VerifySystem)
+    EPolyDerivedClassBody(ConcurrentTest_VerifySystem)
 
     explicit ConcurrentTest_VerifySystem(Runtime::ECRegistry& inRegistry, const Runtime::SystemSetupContext& inContext);
     ~ConcurrentTest_VerifySystem() override;
