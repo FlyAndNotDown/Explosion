@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 
 #include <Common/Utility.h>
@@ -37,10 +38,11 @@ namespace Runtime {
         void Pause();
         void Stop();
         bool ShouldTick() const;
-        ECRegistry& GetRegistry();
-        const ECRegistry& GetRegistry() const;
         void LoadFrom(AssetPtr<Level> inLevel);
         void SaveTo(AssetPtr<Level> inLevel);
+#if BUILD_EDITOR
+        void EditorAccess(const std::function<void(ECRegistry&)>& inAccessFunc);
+#endif
 
     private:
         friend class Engine;

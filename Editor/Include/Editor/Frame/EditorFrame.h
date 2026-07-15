@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <Editor/EditorContext.h>
 #include <Runtime/Canvas.h>
@@ -15,16 +16,17 @@ namespace Editor {
         EditorFrame();
         ~EditorFrame();
 
-        void Render(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas, bool& outRequestQuit);
+        void Render(EditorContext& inContext, Runtime::ECRegistry& inRegistry, Runtime::Canvas& inSceneRenderCanvas, bool& outRequestQuit);
 
     private:
         void RenderMenuBar(EditorContext& inContext, bool& outRequestQuit);
         void RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas);
-        void RenderOutlinerTab(EditorContext& inContext);
-        void RenderInspectorTab(EditorContext& inContext);
+        void RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry);
+        void RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry);
         void RenderLogTab();
 
         std::string createEntityName;
         int selectedAddComponentIndex;
+        std::vector<Runtime::CompClass> componentClasses;
     };
 }

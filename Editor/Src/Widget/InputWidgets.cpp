@@ -172,7 +172,7 @@ namespace Editor {
         return true;
     }
 
-    bool RenderInputWidget(const std::string& inLabel, Mirror::Any inValue)
+    bool RenderInputWidget(const std::string& inLabel, Mirror::Any& inValue)
     {
         if (auto* value = inValue.TryAs<bool>()) { return InputWidget<bool>::Render(inLabel, *value); }
         if (auto* value = inValue.TryAs<int8_t>()) { return InputWidget<int8_t>::Render(inLabel, *value); }

@@ -816,7 +816,7 @@ namespace Runtime {
         max
     };
 
-    struct SystemSetupContext {
+    struct RUNTIME_API SystemSetupContext {
         SystemSetupContext();
 
         PlayType playType;

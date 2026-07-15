@@ -40,7 +40,7 @@ namespace Runtime {
         EProperty() Entity nextBro;
     };
 
-    class HierarchyOps {
+    class RUNTIME_API HierarchyOps {
     public:
         using TraverseFunc = std::function<void(Entity, Entity)>;
 
@@ -49,6 +49,8 @@ namespace Runtime {
         static bool HasChildren(ECRegistry& inRegistry, Entity inTarget);
         static void AttachToParent(ECRegistry& inRegistry, Entity inChild, Entity inParent);
         static void DetachFromParent(ECRegistry& inRegistry, Entity inChild);
+        static void Remove(ECRegistry& inRegistry, Entity inTarget);
+        static void Destroy(ECRegistry& inRegistry, Entity inTarget);
         static void TraverseChildren(ECRegistry& inRegistry, Entity inParent, const TraverseFunc& inFunc);
         static void TraverseChildrenRecursively(ECRegistry& inRegistry, Entity inParent, const TraverseFunc& inFunc);
     };

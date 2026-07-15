@@ -114,6 +114,24 @@ TEST_F(WorldTest, BasicTest)
     world.Stop();
 }
 
+#if BUILD_EDITOR
+TEST_F(WorldTest, EditorAccessMutatesEditorWorldImmediately)
+{
+    World world("EditorWorld", nullptr, PlayType::editor);
+    Entity editedEntity = entityNull;
+
+    world.EditorAccess([&](ECRegistry& registry) -> void {
+        editedEntity = registry.Create();
+        registry.Emplace<Position>(editedEntity, 1.0f, 2.0f);
+    });
+
+    ASSERT_NE(editedEntity, entityNull);
+    world.EditorAccess([&](ECRegistry& registry) -> void {
+        EXPECT_EQ(registry.Get<Position>(editedEntity), Position(1.0f, 2.0f));
+    });
+}
+#endif
+
 ConcurrentTest_SystemA::ConcurrentTest_SystemA(Runtime::ECRegistry& inRegistry, const Runtime::SystemSetupContext& inContext)
     : System(inRegistry, inContext)
 {

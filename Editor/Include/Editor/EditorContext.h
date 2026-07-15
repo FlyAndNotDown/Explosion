@@ -6,6 +6,7 @@
 
 #include <Common/Memory.h>
 #include <Editor/SceneClient.h>
+#include <Mirror/Mirror.h>
 
 namespace Editor {
     class EditorContext final {
@@ -15,22 +16,23 @@ namespace Editor {
 
         SceneClient& GetSceneClient() const;
         Runtime::Entity GetSelectedEntity() const;
-        uint64_t GetSelectionVersion() const;
-        uint64_t GetWorldStructureVersion() const;
-        uint64_t GetComponentsVersion() const;
+        bool CanAddComponent(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass) const;
+        bool CanRemoveComponent(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass) const;
 
         void SetSelectedEntity(Runtime::Entity inEntity);
-        Runtime::Entity CreateEntity(const std::string& inName);
-        void DestroyEntity(Runtime::Entity inEntity);
-        void RenameEntity(Runtime::Entity inEntity, const std::string& inName);
-        void NotifyComponentEdited(Runtime::Entity inEntity, Runtime::CompClass inClass);
-        void NotifyComponentsChanged(Runtime::Entity inEntity);
+        Runtime::Entity CreateEntity(Runtime::ECRegistry& inRegistry, const std::string& inName);
+        void DestroyEntity(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity);
+        bool AddComponent(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass);
+        bool RemoveComponent(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass);
+        bool SetComponentMember(
+            Runtime::ECRegistry& inRegistry,
+            Runtime::Entity inEntity,
+            Runtime::CompClass inClass,
+            const Mirror::MemberVariable& inMemberVariable,
+            const Mirror::Any& inValue);
 
     private:
         Common::UniquePtr<SceneClient> sceneClient;
         Runtime::Entity selectedEntity;
-        uint64_t selectionVersion;
-        uint64_t worldStructureVersion;
-        uint64_t componentsVersion;
     };
 }

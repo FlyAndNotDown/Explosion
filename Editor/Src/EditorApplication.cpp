@@ -299,7 +299,9 @@ namespace Editor {
     void EditorApplication::RenderEditorFrame(float inDeltaSeconds)
     {
         DrawDockSpace();
-        editorFrame.Render(*context, *sceneRenderCanvas, requestQuit);
+        context->GetSceneClient().GetWorld().EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            editorFrame.Render(*context, registry, *sceneRenderCanvas, requestQuit);
+        });
         if (requestQuit) {
             window->RequestClose();
         }
@@ -310,7 +312,6 @@ namespace Editor {
 
         ImGui::Render();
         window->SetDrawData(Internal::CloneDrawData(*ImGui::GetDrawData()));
-        context->GetSceneClient().TickEditorCamera(inDeltaSeconds);
         Runtime::EngineHolder::Get().Tick(inDeltaSeconds);
         window->RenderPendingUi();
     }
@@ -342,7 +343,7 @@ namespace Editor {
             }
             if (inAction == GLFW_PRESS || inAction == GLFW_RELEASE) {
                 const bool canRouteToScene = sceneClient.IsCameraLooking() || (!io.WantCaptureKeyboard && sceneClient.IsSceneHovered());
-                if (canRouteToScene) {
+                if (canRouteToScene || inAction == GLFW_RELEASE) {
                     sceneClient.OnKey(inKey, inAction == GLFW_PRESS);
                 }
             }

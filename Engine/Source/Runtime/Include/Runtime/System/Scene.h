@@ -33,6 +33,7 @@ namespace Runtime {
         void Tick(float inDeltaTimeSeconds) override;
 
     private:
+        template <typename Component, typename SceneProxy> void ProcessSceneProxyEvents(EventsObserver<Component>& inObserver, bool inWithScale = false);
         template <typename Component, typename SceneProxy> void QueueCreateSceneProxy(Entity inEntity, bool inWithScale = false);
         template <typename Component, typename SceneProxy> void QueueUpdateSceneProxyContent(Entity inEntity);
         template <typename SceneProxy> void QueueUpdateSceneProxyTransform(Entity inEntity, bool inWithScale = false);
@@ -69,26 +70,23 @@ namespace Runtime::Internal {
 
 namespace Runtime::Internal {
     template <>
-    inline void UpdateSceneProxyContent<DirectionalLight, Render::LightSceneProxy>(Render::LightSceneProxy& outSceneProxy, const DirectionalLight& inComponent)
+    inline void UpdateSceneProxyContent<DirectionalLight, Render::DirectionalLightSceneProxy>(Render::DirectionalLightSceneProxy& outSceneProxy, const DirectionalLight& inComponent)
     {
-        outSceneProxy.type = Render::LightType::directional;
         outSceneProxy.color = inComponent.color;
         outSceneProxy.intensity = inComponent.intensity;
     }
 
     template <>
-    inline void UpdateSceneProxyContent<PointLight, Render::LightSceneProxy>(Render::LightSceneProxy& outSceneProxy, const PointLight& inComponent)
+    inline void UpdateSceneProxyContent<PointLight, Render::PointLightSceneProxy>(Render::PointLightSceneProxy& outSceneProxy, const PointLight& inComponent)
     {
-        outSceneProxy.type = Render::LightType::point;
         outSceneProxy.color = inComponent.color;
         outSceneProxy.intensity = inComponent.intensity;
         outSceneProxy.radius = inComponent.radius;
     }
 
     template <>
-    inline void UpdateSceneProxyContent<SpotLight, Render::LightSceneProxy>(Render::LightSceneProxy& outSceneProxy, const SpotLight& inComponent)
+    inline void UpdateSceneProxyContent<SpotLight, Render::SpotLightSceneProxy>(Render::SpotLightSceneProxy& outSceneProxy, const SpotLight& inComponent)
     {
-        outSceneProxy.type = Render::LightType::spot;
         outSceneProxy.color = inComponent.color;
         outSceneProxy.intensity = inComponent.intensity;
     }
@@ -96,7 +94,7 @@ namespace Runtime::Internal {
     // runs on the render thread: uploads the mesh geometry and resolves the material's shader types, the asset chain
     // is kept alive by the component copy captured into the render thread task
     template <>
-    inline void UpdateSceneProxyContent<StaticPrimitive, Render::PrimitiveSceneProxy>(Render::PrimitiveSceneProxy& outSceneProxy, const StaticPrimitive& inComponent)
+    inline void UpdateSceneProxyContent<StaticPrimitive, Render::StaticPrimitiveSceneProxy>(Render::StaticPrimitiveSceneProxy& outSceneProxy, const StaticPrimitive& inComponent)
     {
         outSceneProxy.mesh = nullptr;
         outSceneProxy.vertexFactoryType = nullptr;
@@ -143,6 +141,23 @@ namespace Runtime::Internal {
 }
 
 namespace Runtime {
+    template <typename Component, typename SceneProxy>
+    void SceneSystem::ProcessSceneProxyEvents(EventsObserver<Component>& inObserver, bool inWithScale)
+    {
+        inObserver.Removed().Each([this](Entity e) -> void { QueueRemoveSceneProxy<SceneProxy>(e); });
+        inObserver.Constructed().Each([this, inWithScale](Entity e) -> void {
+            if (registry.Valid(e) && registry.Has<Component>(e)) {
+                QueueCreateSceneProxy<Component, SceneProxy>(e, inWithScale);
+            }
+        });
+        inObserver.Updated().Each([this](Entity e) -> void {
+            if (registry.Valid(e) && registry.Has<Component>(e)) {
+                QueueUpdateSceneProxyContent<Component, SceneProxy>(e);
+            }
+        });
+        inObserver.Clear();
+    }
+
     template <typename Component, typename SceneProxy>
     void SceneSystem::QueueCreateSceneProxy(Entity inEntity, bool inWithScale)
     {

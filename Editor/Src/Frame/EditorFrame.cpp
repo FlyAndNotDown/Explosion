@@ -13,6 +13,7 @@
 
 #include <Editor/EditorLog.h>
 #include <Editor/Frame/EditorFrame.h>
+#include <Editor/System/Camera.h>
 #include <Editor/Widget/InputWidgets.h>
 #include <Mirror/Mirror.h>
 #include <Runtime/Component/Name.h>
@@ -58,17 +59,22 @@ namespace Editor {
     EditorFrame::EditorFrame()
         : createEntityName("Entity")
         , selectedAddComponentIndex(0)
+        , componentClasses(Mirror::Class::GetAll())
     {
+        std::erase_if(componentClasses, [](Runtime::CompClass clazz) -> bool { return !clazz->HasMeta("comp"); });
+        std::ranges::sort(componentClasses, [](Runtime::CompClass lhs, Runtime::CompClass rhs) -> bool {
+            return lhs->GetName() < rhs->GetName();
+        });
     }
 
     EditorFrame::~EditorFrame() = default;
 
-    void EditorFrame::Render(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas, bool& outRequestQuit)
+    void EditorFrame::Render(EditorContext& inContext, Runtime::ECRegistry& inRegistry, Runtime::Canvas& inSceneRenderCanvas, bool& outRequestQuit)
     {
         RenderMenuBar(inContext, outRequestQuit);
         RenderSceneTab(inContext, inSceneRenderCanvas);
-        RenderOutlinerTab(inContext);
-        RenderInspectorTab(inContext);
+        RenderOutlinerTab(inContext, inRegistry);
+        RenderInspectorTab(inContext, inRegistry);
         RenderLogTab();
     }
 
@@ -110,23 +116,22 @@ namespace Editor {
         ImGui::PopStyleVar();
     }
 
-    void EditorFrame::RenderOutlinerTab(EditorContext& inContext)
+    void EditorFrame::RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry)
     {
         ImGui::Begin("Outliner");
         ImGui::InputText("New Entity", &createEntityName);
         ImGui::SameLine();
         if (ImGui::Button("Create")) {
-            const auto entity = inContext.CreateEntity(createEntityName);
+            const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
             inContext.SetSelectedEntity(entity);
         }
         ImGui::Separator();
 
-        auto& registry = inContext.GetSceneClient().GetWorld().GetRegistry();
-        registry.Each([&](Runtime::Entity entity) -> void {
-            if (registry.HasTag<Runtime::TransientTag>(entity)) {
+        inRegistry.Each([&](Runtime::Entity entity) -> void {
+            if (inRegistry.Has<EditorCameraController>(entity)) {
                 return;
             }
-            const std::string label = Internal::EntityDisplayName(registry, entity);
+            const std::string label = Internal::EntityDisplayName(inRegistry, entity);
             const bool selected = inContext.GetSelectedEntity() == entity;
             ImGui::PushID(static_cast<int>(entity));
             if (ImGui::Selectable(label.c_str(), selected)) {
@@ -137,39 +142,29 @@ namespace Editor {
         ImGui::End();
     }
 
-    void EditorFrame::RenderInspectorTab(EditorContext& inContext)
+    void EditorFrame::RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry)
     {
         ImGui::Begin("Inspector");
         const Runtime::Entity selectedEntity = inContext.GetSelectedEntity();
-        auto& registry = inContext.GetSceneClient().GetWorld().GetRegistry();
-        if (selectedEntity == Runtime::entityNull || !registry.Valid(selectedEntity)) {
+        if (selectedEntity == Runtime::entityNull || !inRegistry.Valid(selectedEntity)) {
             ImGui::TextDisabled("No entity selected");
             ImGui::End();
             return;
         }
 
-        std::string entityName = Internal::EntityDisplayName(registry, selectedEntity);
-        if (InputWidget<std::string>::Render("Name", entityName)) {
-            inContext.RenameEntity(selectedEntity, entityName);
-        }
         if (ImGui::Button("Destroy Entity")) {
-            inContext.DestroyEntity(selectedEntity);
+            inContext.DestroyEntity(inRegistry, selectedEntity);
             ImGui::End();
             return;
         }
         ImGui::Separator();
 
         std::vector<const Mirror::Class*> addableComponents;
-        for (const auto* clazz : Mirror::Class::GetAll()) {
-            const bool isTag = clazz->HasMeta(Runtime::MetaPresets::tag);
-            const bool hasType = isTag ? registry.HasTagDyn(clazz, selectedEntity) : registry.HasDyn(clazz, selectedEntity);
-            if (clazz->HasMeta("comp") && !hasType && (isTag || clazz->HasDefaultConstructor())) {
+        for (const auto* clazz : componentClasses) {
+            if (inContext.CanAddComponent(inRegistry, selectedEntity, clazz)) {
                 addableComponents.emplace_back(clazz);
             }
         }
-        std::ranges::sort(addableComponents, [](const Mirror::Class* lhs, const Mirror::Class* rhs) -> bool {
-            return lhs->GetName() < rhs->GetName();
-        });
 
         if (!addableComponents.empty()) {
             selectedAddComponentIndex = std::clamp(selectedAddComponentIndex, 0, static_cast<int>(addableComponents.size() - 1));
@@ -192,70 +187,47 @@ namespace Editor {
             ImGui::SameLine();
             if (ImGui::Button("Add")) {
                 const auto* selectedClass = addableComponents[selectedAddComponentIndex];
-                if (selectedClass->HasMeta(Runtime::MetaPresets::tag)) {
-                    registry.AddTagDyn(selectedClass, selectedEntity);
-                } else {
-                    registry.EmplaceDyn(selectedClass, selectedEntity, {});
-                }
-                inContext.NotifyComponentsChanged(selectedEntity);
+                inContext.AddComponent(inRegistry, selectedEntity, selectedClass);
             }
         }
 
         Runtime::CompClass componentToRemove = nullptr;
-        bool tagToRemove = false;
-        registry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {
-            if (compClass->HasMeta("transient")) {
-                return;
-            }
+        inRegistry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {
             ImGui::PushID(compClass->GetName().c_str());
             const std::string componentName = Internal::ComponentDisplayName(*compClass);
             const bool open = ImGui::CollapsingHeader(componentName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
-            if (ImGui::BeginPopupContextItem("ComponentMenu")) {
+            if (inContext.CanRemoveComponent(inRegistry, selectedEntity, compClass) && ImGui::BeginPopupContextItem("ComponentMenu")) {
                 if (ImGui::MenuItem("Remove")) {
                     componentToRemove = compClass;
-                    tagToRemove = false;
                 }
                 ImGui::EndPopup();
             }
             if (open && componentToRemove != compClass) {
-                const Mirror::Any compRef = registry.GetDyn(compClass, selectedEntity);
-                bool componentEdited = false;
+                const Mirror::Any compRef = inRegistry.GetDyn(compClass, selectedEntity);
                 for (const auto& memberVariable : compClass->GetMemberVariables() | std::views::values) {
-                    if (memberVariable.IsTransient()) {
-                        continue;
+                    const Mirror::Any memberRef = memberVariable.GetDyn(compRef);
+                    Mirror::Any memberValue = memberRef.Value();
+                    if (RenderInputWidget(memberVariable.GetName(), memberValue)) {
+                        inContext.SetComponentMember(inRegistry, selectedEntity, compClass, memberVariable, memberValue);
                     }
-                    Mirror::Any memberRef = memberVariable.GetDyn(compRef);
-                    componentEdited |= RenderInputWidget(memberVariable.GetName(), memberRef);
-                }
-                if (componentEdited) {
-                    inContext.NotifyComponentEdited(selectedEntity, compClass);
                 }
             }
             ImGui::PopID();
         });
-        registry.TagEach(selectedEntity, [&](Runtime::TagClass tagClass) -> void {
-            if (tagClass->HasMeta("transient")) {
-                return;
-            }
+        inRegistry.TagEach(selectedEntity, [&](Runtime::TagClass tagClass) -> void {
             ImGui::PushID(tagClass->GetName().c_str());
             const std::string tagName = Internal::ComponentDisplayName(*tagClass);
             ImGui::TextUnformatted(tagName.c_str());
-            if (ImGui::BeginPopupContextItem("ComponentMenu")) {
+            if (inContext.CanRemoveComponent(inRegistry, selectedEntity, tagClass) && ImGui::BeginPopupContextItem("ComponentMenu")) {
                 if (ImGui::MenuItem("Remove")) {
                     componentToRemove = tagClass;
-                    tagToRemove = true;
                 }
                 ImGui::EndPopup();
             }
             ImGui::PopID();
         });
         if (componentToRemove != nullptr) {
-            if (tagToRemove) {
-                registry.RemoveTagDyn(componentToRemove, selectedEntity);
-            } else {
-                registry.RemoveDyn(componentToRemove, selectedEntity);
-            }
-            inContext.NotifyComponentsChanged(selectedEntity);
+            inContext.RemoveComponent(inRegistry, selectedEntity, componentToRemove);
         }
         ImGui::End();
     }

@@ -5,9 +5,7 @@
 #pragma once
 
 #include <cstdint>
-#include <set>
 
-#include <Common/Math/Vector.h>
 #include <Core/Uri.h>
 #include <Runtime/Client.h>
 #include <Runtime/World.h>
@@ -34,11 +32,10 @@ namespace Editor {
         void SaveLevel();
         // the transient camera entity the editor scene renders through and moves, entityNull before the level is opened
         Runtime::Entity GetEditorCamera() const;
-        void TickEditorCamera(float inDeltaSeconds);
         void SetSceneHovered(bool inHovered);
         void SetSceneFocused(bool inFocused);
         bool IsSceneHovered() const;
-        bool IsCameraLooking() const;
+        bool IsCameraLooking();
         void OnKey(int inKey, bool inPressed);
         void BeginCameraLook();
         void EndCameraLook();
@@ -46,20 +43,12 @@ namespace Editor {
 
     private:
         void CreateEditorCamera();
-        Common::FVec2 CameraMoveInput() const;
 
         Core::Uri levelUri;
         Runtime::World world;
         EditorWindow* window;
         Runtime::RenderSurface* renderSurface;
         Runtime::Entity editorCamera;
-        std::set<int> pressedKeys;
         bool sceneHovered;
-        bool cameraLooking;
-        bool cameraAnglesInitialized;
-        float cameraYaw;
-        float cameraPitch;
-        float pendingLookDeltaX;
-        float pendingLookDeltaY;
     };
 }

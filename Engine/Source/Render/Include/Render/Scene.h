@@ -33,8 +33,10 @@ namespace Render {
         template <typename SP> SceneProxyContainer<SP>& GetSceneProxyContainer();
         template <typename SP> const SceneProxyContainer<SP>& GetSceneProxyContainer() const;
 
-        SceneProxyContainer<LightSceneProxy> lightSceneProxies;
-        SceneProxyContainer<PrimitiveSceneProxy> primitiveSceneProxies;
+        SceneProxyContainer<DirectionalLightSceneProxy> directionalLightSceneProxies;
+        SceneProxyContainer<PointLightSceneProxy> pointLightSceneProxies;
+        SceneProxyContainer<SpotLightSceneProxy> spotLightSceneProxies;
+        SceneProxyContainer<StaticPrimitiveSceneProxy> staticPrimitiveSceneProxies;
     };
 }
 
@@ -91,26 +93,50 @@ namespace Render {
 
 namespace Render {
     template <>
-    inline Scene::SceneProxyContainer<LightSceneProxy>& Scene::GetSceneProxyContainer<LightSceneProxy>()
+    inline Scene::SceneProxyContainer<DirectionalLightSceneProxy>& Scene::GetSceneProxyContainer<DirectionalLightSceneProxy>()
     {
-        return lightSceneProxies;
+        return directionalLightSceneProxies;
     }
 
     template <>
-    inline const Scene::SceneProxyContainer<LightSceneProxy>& Scene::GetSceneProxyContainer<LightSceneProxy>() const
+    inline const Scene::SceneProxyContainer<DirectionalLightSceneProxy>& Scene::GetSceneProxyContainer<DirectionalLightSceneProxy>() const
     {
-        return lightSceneProxies;
+        return directionalLightSceneProxies;
     }
 
     template <>
-    inline Scene::SceneProxyContainer<PrimitiveSceneProxy>& Scene::GetSceneProxyContainer<PrimitiveSceneProxy>()
+    inline Scene::SceneProxyContainer<PointLightSceneProxy>& Scene::GetSceneProxyContainer<PointLightSceneProxy>()
     {
-        return primitiveSceneProxies;
+        return pointLightSceneProxies;
     }
 
     template <>
-    inline const Scene::SceneProxyContainer<PrimitiveSceneProxy>& Scene::GetSceneProxyContainer<PrimitiveSceneProxy>() const
+    inline const Scene::SceneProxyContainer<PointLightSceneProxy>& Scene::GetSceneProxyContainer<PointLightSceneProxy>() const
     {
-        return primitiveSceneProxies;
+        return pointLightSceneProxies;
+    }
+
+    template <>
+    inline Scene::SceneProxyContainer<SpotLightSceneProxy>& Scene::GetSceneProxyContainer<SpotLightSceneProxy>()
+    {
+        return spotLightSceneProxies;
+    }
+
+    template <>
+    inline const Scene::SceneProxyContainer<SpotLightSceneProxy>& Scene::GetSceneProxyContainer<SpotLightSceneProxy>() const
+    {
+        return spotLightSceneProxies;
+    }
+
+    template <>
+    inline Scene::SceneProxyContainer<StaticPrimitiveSceneProxy>& Scene::GetSceneProxyContainer<StaticPrimitiveSceneProxy>()
+    {
+        return staticPrimitiveSceneProxies;
+    }
+
+    template <>
+    inline const Scene::SceneProxyContainer<StaticPrimitiveSceneProxy>& Scene::GetSceneProxyContainer<StaticPrimitiveSceneProxy>() const
+    {
+        return staticPrimitiveSceneProxies;
     }
 }

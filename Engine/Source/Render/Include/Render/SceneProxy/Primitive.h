@@ -17,6 +17,11 @@ namespace Render {
         PrimitiveSceneProxy();
 
         Common::FMat4x4 localToWorld;
+    };
+
+    struct StaticPrimitiveSceneProxy final : PrimitiveSceneProxy {
+        StaticPrimitiveSceneProxy();
+
         Common::SharedPtr<MeshRenderData> mesh;
         const VertexFactoryType* vertexFactoryType;
         const MaterialShaderType* vertexShaderType;
@@ -28,7 +33,11 @@ namespace Render {
 namespace Render {
     inline PrimitiveSceneProxy::PrimitiveSceneProxy()
         : localToWorld(Common::FMat4x4Consts::identity)
-        , vertexFactoryType(nullptr)
+    {
+    }
+
+    inline StaticPrimitiveSceneProxy::StaticPrimitiveSceneProxy()
+        : vertexFactoryType(nullptr)
         , vertexShaderType(nullptr)
         , pixelShaderType(nullptr)
         , baseColor(1.0f, 1.0f, 1.0f, 1.0f)

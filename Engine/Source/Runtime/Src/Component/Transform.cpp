@@ -6,6 +6,18 @@
 
 #include <Runtime/Component/Transform.h>
 
+namespace Runtime::Internal {
+    static bool IsAncestor(ECRegistry& inRegistry, Entity inAncestor, Entity inEntity)
+    {
+        for (Entity current = inEntity; current != entityNull; current = inRegistry.Get<Hierarchy>(current).parent) {
+            if (current == inAncestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 namespace Runtime {
     WorldTransform::WorldTransform() = default;
 
@@ -49,30 +61,42 @@ namespace Runtime {
 
     void HierarchyOps::AttachToParent(ECRegistry& inRegistry, Entity inChild, Entity inParent)
     {
+        Assert(inRegistry.Valid(inChild) && inRegistry.Valid(inParent));
+        Assert(inChild != inParent);
+        Assert(inRegistry.Has<Hierarchy>(inChild) && inRegistry.Has<Hierarchy>(inParent));
         Assert(!HasParent(inRegistry, inChild) && !HasBro(inRegistry, inChild));
+        Assert(!Internal::IsAncestor(inRegistry, inChild, inParent));
+
         auto& childHierarchy = inRegistry.Get<Hierarchy>(inChild);
         auto& parentHierarchy = inRegistry.Get<Hierarchy>(inParent);
+        const Entity oldFirstChild = parentHierarchy.firstChild;
         childHierarchy.parent = inParent;
-        childHierarchy.nextBro = parentHierarchy.firstChild;
-        if (parentHierarchy.firstChild != entityNull) {
-            auto& oldFirstChildHierarchy = inRegistry.Get<Hierarchy>(parentHierarchy.firstChild);
+        childHierarchy.nextBro = oldFirstChild;
+        if (oldFirstChild != entityNull) {
+            auto& oldFirstChildHierarchy = inRegistry.Get<Hierarchy>(oldFirstChild);
             oldFirstChildHierarchy.prevBro = inChild;
+            inRegistry.NotifyUpdated<Hierarchy>(oldFirstChild);
         }
         parentHierarchy.firstChild = inChild;
+        inRegistry.NotifyUpdated<Hierarchy>(inChild);
+        inRegistry.NotifyUpdated<Hierarchy>(inParent);
     }
 
     void HierarchyOps::DetachFromParent(ECRegistry& inRegistry, Entity inChild)
     {
         Assert(HasParent(inRegistry, inChild));
         auto& childHierarchy = inRegistry.Get<Hierarchy>(inChild);
-        auto& parentHierarchy = inRegistry.Get<Hierarchy>(childHierarchy.parent);
+        const Entity parent = childHierarchy.parent;
+        auto& parentHierarchy = inRegistry.Get<Hierarchy>(parent);
 
         if (parentHierarchy.firstChild == inChild) {
             Assert(childHierarchy.prevBro == entityNull);
             parentHierarchy.firstChild = childHierarchy.nextBro;
             if (childHierarchy.nextBro != entityNull) {
-                auto& nextBroHierarchy = inRegistry.Get<Hierarchy>(childHierarchy.nextBro);
+                const Entity nextBro = childHierarchy.nextBro;
+                auto& nextBroHierarchy = inRegistry.Get<Hierarchy>(nextBro);
                 nextBroHierarchy.prevBro = entityNull;
+                inRegistry.NotifyUpdated<Hierarchy>(nextBro);
             }
             childHierarchy.nextBro = entityNull;
         } else {
@@ -86,11 +110,36 @@ namespace Runtime {
                 auto& nextBroHierarchy = inRegistry.Get<Hierarchy>(nextBro);
                 Assert(nextBroHierarchy.prevBro == inChild);
                 nextBroHierarchy.prevBro = prevBro;
+                inRegistry.NotifyUpdated<Hierarchy>(nextBro);
             }
             childHierarchy.prevBro = entityNull;
             childHierarchy.nextBro = entityNull;
+            inRegistry.NotifyUpdated<Hierarchy>(prevBro);
         }
         childHierarchy.parent = entityNull;
+        inRegistry.NotifyUpdated<Hierarchy>(inChild);
+        inRegistry.NotifyUpdated<Hierarchy>(parent);
+    }
+
+    void HierarchyOps::Remove(ECRegistry& inRegistry, Entity inTarget)
+    {
+        Assert(inRegistry.Valid(inTarget) && inRegistry.Has<Hierarchy>(inTarget));
+        while (HasChildren(inRegistry, inTarget)) {
+            DetachFromParent(inRegistry, inRegistry.Get<Hierarchy>(inTarget).firstChild);
+        }
+        if (HasParent(inRegistry, inTarget)) {
+            DetachFromParent(inRegistry, inTarget);
+        }
+        inRegistry.Remove<Hierarchy>(inTarget);
+    }
+
+    void HierarchyOps::Destroy(ECRegistry& inRegistry, Entity inTarget)
+    {
+        Assert(inRegistry.Valid(inTarget));
+        if (inRegistry.Has<Hierarchy>(inTarget)) {
+            Remove(inRegistry, inTarget);
+        }
+        inRegistry.Destroy(inTarget);
     }
 
     void HierarchyOps::TraverseChildren(ECRegistry& inRegistry, Entity inParent, const TraverseFunc& inFunc)

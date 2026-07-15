@@ -3,13 +3,13 @@
 //
 
 #include <array>
-#include <algorithm>
-#include <cmath>
 #include <string>
 
 #include <GLFW/glfw3.h>
 #include <Editor/EditorWindow.h>
 #include <Editor/SceneClient.h>
+#include <Editor/System/Camera.h>
+#include <Editor/SystemGraphPresets.h>
 #include <Runtime/Asset/Asset.h>
 #include <Runtime/Asset/Level.h>
 #include <Runtime/Asset/Material.h>
@@ -19,18 +19,12 @@
 #include <Runtime/Component/Player.h>
 #include <Runtime/Component/Primitive.h>
 #include <Runtime/Component/Transform.h>
-#include <Runtime/SystemGraphPresets.h>
 
 namespace Editor::Internal {
     const Core::Uri mainLevelUri("asset://Game/Maps/Main");
     const Core::Uri defaultUnlitMaterialUri("asset://Game/Materials/DefaultUnlit");
     const Core::Uri defaultUnlitInstanceUri("asset://Game/Materials/DefaultUnlitInstance");
     const Core::Uri cubeMeshUri("asset://Game/Meshes/Cube");
-    constexpr float cameraMoveSpeed = 5.0f;
-    constexpr float cameraLookSpeedDegrees = 0.2f;
-    constexpr float maxCameraPitchDegrees = 89.0f;
-    constexpr float degToRad = 3.14159265358979323846f / 180.0f;
-
     static bool AssetExists(const Core::Uri& inUri)
     {
         return Core::AssetUriParser(inUri).Parse().Exists();
@@ -142,14 +136,8 @@ namespace Editor {
         , renderSurface(nullptr)
         , editorCamera(Runtime::entityNull)
         , sceneHovered(false)
-        , cameraLooking(false)
-        , cameraAnglesInitialized(false)
-        , cameraYaw(0.0f)
-        , cameraPitch(0.0f)
-        , pendingLookDeltaX(0.0f)
-        , pendingLookDeltaY(0.0f)
     {
-        world.SetSystemGraph(Runtime::SystemGraphPresets::Default3DWorld());
+        world.SetSystemGraph(EditorSystemGraphPresets::DefaultEditorWorld());
     }
 
     SceneClient::~SceneClient()
@@ -185,6 +173,12 @@ namespace Editor {
         if (renderSurface == nullptr) {
             return;
         }
+        if (const auto* texture = renderSurface->GetTexture();
+            texture != nullptr
+            && texture->GetCreateInfo().width == inWidth
+            && texture->GetCreateInfo().height == inHeight) {
+            return;
+        }
         if (window != nullptr) {
             window->WaitRenderingIdle();
         }
@@ -198,7 +192,7 @@ namespace Editor {
             const auto level = Runtime::AssetManager::Get().SyncLoad<Runtime::Level>(levelUri, Mirror::Class::Get<Runtime::Level>());
             world.LoadFrom(level);
         } else {
-            Internal::AuthorDefaultLevelContent(world.GetRegistry());
+            world.EditorAccess(Internal::AuthorDefaultLevelContent);
             SaveLevel();
         }
         CreateEditorCamera();
@@ -217,50 +211,6 @@ namespace Editor {
         return editorCamera;
     }
 
-    void SceneClient::TickEditorCamera(float inDeltaSeconds)
-    {
-        if (!world.Playing() || editorCamera == Runtime::entityNull) {
-            return;
-        }
-        auto& registry = world.GetRegistry();
-
-        if (!cameraAnglesInitialized) {
-            const auto forward = registry.Get<Runtime::WorldTransform>(editorCamera).localToWorld.GetRotationMatrix().Col(0);
-            cameraYaw = std::atan2(-forward.y, forward.x);
-            const float maxPitch = Internal::maxCameraPitchDegrees * Internal::degToRad;
-            cameraPitch = std::clamp(std::asin(std::clamp(forward.z, -1.0f, 1.0f)), -maxPitch, maxPitch);
-            cameraAnglesInitialized = true;
-        }
-
-        if (cameraLooking) {
-            cameraYaw -= pendingLookDeltaX * Internal::cameraLookSpeedDegrees * Internal::degToRad;
-            cameraPitch -= pendingLookDeltaY * Internal::cameraLookSpeedDegrees * Internal::degToRad;
-            const float maxPitch = Internal::maxCameraPitchDegrees * Internal::degToRad;
-            cameraPitch = std::clamp(cameraPitch, -maxPitch, maxPitch);
-            pendingLookDeltaX = 0.0f;
-            pendingLookDeltaY = 0.0f;
-        }
-
-        const Common::FVec2 moveInput = cameraLooking ? CameraMoveInput() : Common::FVec2Consts::zero;
-        const bool moving = moveInput.x != 0.0f || moveInput.y != 0.0f;
-        if (!moving && !cameraLooking) {
-            return;
-        }
-
-        const Common::FQuat orientation =
-            Common::FQuat(Common::FVec3Consts::unitY, Common::FRadian(cameraPitch))
-            * Common::FQuat(Common::FVec3Consts::unitZ, Common::FRadian(cameraYaw));
-        const Common::FVec3 moveForward = orientation.RotateVector(Common::FVec3Consts::unitX);
-        const Common::FVec3 moveRight = orientation.RotateVector(Common::FVec3Consts::unitY);
-
-        registry.Update<Runtime::WorldTransform>(editorCamera, [&](Runtime::WorldTransform& transform) -> void {
-            const float moveDelta = Internal::cameraMoveSpeed * inDeltaSeconds;
-            transform.localToWorld.translation += moveForward * (moveInput.x * moveDelta);
-            transform.localToWorld.translation += moveRight * (moveInput.y * moveDelta);
-            transform.localToWorld.rotation = orientation;
-        });
-    }
-
     void SceneClient::SetSceneHovered(bool inHovered)
     {
         sceneHovered = inHovered;
@@ -268,8 +218,15 @@ namespace Editor {
 
     void SceneClient::SetSceneFocused(bool inFocused)
     {
-        if (!inFocused && !cameraLooking) {
-            pressedKeys.clear();
+        if (!inFocused && !IsCameraLooking() && world.Playing()) {
+            world.EditorAccess([](Runtime::ECRegistry& registry) -> void {
+                registry.GUpdate<EditorCameraInput>([](EditorCameraInput& input) -> void {
+                    input.moveForward = false;
+                    input.moveBackward = false;
+                    input.moveLeft = false;
+                    input.moveRight = false;
+                });
+            });
         }
     }
 
@@ -278,26 +235,51 @@ namespace Editor {
         return sceneHovered;
     }
 
-    bool SceneClient::IsCameraLooking() const
+    bool SceneClient::IsCameraLooking()
     {
-        return cameraLooking;
+        if (!world.Playing()) {
+            return false;
+        }
+        bool looking = false;
+        world.EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            looking = registry.GHas<EditorCameraInput>()
+                && registry.GGet<EditorCameraInput>().looking;
+        });
+        return looking;
     }
 
     void SceneClient::OnKey(int inKey, bool inPressed)
     {
-        if (inPressed) {
-            pressedKeys.insert(inKey);
-        } else {
-            pressedKeys.erase(inKey);
+        if (!world.Playing()) {
+            return;
         }
+        if (inKey != GLFW_KEY_W && inKey != GLFW_KEY_S && inKey != GLFW_KEY_A && inKey != GLFW_KEY_D) {
+            return;
+        }
+        world.EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            if (!registry.GHas<EditorCameraInput>()) {
+                return;
+            }
+            registry.GUpdate<EditorCameraInput>([&](EditorCameraInput& input) -> void {
+                if (inKey == GLFW_KEY_W) { input.moveForward = inPressed; }
+                if (inKey == GLFW_KEY_S) { input.moveBackward = inPressed; }
+                if (inKey == GLFW_KEY_A) { input.moveLeft = inPressed; }
+                if (inKey == GLFW_KEY_D) { input.moveRight = inPressed; }
+            });
+        });
     }
 
     void SceneClient::BeginCameraLook()
     {
-        if (cameraLooking || !sceneHovered) {
+        if (IsCameraLooking() || !sceneHovered || !world.Playing()) {
             return;
         }
-        cameraLooking = true;
+        world.EditorAccess([](Runtime::ECRegistry& registry) -> void {
+            registry.GUpdate<EditorCameraInput>([](EditorCameraInput& input) -> void {
+                input.looking = true;
+                input.lookDelta = Common::FVec2Consts::zero;
+            });
+        });
         if (window != nullptr) {
             glfwSetInputMode(window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
@@ -305,13 +287,19 @@ namespace Editor {
 
     void SceneClient::EndCameraLook()
     {
-        if (!cameraLooking) {
+        if (!IsCameraLooking()) {
             return;
         }
-        cameraLooking = false;
-        pendingLookDeltaX = 0.0f;
-        pendingLookDeltaY = 0.0f;
-        pressedKeys.clear();
+        world.EditorAccess([](Runtime::ECRegistry& registry) -> void {
+            registry.GUpdate<EditorCameraInput>([](EditorCameraInput& input) -> void {
+                input.moveForward = false;
+                input.moveBackward = false;
+                input.moveLeft = false;
+                input.moveRight = false;
+                input.looking = false;
+                input.lookDelta = Common::FVec2Consts::zero;
+            });
+        });
         if (window != nullptr) {
             glfwSetInputMode(window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
@@ -319,34 +307,26 @@ namespace Editor {
 
     void SceneClient::AddCameraLookDelta(float inDeltaX, float inDeltaY)
     {
-        if (!cameraLooking) {
+        if (!IsCameraLooking()) {
             return;
         }
-        pendingLookDeltaX += inDeltaX;
-        pendingLookDeltaY += inDeltaY;
+        world.EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            registry.GUpdate<EditorCameraInput>([&](EditorCameraInput& input) -> void {
+                input.lookDelta += Common::FVec2(inDeltaX, inDeltaY);
+            });
+        });
     }
 
     void SceneClient::CreateEditorCamera()
     {
-        auto& registry = world.GetRegistry();
-        editorCamera = registry.Create();
-        registry.AddTag<Runtime::TransientTag>(editorCamera);
-        registry.Emplace<Runtime::Camera>(editorCamera);
-        // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
-        const Common::FTransform cameraTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
-        registry.Emplace<Runtime::WorldTransform>(editorCamera, cameraTransform);
+        world.EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            editorCamera = registry.Create();
+            registry.AddTag<Runtime::TransientTag>(editorCamera);
+            registry.Emplace<Runtime::Camera>(editorCamera);
+            registry.Emplace<EditorCameraController>(editorCamera);
+            const Common::FTransform cameraTransform = Common::FTransform::LookAt(Common::FVec3(-5.0f, -6.0f, 4.0f), Common::FVec3(0.0f, 0.0f, 0.5f));
+            registry.Emplace<Runtime::WorldTransform>(editorCamera, cameraTransform);
+        });
     }
 
-    Common::FVec2 SceneClient::CameraMoveInput() const
-    {
-        Common::FVec2 result(0.0f, 0.0f);
-        if (pressedKeys.contains(GLFW_KEY_W)) { result.x += 1.0f; }
-        if (pressedKeys.contains(GLFW_KEY_S)) { result.x -= 1.0f; }
-        if (pressedKeys.contains(GLFW_KEY_D)) { result.y += 1.0f; }
-        if (pressedKeys.contains(GLFW_KEY_A)) { result.y -= 1.0f; }
-        if (result.Model() > 1.0f) {
-            result.Normalize();
-        }
-        return result;
-    }
 }

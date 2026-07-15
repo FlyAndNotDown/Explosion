@@ -134,5 +134,5 @@ namespace Editor {
         static bool Render(const std::string& inLabel, Common::Color& inValue);
     };
 
-    bool RenderInputWidget(const std::string& inLabel, Mirror::Any inValue);
+    bool RenderInputWidget(const std::string& inLabel, Mirror::Any& inValue);
 }

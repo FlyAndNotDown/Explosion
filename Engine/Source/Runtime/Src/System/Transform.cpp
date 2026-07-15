@@ -10,7 +10,9 @@ namespace Runtime {
         , worldTransformUpdatedObserver(registry.Observer())
         , localTransformUpdatedObserver(registry.Observer())
     {
-        worldTransformUpdatedObserver.ObUpdated<WorldTransform>();
+        worldTransformUpdatedObserver
+            .ObConstructed<WorldTransform>()
+            .ObUpdated<WorldTransform>();
         localTransformUpdatedObserver.ObUpdated<LocalTransform>();
     }
 
@@ -18,7 +20,8 @@ namespace Runtime {
 
     void TransformSystem::Tick(float inDeltaTimeSeconds)
     {
-        // Step0: classify the updated entities
+        static_cast<void>(inDeltaTimeSeconds);
+
         std::vector<Entity> pendingUpdateLocalTransforms;
         std::vector<Entity> pendingUpdateChildrenWorldTransforms;
         std::vector<Entity> pendingUpdateSelfAndChildrenWorldTransforms;
@@ -26,6 +29,9 @@ namespace Runtime {
         pendingUpdateLocalTransforms.reserve(worldTransformUpdatedObserver.Count());
         pendingUpdateChildrenWorldTransforms.reserve(worldTransformUpdatedObserver.Count());
         worldTransformUpdatedObserver.EachThenClear([&](Entity e) -> void {
+            if (!registry.Valid(e) || !registry.Has<WorldTransform>(e)) {
+                return;
+            }
             if (registry.Has<LocalTransform>(e) && registry.Has<Hierarchy>(e) && HierarchyOps::HasParent(registry, e)) {
                 pendingUpdateLocalTransforms.emplace_back(e);
             }
@@ -37,12 +43,14 @@ namespace Runtime {
 
         pendingUpdateSelfAndChildrenWorldTransforms.reserve(localTransformUpdatedObserver.Count());
         localTransformUpdatedObserver.EachThenClear([&](Entity e) -> void {
+            if (!registry.Valid(e) || !registry.Has<LocalTransform>(e)) {
+                return;
+            }
             if (registry.Has<WorldTransform>(e) && registry.Has<Hierarchy>(e) && HierarchyOps::HasParent(registry, e)) {
                 pendingUpdateSelfAndChildrenWorldTransforms.emplace_back(e);
             }
         });
 
-        // Step1: update local transforms
         for (auto e : pendingUpdateLocalTransforms) {
             auto& localTransform = registry.Get<LocalTransform>(e);
             const auto& worldTransform = registry.Get<WorldTransform>(e);
@@ -54,7 +62,6 @@ namespace Runtime {
             localTransform.localToParent = Common::FTransform(parentLocalToWorldMatrix.Inverse() * localToWorldMatrix);
         }
 
-        // Step2: update world transforms
         const auto updateWorldByLocal = [&](Entity child, Entity parent) -> void {
             if (!registry.Has<LocalTransform>(child) || !registry.Has<WorldTransform>(child) || !registry.Has<WorldTransform>(parent)) {
                 return;
@@ -67,6 +74,7 @@ namespace Runtime {
             const auto& parentLocalToWorldMatrix = parentWorldTransform.localToWorld.GetTransformMatrix();
             const auto& childLocalToParentMatrix = childLocalTransform.localToParent.GetTransformMatrix();
             childWorldTransform.localToWorld = Common::FTransform(parentLocalToWorldMatrix * childLocalToParentMatrix);
+            registry.NotifyUpdated<WorldTransform>(child);
         };
 
         for (const auto e : pendingUpdateChildrenWorldTransforms) {
@@ -82,5 +90,7 @@ namespace Runtime {
                 updateWorldByLocal(child, parent);
             });
         }
+
+        worldTransformUpdatedObserver.Clear();
     }
 }
