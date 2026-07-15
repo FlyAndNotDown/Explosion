@@ -15,10 +15,6 @@ exp_add_test(
     SRC ${test_sources}
 )
 
-# exp_add_benchmark early-returns when BUILD_BENCHMARK is OFF, so this is safe to declare unconditionally.
-file(GLOB benchmark_sources Benchmark/*.cpp)
-exp_add_benchmark(
-    NAME Common.Benchmark
-    SRC ${benchmark_sources}
-    LIB Common
-)
+if (BUILD_BENCHMARK)
+    add_subdirectory(Benchmark)
+endif ()
