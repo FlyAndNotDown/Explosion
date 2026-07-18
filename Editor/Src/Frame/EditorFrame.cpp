@@ -60,6 +60,12 @@ namespace Editor {
         : createEntityName("Entity")
         , selectedAddComponentIndex(0)
         , componentClasses(Mirror::Class::GetAll())
+        , tabVisibility {
+            .scene = true,
+            .outliner = true,
+            .inspector = true,
+            .log = true
+        }
     {
         std::erase_if(componentClasses, [](Runtime::CompClass clazz) -> bool { return !clazz->HasMeta("comp"); });
         std::ranges::sort(componentClasses, [](Runtime::CompClass lhs, Runtime::CompClass rhs) -> bool {
@@ -72,10 +78,21 @@ namespace Editor {
     void EditorFrame::Render(EditorContext& inContext, Runtime::ECRegistry& inRegistry, Runtime::Canvas& inSceneRenderCanvas, bool& outRequestQuit)
     {
         RenderMenuBar(inContext, outRequestQuit);
-        RenderSceneTab(inContext, inSceneRenderCanvas);
-        RenderOutlinerTab(inContext, inRegistry);
-        RenderInspectorTab(inContext, inRegistry);
-        RenderLogTab();
+        if (tabVisibility.scene) {
+            RenderSceneTab(inContext, inSceneRenderCanvas, tabVisibility.scene);
+        } else {
+            inContext.GetSceneClient().SetSceneHovered(false);
+            inContext.GetSceneClient().SetSceneFocused(false);
+        }
+        if (tabVisibility.outliner) {
+            RenderOutlinerTab(inContext, inRegistry, tabVisibility.outliner);
+        }
+        if (tabVisibility.inspector) {
+            RenderInspectorTab(inContext, inRegistry, tabVisibility.inspector);
+        }
+        if (tabVisibility.log) {
+            RenderLogTab(tabVisibility.log);
+        }
     }
 
     void EditorFrame::RenderMenuBar(EditorContext& inContext, bool& outRequestQuit)
@@ -93,32 +110,46 @@ namespace Editor {
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("View")) {
+            ImGui::MenuItem("Scene", nullptr, &tabVisibility.scene);
+            ImGui::MenuItem("Outliner", nullptr, &tabVisibility.outliner);
+            ImGui::MenuItem("Inspector", nullptr, &tabVisibility.inspector);
+            ImGui::MenuItem("Log", nullptr, &tabVisibility.log);
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
     }
 
-    void EditorFrame::RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas)
+    void EditorFrame::RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas, bool& inOutOpen)
     {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        ImVec2 sceneSize = ImGui::GetContentRegionAvail();
-        sceneSize.x = std::max(sceneSize.x, 1.0f);
-        sceneSize.y = std::max(sceneSize.y, 1.0f);
-
-        const ImVec2 framebufferScale = ImGui::GetIO().DisplayFramebufferScale;
         auto& sceneClient = inContext.GetSceneClient();
-        sceneClient.ResizeRenderSurface(
-            std::max(1u, static_cast<uint32_t>(sceneSize.x * framebufferScale.x)),
-            std::max(1u, static_cast<uint32_t>(sceneSize.y * framebufferScale.y)));
-        ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(inSceneRenderCanvas.GetTextureView())), sceneSize);
-        sceneClient.SetSceneHovered(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem));
-        sceneClient.SetSceneFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
+        if (ImGui::Begin("Scene", &inOutOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+            ImVec2 sceneSize = ImGui::GetContentRegionAvail();
+            sceneSize.x = std::max(sceneSize.x, 1.0f);
+            sceneSize.y = std::max(sceneSize.y, 1.0f);
+
+            const ImVec2 framebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+            sceneClient.ResizeRenderSurface(
+                std::max(1u, static_cast<uint32_t>(sceneSize.x * framebufferScale.x)),
+                std::max(1u, static_cast<uint32_t>(sceneSize.y * framebufferScale.y)));
+            ImGui::Image(static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(inSceneRenderCanvas.GetTextureView())), sceneSize);
+            sceneClient.SetSceneHovered(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem));
+            sceneClient.SetSceneFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
+        } else {
+            sceneClient.SetSceneHovered(false);
+            sceneClient.SetSceneFocused(false);
+        }
         ImGui::End();
         ImGui::PopStyleVar();
     }
 
-    void EditorFrame::RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry)
+    void EditorFrame::RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        ImGui::Begin("Outliner");
+        if (!ImGui::Begin("Outliner", &inOutOpen)) {
+            ImGui::End();
+            return;
+        }
         ImGui::InputText("New Entity", &createEntityName);
         ImGui::SameLine();
         if (ImGui::Button("Create")) {
@@ -142,9 +173,12 @@ namespace Editor {
         ImGui::End();
     }
 
-    void EditorFrame::RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry)
+    void EditorFrame::RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        ImGui::Begin("Inspector");
+        if (!ImGui::Begin("Inspector", &inOutOpen)) {
+            ImGui::End();
+            return;
+        }
         const Runtime::Entity selectedEntity = inContext.GetSelectedEntity();
         if (selectedEntity == Runtime::entityNull || !inRegistry.Valid(selectedEntity)) {
             ImGui::TextDisabled("No entity selected");
@@ -232,9 +266,12 @@ namespace Editor {
         ImGui::End();
     }
 
-    void EditorFrame::RenderLogTab()
+    void EditorFrame::RenderLogTab(bool& inOutOpen)
     {
-        ImGui::Begin("Log");
+        if (!ImGui::Begin("Log", &inOutOpen)) {
+            ImGui::End();
+            return;
+        }
         const auto entries = EditorLogStream::Get().Snapshot();
         if (ImGui::Button("Copy")) {
             std::string text;

@@ -10,6 +10,15 @@
 #include <Editor/EditorContext.h>
 #include <Runtime/Canvas.h>
 
+namespace Editor::Internal {
+    struct EditorTabVisibility {
+        bool scene;
+        bool outliner;
+        bool inspector;
+        bool log;
+    };
+}
+
 namespace Editor {
     class EditorFrame final {
     public:
@@ -20,13 +29,14 @@ namespace Editor {
 
     private:
         void RenderMenuBar(EditorContext& inContext, bool& outRequestQuit);
-        void RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas);
-        void RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry);
-        void RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry);
-        void RenderLogTab();
+        void RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas, bool& inOutOpen);
+        void RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen);
+        void RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen);
+        void RenderLogTab(bool& inOutOpen);
 
         std::string createEntityName;
         int selectedAddComponentIndex;
         std::vector<Runtime::CompClass> componentClasses;
+        Internal::EditorTabVisibility tabVisibility;
     };
 }
