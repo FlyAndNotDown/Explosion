@@ -23,7 +23,8 @@
 namespace Editor::Internal {
     const Core::Uri mainLevelUri("asset://Game/Maps/Main");
     const Core::Uri defaultUnlitMaterialUri("asset://Game/Materials/DefaultUnlit");
-    const Core::Uri defaultUnlitInstanceUri("asset://Game/Materials/DefaultUnlitInstance");
+    const Core::Uri lightGrayUnlitMaterialInstanceUri("asset://Game/Materials/LightGrayUnlit");
+    const Core::Uri yellowUnlitMaterialInstanceUri("asset://Game/Materials/YellowUnlit");
     const Core::Uri cubeMeshUri("asset://Game/Meshes/Cube");
     static bool AssetExists(const Core::Uri& inUri)
     {
@@ -70,11 +71,11 @@ namespace Editor::Internal {
         return result;
     }
 
-    static Runtime::AssetPtr<Runtime::StaticMesh> EnsureDefaultCubeMesh()
+    static Runtime::AssetPtr<Runtime::Material> EnsureDefaultUnlitMaterial()
     {
         auto& assetManager = Runtime::AssetManager::Get();
-        if (AssetExists(cubeMeshUri)) {
-            return assetManager.SyncLoad<Runtime::StaticMesh>(cubeMeshUri, Mirror::Class::Get<Runtime::StaticMesh>());
+        if (AssetExists(defaultUnlitMaterialUri)) {
+            return assetManager.SyncLoad<Runtime::Material>(defaultUnlitMaterialUri, Mirror::Class::Get<Runtime::Material>());
         }
 
         Runtime::AssetPtr<Runtime::Material> material = new Runtime::Material(defaultUnlitMaterialUri);
@@ -85,22 +86,53 @@ namespace Editor::Internal {
         material->EmplaceParameterField("baseColor") = baseColorField;
         material->Update();
         SaveAsset(material);
+        return material;
+    }
 
-        Runtime::AssetPtr<Runtime::MaterialInstance> materialInstance = new Runtime::MaterialInstance(defaultUnlitInstanceUri);
-        materialInstance->SetMaterial(material);
-        materialInstance->SetParameter("baseColor", Common::FVec4(0.9f, 0.6f, 0.2f, 1.0f));
+    static Runtime::AssetPtr<Runtime::MaterialInstance> EnsureDefaultUnlitMaterialInstance(
+        const Core::Uri& inUri,
+        const Common::FVec4& inBaseColor,
+        const Runtime::AssetPtr<Runtime::Material>& inMaterial)
+    {
+        auto& assetManager = Runtime::AssetManager::Get();
+        if (AssetExists(inUri)) {
+            return assetManager.SyncLoad<Runtime::MaterialInstance>(inUri, Mirror::Class::Get<Runtime::MaterialInstance>());
+        }
+
+        Runtime::AssetPtr<Runtime::MaterialInstance> materialInstance = new Runtime::MaterialInstance(inUri);
+        materialInstance->SetMaterial(inMaterial);
+        materialInstance->SetParameter("baseColor", inBaseColor);
         SaveAsset(materialInstance);
+        return materialInstance;
+    }
 
-        Runtime::AssetPtr<Runtime::StaticMesh> cubeMesh = new Runtime::StaticMesh(cubeMeshUri);
-        cubeMesh->SetMaterial(materialInstance);
-        cubeMesh->EmplaceLOD().vertices = BuildCubeVertices();
-        SaveAsset(cubeMesh);
-        return cubeMesh;
+    static Runtime::AssetPtr<Runtime::StaticMesh> EnsureDefaultCubeMesh(
+        const Runtime::AssetPtr<Runtime::MaterialInstance>& inMaterial)
+    {
+        auto& assetManager = Runtime::AssetManager::Get();
+        if (AssetExists(cubeMeshUri)) {
+            return assetManager.SyncLoad<Runtime::StaticMesh>(cubeMeshUri, Mirror::Class::Get<Runtime::StaticMesh>());
+        }
+
+        Runtime::AssetPtr<Runtime::StaticMesh> mesh = new Runtime::StaticMesh(cubeMeshUri);
+        mesh->SetMaterial(inMaterial);
+        mesh->EmplaceLOD().vertices = BuildCubeVertices();
+        SaveAsset(mesh);
+        return mesh;
     }
 
     static void AuthorDefaultLevelContent(Runtime::ECRegistry& inRegistry)
     {
-        const Runtime::AssetPtr<Runtime::StaticMesh> cubeMesh = EnsureDefaultCubeMesh();
+        const Runtime::AssetPtr<Runtime::Material> defaultUnlitMaterial = EnsureDefaultUnlitMaterial();
+        const Runtime::AssetPtr<Runtime::MaterialInstance> lightGrayMaterial = EnsureDefaultUnlitMaterialInstance(
+            lightGrayUnlitMaterialInstanceUri,
+            Common::FVec4(0.75f, 0.75f, 0.75f, 1.0f),
+            defaultUnlitMaterial);
+        const Runtime::AssetPtr<Runtime::MaterialInstance> yellowMaterial = EnsureDefaultUnlitMaterialInstance(
+            yellowUnlitMaterialInstanceUri,
+            Common::FVec4(1.0f, 1.0f, 0.0f, 1.0f),
+            defaultUnlitMaterial);
+        const Runtime::AssetPtr<Runtime::StaticMesh> cubeMesh = EnsureDefaultCubeMesh(yellowMaterial);
 
         // WorldTransform's reflected constructor takes an FTransform, other argument shapes would not match it
         const auto ground = inRegistry.Create();
@@ -111,6 +143,7 @@ namespace Editor::Internal {
         inRegistry.Emplace<Runtime::WorldTransform>(ground, groundTransform);
         auto& groundPrimitive = inRegistry.Emplace<Runtime::StaticPrimitive>(ground);
         groundPrimitive.mesh = cubeMesh;
+        groundPrimitive.materialOverride = lightGrayMaterial;
 
         const auto cube = inRegistry.Create();
         inRegistry.Emplace<Runtime::Name>(cube, std::string("Cube"));
@@ -119,6 +152,7 @@ namespace Editor::Internal {
         inRegistry.Emplace<Runtime::WorldTransform>(cube, cubeTransform);
         auto& cubePrimitive = inRegistry.Emplace<Runtime::StaticPrimitive>(cube);
         cubePrimitive.mesh = cubeMesh;
+        cubePrimitive.materialOverride = yellowMaterial;
 
         const auto playerStart = inRegistry.Create();
         inRegistry.Emplace<Runtime::Name>(playerStart, std::string("Player Start"));

@@ -104,7 +104,9 @@ namespace Runtime::Internal {
         if (inComponent.mesh.Get() == nullptr || inComponent.mesh->GetLODCount() == 0) {
             return;
         }
-        const AssetPtr<MaterialInstance>& materialInstance = inComponent.mesh->GetMaterial();
+        const AssetPtr<MaterialInstance>& materialInstance = inComponent.materialOverride.Get() == nullptr
+            ? inComponent.mesh->GetMaterial()
+            : inComponent.materialOverride;
         if (materialInstance.Get() == nullptr || materialInstance->GetMaterial().Get() == nullptr) {
             return;
         }
