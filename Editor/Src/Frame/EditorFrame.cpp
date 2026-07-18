@@ -38,13 +38,6 @@ namespace Editor::Internal {
             : std::format("Entity {}", inEntity);
     }
 
-    static void SetNextItemWidthWithTrailingButton(const char* inButtonLabel)
-    {
-        const auto& style = ImGui::GetStyle();
-        const float buttonWidth = ImGui::CalcTextSize(inButtonLabel).x + style.FramePadding.x * 2.0f;
-        ImGui::SetNextItemWidth(-(buttonWidth + style.ItemSpacing.x));
-    }
-
     static std::string LevelString(Core::LogLevel inLevel)
     {
         switch (inLevel) {
@@ -65,7 +58,6 @@ namespace Editor::Internal {
 namespace Editor {
     EditorFrame::EditorFrame()
         : createEntityName("Entity")
-        , selectedAddComponentIndex(0)
         , componentClasses(Mirror::Class::GetAll())
         , tabVisibility {
             .scene = true,
@@ -157,20 +149,23 @@ namespace Editor {
             ImGui::End();
             return;
         }
-        {
-            InputWidgetRow createEntityRow("New Entity");
-            if (createEntityRow.IsVisible()) {
-                Internal::SetNextItemWidthWithTrailingButton("Create");
-                ImGui::InputText("##Value", &createEntityName);
-                ImGui::SameLine();
-                if (ImGui::Button("Create")) {
-                    const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
-                    inContext.SetSelectedEntity(entity);
-                }
+        if (ImGui::Button("New Entity")) {
+            ImGui::OpenPopup("NewEntityMenu");
+        }
+        ImGui::SetNextWindowSize(ImVec2(260.0f, 0.0f), ImGuiCond_Appearing);
+        if (ImGui::BeginPopup("NewEntityMenu")) {
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::InputText("##EntityName", &createEntityName);
+            if (ImGui::Button("Create", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+                const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
+                inContext.SetSelectedEntity(entity);
+                ImGui::CloseCurrentPopup();
             }
+            ImGui::EndPopup();
         }
         ImGui::Separator();
 
+        Runtime::Entity entityToDelete = Runtime::entityNull;
         inRegistry.Each([&](Runtime::Entity entity) -> void {
             if (inRegistry.Has<EditorCameraController>(entity)) {
                 return;
@@ -181,8 +176,18 @@ namespace Editor {
             if (ImGui::Selectable(label.c_str(), selected)) {
                 inContext.SetSelectedEntity(entity);
             }
+            if (ImGui::BeginPopupContextItem("EntityMenu")) {
+                inContext.SetSelectedEntity(entity);
+                if (ImGui::MenuItem("Delete")) {
+                    entityToDelete = entity;
+                }
+                ImGui::EndPopup();
+            }
             ImGui::PopID();
         });
+        if (entityToDelete != Runtime::entityNull) {
+            inContext.DestroyEntity(inRegistry, entityToDelete);
+        }
         ImGui::End();
     }
 
@@ -199,13 +204,6 @@ namespace Editor {
             return;
         }
 
-        if (ImGui::Button("Destroy Entity")) {
-            inContext.DestroyEntity(inRegistry, selectedEntity);
-            ImGui::End();
-            return;
-        }
-        ImGui::Separator();
-
         std::vector<const Mirror::Class*> addableComponents;
         for (const auto* clazz : componentClasses) {
             if (inContext.CanAddComponent(inRegistry, selectedEntity, clazz)) {
@@ -213,34 +211,23 @@ namespace Editor {
             }
         }
 
-        if (!addableComponents.empty()) {
-            selectedAddComponentIndex = std::clamp(selectedAddComponentIndex, 0, static_cast<int>(addableComponents.size() - 1));
-            const std::string selectedComponentName = Internal::ComponentDisplayName(*addableComponents[selectedAddComponentIndex]);
-            InputWidgetRow addComponentRow("Add Component");
-            if (addComponentRow.IsVisible()) {
-                Internal::SetNextItemWidthWithTrailingButton("Add");
-                if (ImGui::BeginCombo("##Value", selectedComponentName.c_str())) {
-                    for (int i = 0; i < static_cast<int>(addableComponents.size()); i++) {
-                        const bool selected = i == selectedAddComponentIndex;
-                        const std::string componentName = Internal::ComponentDisplayName(*addableComponents[i]);
-                        ImGui::PushID(addableComponents[i]->GetName().c_str());
-                        if (ImGui::Selectable(componentName.c_str(), selected)) {
-                            selectedAddComponentIndex = i;
-                        }
-                        if (selected) {
-                            ImGui::SetItemDefaultFocus();
-                        }
-                        ImGui::PopID();
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Add")) {
-                    const auto* selectedClass = addableComponents[selectedAddComponentIndex];
-                    inContext.AddComponent(inRegistry, selectedEntity, selectedClass);
-                }
-            }
+        ImGui::BeginDisabled(addableComponents.empty());
+        if (ImGui::Button("Add Component")) {
+            ImGui::OpenPopup("AddComponentMenu");
         }
+        ImGui::EndDisabled();
+        if (ImGui::BeginPopup("AddComponentMenu")) {
+            for (const auto* clazz : addableComponents) {
+                const std::string componentName = Internal::ComponentDisplayName(*clazz);
+                ImGui::PushID(clazz->GetName().c_str());
+                if (ImGui::MenuItem(componentName.c_str())) {
+                    inContext.AddComponent(inRegistry, selectedEntity, clazz);
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::Separator();
 
         Runtime::CompClass componentToRemove = nullptr;
         inRegistry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {

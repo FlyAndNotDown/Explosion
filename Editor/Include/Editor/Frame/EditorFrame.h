@@ -35,7 +35,6 @@ namespace Editor {
         void RenderLogTab(bool& inOutOpen);
 
         std::string createEntityName;
-        int selectedAddComponentIndex;
         std::vector<Runtime::CompClass> componentClasses;
         Internal::EditorTabVisibility tabVisibility;
     };
