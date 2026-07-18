@@ -6,6 +6,8 @@
 
 #include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/Panel/EditorPanels.h>
+#include <Editor/Widget/IconWidgets.h>
+#include <Editor/Widget/TablerIcons.h>
 
 namespace Editor {
     EditorPanels::EditorPanels()
@@ -27,6 +29,7 @@ namespace Editor {
 
     void EditorPanels::RenderViewMenuItems()
     {
-        ImGui::MenuItem(PanelNames::assets, nullptr, &assetsVisible);
+        const std::string label = Widgets::Label(Icons::Tabler::folder, PanelNames::assets);
+        ImGui::MenuItem(label.c_str(), nullptr, &assetsVisible);
     }
 }

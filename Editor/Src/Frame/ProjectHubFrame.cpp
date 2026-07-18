@@ -19,6 +19,8 @@
 #include <Editor/EditorWindow.h>
 #include <Editor/Frame/ProjectHubFrame.h>
 #include <Editor/Utils/PlatformUtils.h>
+#include <Editor/Widget/IconWidgets.h>
+#include <Editor/Widget/TablerIcons.h>
 
 namespace Editor::ProjectHub::Internal {
     constexpr std::string_view templateFileExtension = ".tpl";
@@ -56,11 +58,12 @@ namespace Editor::ProjectHub::Internal {
 
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         drawList->AddRectFilled(cardMin, cardMax, ImGui::GetColorU32(hovered ? cardHovered : cardBackground), 8.0f);
-        drawList->PushClipRect(ImVec2(cardMin.x + 16.0f, cardMin.y), ImVec2(cardMax.x - 38.0f, cardMax.y), true);
-        drawList->AddText(ImVec2(cardMin.x + 16.0f, cardMin.y + 13.0f), ImGui::GetColorU32(ImGuiCol_Text), inProject.name.c_str());
-        drawList->AddText(ImVec2(cardMin.x + 16.0f, cardMin.y + 38.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), inProject.path.c_str());
+        drawList->AddText(ImVec2(cardMin.x + 16.0f, cardMin.y + 26.0f), ImGui::GetColorU32(accent), Icons::Tabler::folder);
+        drawList->PushClipRect(ImVec2(cardMin.x + 46.0f, cardMin.y), ImVec2(cardMax.x - 38.0f, cardMax.y), true);
+        drawList->AddText(ImVec2(cardMin.x + 46.0f, cardMin.y + 13.0f), ImGui::GetColorU32(ImGuiCol_Text), inProject.name.c_str());
+        drawList->AddText(ImVec2(cardMin.x + 46.0f, cardMin.y + 38.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), inProject.path.c_str());
         drawList->PopClipRect();
-        drawList->AddText(ImVec2(cardMax.x - 25.0f, cardMin.y + 25.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), ">");
+        drawList->AddText(ImVec2(cardMax.x - 25.0f, cardMin.y + 26.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), Icons::Tabler::chevronRight);
 
         ImGui::PopID();
         return ImGui::IsItemClicked();
@@ -171,14 +174,16 @@ namespace Editor {
     {
         const float spacing = ImGui::GetStyle().ItemSpacing.x;
         const float buttonWidth = (ImGui::GetContentRegionAvail().x - spacing) * 0.5f;
-        if (ProjectHub::Internal::RenderActionButton("Open", ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
+        const std::string openLabel = Widgets::Label(Icons::Tabler::folderOpen, "Open");
+        if (ProjectHub::Internal::RenderActionButton(openLabel.c_str(), ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
             if (const auto selectedDirectory = PlatformUtils::SelectDirectory("Open Explosion Project")) {
                 OpenProject(inWindow, *selectedDirectory, inRhiType);
             }
         }
 
         ImGui::SameLine();
-        if (ProjectHub::Internal::RenderActionButton("Create", ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::secondaryButton, ProjectHub::Internal::secondaryButtonHovered)) {
+        const std::string createLabel = Widgets::Label(Icons::Tabler::plus, "Create");
+        if (ProjectHub::Internal::RenderActionButton(createLabel.c_str(), ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight), ProjectHub::Internal::secondaryButton, ProjectHub::Internal::secondaryButtonHovered)) {
             statusMessage.clear();
             ImGui::OpenPopup("##CreateProjectPopup");
         }
@@ -186,15 +191,17 @@ namespace Editor {
 
     void ProjectHubFrame::RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType)
     {
-        ImGui::TextUnformatted("Recent projects");
+        const std::string recentProjectsLabel = Widgets::Label(Icons::Tabler::folder, "Recent projects");
+        ImGui::TextUnformatted(recentProjectsLabel.c_str());
         const std::string projectCount = std::to_string(recentProjects.size());
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(projectCount.c_str()).x);
         ImGui::TextDisabled("%s", projectCount.c_str());
         ImGui::Dummy(ImVec2(0.0f, 7.0f));
 
         if (!statusMessage.empty()) {
+            const std::string statusLabel = Widgets::Label(Icons::Tabler::circleX, statusMessage);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.42f, 0.42f, 1.0f));
-            ImGui::TextWrapped("%s", statusMessage.c_str());
+            ImGui::TextWrapped("%s", statusLabel.c_str());
             ImGui::PopStyleColor();
             ImGui::Dummy(ImVec2(0.0f, 7.0f));
         }
@@ -214,8 +221,9 @@ namespace Editor {
             ImGui::GetWindowDrawList()->AddRectFilled(emptyMin, emptyMax, ImGui::GetColorU32(ProjectHub::Internal::cardBackground), 8.0f);
             const char* title = "No recent projects";
             const char* description = "Open an existing project or create a new one.";
-            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 16.0f, emptyMin.y + 31.0f), ImGui::GetColorU32(ImGuiCol_Text), title);
-            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 16.0f, emptyMin.y + 59.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), description);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 16.0f, emptyMin.y + 51.0f), ImGui::GetColorU32(ProjectHub::Internal::accent), Icons::Tabler::folderOff);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 46.0f, emptyMin.y + 31.0f), ImGui::GetColorU32(ImGuiCol_Text), title);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(emptyMin.x + 46.0f, emptyMin.y + 59.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), description);
             ImGui::Dummy(ImVec2(0.0f, 118.0f));
         }
         ImGui::EndChild();
@@ -236,7 +244,8 @@ namespace Editor {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
         if (ImGui::BeginPopupModal("##CreateProjectPopup", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-            ImGui::TextUnformatted("Create project");
+            const std::string createProjectLabel = Widgets::Label(Icons::Tabler::templateIcon, "Create project");
+            ImGui::TextUnformatted(createProjectLabel.c_str());
             ImGui::TextDisabled("Start from a template and open it right away.");
             ImGui::Dummy(ImVec2(0.0f, 13.0f));
 
@@ -250,7 +259,8 @@ namespace Editor {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - browseButtonWidth - ImGui::GetStyle().ItemSpacing.x);
             ImGui::InputTextWithHint("##ProjectDirectory", "Choose a parent folder", &directory);
             ImGui::SameLine();
-            if (ImGui::Button("Browse", ImVec2(browseButtonWidth, 0.0f))) {
+            const std::string browseLabel = Widgets::Label(Icons::Tabler::folderOpen, "Browse");
+            if (ImGui::Button(browseLabel.c_str(), ImVec2(browseButtonWidth, 0.0f))) {
                 if (const auto selectedDirectory = PlatformUtils::SelectDirectory("Choose Project Location", directory)) {
                     directory = *selectedDirectory;
                 }
@@ -265,7 +275,8 @@ namespace Editor {
             if (ImGui::BeginCombo("##ProjectTemplate", selectedTemplate)) {
                 for (int i = 0; i < static_cast<int>(projectTemplates.size()); i++) {
                     const bool selected = i == selectedTemplateIndex;
-                    if (ImGui::Selectable(projectTemplates[i].name.c_str(), selected)) {
+                    const std::string templateLabel = Widgets::Label(Icons::Tabler::templateIcon, projectTemplates[i].name);
+                    if (ImGui::Selectable(templateLabel.c_str(), selected)) {
                         selectedTemplateIndex = i;
                     }
                     if (selected) {
@@ -277,20 +288,23 @@ namespace Editor {
 
             if (!statusMessage.empty()) {
                 ImGui::Dummy(ImVec2(0.0f, 9.0f));
+                const std::string statusLabel = Widgets::Label(Icons::Tabler::circleX, statusMessage);
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.42f, 0.42f, 1.0f));
-                ImGui::TextWrapped("%s", statusMessage.c_str());
+                ImGui::TextWrapped("%s", statusLabel.c_str());
                 ImGui::PopStyleColor();
             }
 
             ImGui::Dummy(ImVec2(0.0f, 15.0f));
             const float footerWidth = 178.0f;
             ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - footerWidth);
-            if (ImGui::Button("Cancel", ImVec2(82.0f, 36.0f))) {
+            const std::string cancelLabel = Widgets::Label(Icons::Tabler::x, "Cancel");
+            if (ImGui::Button(cancelLabel.c_str(), ImVec2(82.0f, 36.0f))) {
                 statusMessage.clear();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ProjectHub::Internal::RenderActionButton("Create##Confirm", ImVec2(88.0f, 36.0f), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
+            const std::string confirmLabel = Widgets::Label(Icons::Tabler::check, "Create##Confirm");
+            if (ProjectHub::Internal::RenderActionButton(confirmLabel.c_str(), ImVec2(88.0f, 36.0f), ProjectHub::Internal::accent, ProjectHub::Internal::accentHovered)) {
                 const CreateProjectResult result = CreateProject();
                 if (result.success) {
                     statusMessage.clear();
