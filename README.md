@@ -153,6 +153,7 @@ Thanks all those following projects:
 * [VulkanMemoryAllocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator)
 * [rapidjson](https://github.com/Tencent/rapidjson)
 * [cpp-httplib](https://github.com/yhirose/cpp-httplib)
+* [Tabler Icons](https://github.com/tabler/tabler-icons)
 
 # License
 
