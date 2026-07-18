@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
 #include <Common/Math/Matrix.h>
@@ -97,6 +99,7 @@ namespace Common {
         T Dot(const Quaternion& rhs) const;
         // when axis faced to us, ccw as positive direction
         Vec<T, 3, B> RotateVector(const Vec<T, 3, B>& inVector) const;
+        Vec<T, 3, B> ToEulerZYX() const;
         Mat<T, 4, 4, B> GetRotationMatrix() const;
 
         template <typename IT>
@@ -670,6 +673,25 @@ namespace Common {
         Quaternion v = Quaternion(0, inVector.x, inVector.y, inVector.z);
         Quaternion v2 = Conjugated() * v * (*this);
         return Vec<T, 3, B>(v2.x, v2.y, v2.z);
+    }
+
+    template <typename T, MathBackend B>
+    Vec<T, 3, B> Quaternion<T, B>::ToEulerZYX() const
+    {
+        const T normSquared = Dot(*this);
+        if (CompareNumber(normSquared, T(0.0f))) {
+            return VecConsts<T, 3, B>::zero;
+        }
+
+        const T sinY = std::clamp(T(2.0f) * (this->w * this->y - this->z * this->x) / normSquared, T(-1.0f), T(1.0f));
+        const Radian<T> radianX(static_cast<T>(std::atan2(
+            T(2.0f) * (this->w * this->x + this->y * this->z),
+            normSquared - T(2.0f) * (this->x * this->x + this->y * this->y))));
+        const Radian<T> radianY(static_cast<T>(std::asin(sinY)));
+        const Radian<T> radianZ(static_cast<T>(std::atan2(
+            T(2.0f) * (this->w * this->z + this->x * this->y),
+            normSquared - T(2.0f) * (this->y * this->y + this->z * this->z))));
+        return Vec<T, 3, B>(radianX.ToAngle(), radianY.ToAngle(), radianZ.ToAngle());
     }
 
     template <typename T, MathBackend B>

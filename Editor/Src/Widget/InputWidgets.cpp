@@ -9,6 +9,72 @@ namespace Editor::Internal {
     constexpr float inputLabelColumnWeight = 0.3f;
     constexpr float inputValueColumnWeight = 1.0f - inputLabelColumnWeight;
 
+    class QuaternionEulerEditState final {
+    public:
+        QuaternionEulerEditState(const std::string& inLabel, const Common::FQuat& inQuaternion);
+
+        Common::FVec3 GetEuler() const;
+        void SetEuler(const Common::FVec3& inEuler, const Common::FQuat& inQuaternion);
+
+    private:
+        bool MatchesQuaternion(const Common::FQuat& inQuaternion) const;
+
+        ImGuiStorage* storage;
+        ImGuiID initializedId;
+        ImGuiID eulerXId;
+        ImGuiID eulerYId;
+        ImGuiID eulerZId;
+        ImGuiID quaternionWId;
+        ImGuiID quaternionXId;
+        ImGuiID quaternionYId;
+        ImGuiID quaternionZId;
+    };
+
+    QuaternionEulerEditState::QuaternionEulerEditState(const std::string& inLabel, const Common::FQuat& inQuaternion)
+        : storage(ImGui::GetStateStorage())
+    {
+        ImGui::PushID(inLabel.c_str());
+        initializedId = ImGui::GetID("EulerInitialized");
+        eulerXId = ImGui::GetID("EulerX");
+        eulerYId = ImGui::GetID("EulerY");
+        eulerZId = ImGui::GetID("EulerZ");
+        quaternionWId = ImGui::GetID("QuaternionW");
+        quaternionXId = ImGui::GetID("QuaternionX");
+        quaternionYId = ImGui::GetID("QuaternionY");
+        quaternionZId = ImGui::GetID("QuaternionZ");
+        ImGui::PopID();
+
+        if (!storage->GetBool(initializedId) || !MatchesQuaternion(inQuaternion)) {
+            SetEuler(inQuaternion.ToEulerZYX(), inQuaternion);
+        }
+    }
+
+    Common::FVec3 QuaternionEulerEditState::GetEuler() const
+    {
+        return Common::FVec3(storage->GetFloat(eulerXId), storage->GetFloat(eulerYId), storage->GetFloat(eulerZId));
+    }
+
+    void QuaternionEulerEditState::SetEuler(const Common::FVec3& inEuler, const Common::FQuat& inQuaternion)
+    {
+        storage->SetBool(initializedId, true);
+        storage->SetFloat(eulerXId, inEuler.x);
+        storage->SetFloat(eulerYId, inEuler.y);
+        storage->SetFloat(eulerZId, inEuler.z);
+        storage->SetFloat(quaternionWId, inQuaternion.w);
+        storage->SetFloat(quaternionXId, inQuaternion.x);
+        storage->SetFloat(quaternionYId, inQuaternion.y);
+        storage->SetFloat(quaternionZId, inQuaternion.z);
+    }
+
+    bool QuaternionEulerEditState::MatchesQuaternion(const Common::FQuat& inQuaternion) const
+    {
+        return Common::FQuat(
+            storage->GetFloat(quaternionWId),
+            storage->GetFloat(quaternionXId),
+            storage->GetFloat(quaternionYId),
+            storage->GetFloat(quaternionZId)) == inQuaternion;
+    }
+
     template <typename F>
     static bool RenderLabeledInput(const std::string& inLabel, F&& inRenderInput)
     {
@@ -184,13 +250,16 @@ namespace Editor {
 
     bool InputWidget<Common::FQuat>::Render(const std::string& inLabel, Common::FQuat& inValue)
     {
-        float value[4] = { inValue.w, inValue.x, inValue.y, inValue.z };
+        Internal::QuaternionEulerEditState editState(inLabel, inValue);
+        const Common::FVec3 euler = editState.GetEuler();
+        float value[3] = { euler.x, euler.y, euler.z };
         if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
-                return ImGui::DragFloat4("##Value", value, 0.01f);
+                return ImGui::DragFloat3("##Value", value, 0.1f);
             })) {
             return false;
         }
-        inValue = Common::FQuat(value[0], value[1], value[2], value[3]);
+        inValue = Common::FQuat::FromEulerZYX(value[0], value[1], value[2]);
+        editState.SetEuler(Common::FVec3(value[0], value[1], value[2]), inValue);
         return true;
     }
 

@@ -203,6 +203,7 @@ namespace Editor {
             ImGui::End();
             return;
         }
+        ImGui::PushID(static_cast<int>(selectedEntity));
 
         std::vector<const Mirror::Class*> addableComponents;
         for (const auto* clazz : componentClasses) {
@@ -267,6 +268,7 @@ namespace Editor {
         if (componentToRemove != nullptr) {
             inContext.RemoveComponent(inRegistry, selectedEntity, componentToRemove);
         }
+        ImGui::PopID();
         ImGui::End();
     }
 
