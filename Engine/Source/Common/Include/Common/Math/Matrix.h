@@ -117,9 +117,10 @@ namespace Common {
         requires ValidSubMatDims<DR, DC, R, C>
         Mat<T, DR, DC, B> SubMatrix() const;
 
-        bool CanInverse() const;
-        Mat Inverse() const;
-        T Determinant() const;
+        bool CanInverse(T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
+        bool TryInverse(Mat& outResult, T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
+        Mat Inverse(T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
+        T Determinant() const requires (R == C && R > 1);
 
         Vec<T, 3, B> ExtractTranslation() const;
         Vec<T, 3, B> ExtractScale() const;
@@ -533,11 +534,39 @@ namespace Common::Internal {
         return result;
     }
 
+    template <typename T, uint8_t R>
+    bool ScaledDeterminantIsInvertible(T determinant, T scale, T tolerance)
+    {
+        const T determinantValue = std::abs(determinant);
+        const T toleranceValue = std::abs(tolerance);
+        if (!std::isfinite(scale) || !std::isfinite(determinantValue) || scale == static_cast<T>(0)) {
+            return false;
+        }
+
+        T threshold = toleranceValue;
+        for (auto i = 0; i < R; i++) {
+            threshold *= scale;
+        }
+        return determinantValue > threshold;
+    }
+
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
-    Mat<T, R, C, B> MatInverseScalar(const Mat<T, R, C, B>& m)
+    bool MatDeterminantIsInvertible(const Mat<T, R, C, B>& m, T determinant, T tolerance)
+    {
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
+        EvaluationT scale = 0;
+        for (auto i = 0; i < R * C; i++) {
+            scale = std::max(scale, std::abs(static_cast<EvaluationT>(m.data[i])));
+        }
+        return ScaledDeterminantIsInvertible<EvaluationT, R>(
+            static_cast<EvaluationT>(determinant), scale, static_cast<EvaluationT>(tolerance));
+    }
+
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    Mat<T, R, C, B> MatInverseScalar(const Mat<T, R, C, B>& m, T determinant)
     {
         static_assert(R == C && R > 1 && R < 5);
-        T oneOverDet = static_cast<T>(1) / MatDeterminantScalar(m);
+        T oneOverDet = static_cast<T>(1) / determinant;
 
         Mat<T, R, C, B> result;
         if constexpr (R == 2) {
@@ -670,7 +699,15 @@ namespace Common::Internal {
         static Mat<T, C, R, B> Transpose(const Mat<T, R, C, B>& m) { return MatTransposeScalar(m); }
         static Vec<T, R, B> MulVec(const Mat<T, R, C, B>& m, const Vec<T, C, B>& v) { return MatMulVecScalar(m, v); }
         static T Determinant(const Mat<T, R, C, B>& m) { return MatDeterminantScalar(m); }
-        static Mat<T, R, C, B> Inverse(const Mat<T, R, C, B>& m) { return MatInverseScalar(m); }
+        static bool TryInverse(const Mat<T, R, C, B>& m, Mat<T, R, C, B>& outResult, T tolerance)
+        {
+            const T determinant = MatDeterminantScalar(m);
+            if (!MatDeterminantIsInvertible(m, determinant, tolerance)) {
+                return false;
+            }
+            outResult = MatInverseScalar(m, determinant);
+            return true;
+        }
     };
 
     // Row-major 4x4 float matrix, backed by float[16] (four contiguous rows of 16 bytes each), so each row maps to an
@@ -747,7 +784,7 @@ namespace Common::Internal {
         // (p, q) is (p2*q3 - p3*q2, same, p1*q3 - p3*q1, p1*q2 - p2*q1). The cofactor columns are transposed into rows,
         // and the determinant is recovered as row0 . (first row of the cofactor matrix), so there is no second
         // Determinant pass.
-        static M Inverse(const M& m)
+        static bool TryInverse(const M& m, M& outResult, float tolerance)
         {
             const Simd::F32x4 r0 = Simd::LoadU(&m.data[0]);
             const Simd::F32x4 r1 = Simd::LoadU(&m.data[4]);
@@ -788,16 +825,19 @@ namespace Common::Internal {
             // det = row0 . (column 0 of the cofactor matrix). That column is the col0 register as-is, so compute the
             // determinant before Transpose4 turns col0 into the cofactor matrix's first row.
             const float det = Simd::Sum(Simd::Mul(r0, col0));
+            const float scale = Simd::MaxValue(Simd::Max(Simd::Max(Simd::Abs(r0), Simd::Abs(r1)), Simd::Max(Simd::Abs(r2), Simd::Abs(r3))));
+            if (!ScaledDeterminantIsInvertible<float, 4>(det, scale, tolerance)) {
+                return false;
+            }
             const Simd::F32x4 oneOverDet = Simd::Set1(1.0f / det);
 
             Simd::Transpose4(col0, col1, col2, col3);
 
-            M result;
-            Simd::StoreU(&result.data[0], Simd::Mul(col0, oneOverDet));
-            Simd::StoreU(&result.data[4], Simd::Mul(col1, oneOverDet));
-            Simd::StoreU(&result.data[8], Simd::Mul(col2, oneOverDet));
-            Simd::StoreU(&result.data[12], Simd::Mul(col3, oneOverDet));
-            return result;
+            Simd::StoreU(&outResult.data[0], Simd::Mul(col0, oneOverDet));
+            Simd::StoreU(&outResult.data[4], Simd::Mul(col1, oneOverDet));
+            Simd::StoreU(&outResult.data[8], Simd::Mul(col2, oneOverDet));
+            Simd::StoreU(&outResult.data[12], Simd::Mul(col3, oneOverDet));
+            return true;
         }
 
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
@@ -871,7 +911,15 @@ namespace Common::Internal {
             return result;
         }
 
-        static M Inverse(const M& m) { return MatInverseScalar(m); }
+        static bool TryInverse(const M& m, M& outResult, float tolerance)
+        {
+            const float determinant = MatDeterminantScalar(m);
+            if (!MatDeterminantIsInvertible(m, determinant, tolerance)) {
+                return false;
+            }
+            outResult = MatInverseScalar(m, determinant);
+            return true;
+        }
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
     };
 }
@@ -1272,19 +1320,29 @@ namespace Common {
 
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
-    bool Mat<T, R, C, B>::CanInverse() const
+    bool Mat<T, R, C, B>::CanInverse(T tolerance) const requires (R == C && R > 1 && FloatingPoint<T>)
     {
-        return this->Determinant() != static_cast<T>(0);
+        const T determinant = this->Determinant();
+        return Internal::MatDeterminantIsInvertible(*this, determinant, tolerance);
     }
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
-    Mat<T, R, C, B> Mat<T, R, C, B>::Inverse() const
+    bool Mat<T, R, C, B>::TryInverse(Mat& outResult, T tolerance) const requires (R == C && R > 1 && FloatingPoint<T>)
     {
-        return Internal::MatOps<T, R, C, B>::Inverse(*this);
+        return Internal::MatOps<T, R, C, B>::TryInverse(*this, outResult, tolerance);
     }
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
-    T Mat<T, R, C, B>::Determinant() const
+    Mat<T, R, C, B> Mat<T, R, C, B>::Inverse(T tolerance) const requires (R == C && R > 1 && FloatingPoint<T>)
+    {
+        Mat result;
+        const bool invertible = TryInverse(result, tolerance);
+        Assert(invertible);
+        return result;
+    }
+
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    T Mat<T, R, C, B>::Determinant() const requires (R == C && R > 1)
     {
         return Internal::MatOps<T, R, C, B>::Determinant(*this);
     }

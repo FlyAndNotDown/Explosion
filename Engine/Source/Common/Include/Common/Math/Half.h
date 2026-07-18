@@ -4,9 +4,8 @@
 
 #pragma once
 
-#include <cstdint>
-#include <cmath>
 #include <bit>
+#include <cstdint>
 
 #include <Common/Math/Common.h>
 #include <Common/Serialization.h>
@@ -14,26 +13,14 @@
 
 namespace Common {
     template <std::endian E> concept ValidEndian = E == std::endian::little || E == std::endian::big;
-}
 
-namespace Common::Internal {
     template <std::endian E>
     requires ValidEndian<E>
-    struct FullFloatBase {};
+    struct HalfFloatBase {
+        explicit HalfFloatBase(uint16_t inValue);
 
-    template <std::endian E>
-    struct FullFloat : FullFloatBase<E> {
-        FullFloat();
-        FullFloat(float inValue); // NOLINT
-        FullFloat(const FullFloat& inValue);
-        FullFloat(FullFloat&& inValue) noexcept;
+        uint16_t value;
     };
-}
-
-namespace Common {
-    template <std::endian E>
-    requires ValidEndian<E>
-    struct HalfFloatBase {};
 
     template <std::endian E>
     struct HalfFloat : HalfFloatBase<E> {
@@ -78,25 +65,10 @@ namespace Common {
     using HFloat = HalfFloat<std::endian::native>;
 
     template <typename T> concept HalfFloatingPoint = std::is_same_v<T, HFloat>;
-    template <typename T> concept FloatingPoint = std::is_floating_point_v<T> || std::is_same_v<T, HFloat>;
+    template <typename T> concept FloatingPoint = std::is_floating_point_v<T> || HalfFloatingPoint<T>;
 }
 
 namespace Common {
-    template <std::endian E>
-    struct Serializer<Internal::FullFloat<E>> {
-        static constexpr size_t typeId = HashUtils::StrCrc32("Common::Internal::FullFloat");
-
-        static size_t Serialize(BinarySerializeStream& stream, const Internal::FullFloat<E>& value)
-        {
-            return Serializer<float>::Serialize(stream, value.value);
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Internal::FullFloat<E>& value)
-        {
-            return Serializer<float>::Deserialize(stream, value.value);
-        }
-    };
-
     template <std::endian E>
     struct Serializer<HalfFloat<E>> {
         static constexpr size_t typeId = HashUtils::StrCrc32("Common::Internal::HalfFloat");
@@ -113,31 +85,10 @@ namespace Common {
     };
 
     template <std::endian E>
-    struct StringConverter<Internal::FullFloat<E>> {
-        static std::string ToString(const Internal::FullFloat<E>& inValue)
-        {
-            return StringConverter<float>::ToString(inValue.value);
-        }
-    };
-
-    template <std::endian E>
     struct StringConverter<HalfFloat<E>> {
         static std::string ToString(const HalfFloat<E>& inValue)
         {
             return StringConverter<float>::ToString(inValue.AsFloat());
-        }
-    };
-
-    template <std::endian E>
-    struct JsonSerializer<Internal::FullFloat<E>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Internal::FullFloat<E>& inValue)
-        {
-            JsonSerializer<float>::JsonSerialize(outJsonValue, inAllocator, inValue.value);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Internal::FullFloat<E>& outValue)
-        {
-            JsonSerializer<float>::JsonDeserialize(inJsonValue, outValue.value);
         }
     };
 
@@ -150,112 +101,94 @@ namespace Common {
 
         static void JsonDeserialize(const rapidjson::Value& inJsonValue, HalfFloat<E>& outValue)
         {
-            float fltValue;
-            JsonSerializer<float>::JsonDeserialize(inJsonValue, fltValue);
-            outValue = fltValue;
+            float floatValue = 0.0f;
+            JsonSerializer<float>::JsonDeserialize(inJsonValue, floatValue);
+            outValue = floatValue;
         }
     };
 }
 
 namespace Common::Internal {
-    template <>
-    struct FullFloatBase<std::endian::little> {
-        union {
-            float value;
-            struct {
-                uint32_t mantissa : 23;
-                uint32_t exponent : 8;
-                uint32_t sign : 1;
-            };
-        };
-
-        inline explicit FullFloatBase(float inValue);
-    };
-
-    template <>
-    struct FullFloatBase<std::endian::big> {
-        union {
-            float value;
-            struct {
-                uint32_t sign : 1;
-                uint32_t exponent : 8;
-                uint32_t mantissa : 23;
-            };
-        };
-
-        inline explicit FullFloatBase(float inValue);
-    };
-
-    FullFloatBase<std::endian::little>::FullFloatBase(const float inValue)
-        : value(inValue)
+    inline uint16_t FloatToHalfBits(float inValue)
     {
+        const uint32_t floatBits = std::bit_cast<uint32_t>(inValue);
+        const uint16_t sign = static_cast<uint16_t>((floatBits >> 16) & 0x8000u);
+        const uint32_t exponent = (floatBits >> 23) & 0xffu;
+        const uint32_t mantissa = floatBits & 0x7fffffu;
+
+        if (exponent == 0xffu) {
+            if (mantissa == 0) {
+                return static_cast<uint16_t>(sign | 0x7c00u);
+            }
+
+            uint16_t payload = static_cast<uint16_t>(mantissa >> 13);
+            if (payload == 0) {
+                payload = 1;
+            }
+            return static_cast<uint16_t>(sign | 0x7c00u | payload);
+        }
+
+        const int32_t halfExponent = static_cast<int32_t>(exponent) - 127 + 15;
+        if (halfExponent >= 31) {
+            return static_cast<uint16_t>(sign | 0x7c00u);
+        }
+
+        if (halfExponent <= 0) {
+            if (halfExponent < -10) {
+                return sign;
+            }
+
+            const uint32_t significand = mantissa | 0x800000u;
+            const uint32_t shift = static_cast<uint32_t>(14 - halfExponent);
+            uint16_t halfMantissa = static_cast<uint16_t>(significand >> shift);
+            const uint32_t remainderMask = (uint32_t(1) << shift) - 1;
+            const uint32_t remainder = significand & remainderMask;
+            const uint32_t halfway = uint32_t(1) << (shift - 1);
+            if (remainder > halfway || (remainder == halfway && (halfMantissa & 1u) != 0)) {
+                ++halfMantissa;
+            }
+            return static_cast<uint16_t>(sign | halfMantissa);
+        }
+
+        uint16_t result = static_cast<uint16_t>(sign | (static_cast<uint16_t>(halfExponent) << 10) | static_cast<uint16_t>(mantissa >> 13));
+        const uint32_t remainder = mantissa & 0x1fffu;
+        if (remainder > 0x1000u || (remainder == 0x1000u && (result & 1u) != 0)) {
+            ++result;
+        }
+        return result;
     }
 
-    FullFloatBase<std::endian::big>::FullFloatBase(const float inValue)
-        : value(inValue)
+    inline float HalfBitsToFloat(uint16_t inValue)
     {
-    }
+        const uint32_t sign = static_cast<uint32_t>(inValue & 0x8000u) << 16;
+        const uint32_t exponent = (inValue >> 10) & 0x1fu;
+        uint32_t mantissa = inValue & 0x03ffu;
+        uint32_t floatBits;
 
-    template <std::endian E>
-    FullFloat<E>::FullFloat()
-        : FullFloatBase<E>(0)
-    {
-    }
+        if (exponent == 0) {
+            if (mantissa == 0) {
+                floatBits = sign;
+            } else {
+                const uint32_t shift = std::countl_zero(mantissa) - 21;
+                mantissa = (mantissa << shift) & 0x03ffu;
+                const uint32_t floatExponent = 127 - 14 - shift;
+                floatBits = sign | (floatExponent << 23) | (mantissa << 13);
+            }
+        } else if (exponent == 0x1fu) {
+            floatBits = sign | 0x7f800000u | (mantissa << 13);
+        } else {
+            const uint32_t floatExponent = exponent - 15 + 127;
+            floatBits = sign | (floatExponent << 23) | (mantissa << 13);
+        }
 
-    template <std::endian E>
-    FullFloat<E>::FullFloat(float inValue)
-        : FullFloatBase<E>(inValue)
-    {
-    }
-
-    template <std::endian E>
-    FullFloat<E>::FullFloat(const FullFloat& inValue)
-        : FullFloatBase<E>(inValue.value)
-    {
-    }
-
-    template <std::endian E>
-    FullFloat<E>::FullFloat(FullFloat&& inValue) noexcept
-        : FullFloatBase<E>(inValue.value)
-    {
+        return std::bit_cast<float>(floatBits);
     }
 }
 
 namespace Common {
-    template <>
-    struct HalfFloatBase<std::endian::little> {
-        union {
-            uint16_t value;
-            struct {
-                uint16_t mantissa : 10;
-                uint16_t exponent : 5;
-                uint16_t sign : 1;
-            };
-        };
-
-        inline explicit HalfFloatBase(uint16_t inValue);
-    };
-
-    template <>
-    struct HalfFloatBase<std::endian::big> {
-        union {
-            uint16_t value;
-            struct {
-                uint16_t sign : 1;
-                uint16_t exponent : 5;
-                uint16_t mantissa : 10;
-            };
-        };
-
-        inline explicit HalfFloatBase(uint16_t inValue);
-    };
-
-    HalfFloatBase<std::endian::little>::HalfFloatBase(const uint16_t inValue)
-        : value(inValue)
-    {
-    }
-
-    HalfFloatBase<std::endian::big>::HalfFloatBase(const uint16_t inValue)
+    template <std::endian E>
+    requires ValidEndian<E>
+    HalfFloatBase<E>::HalfFloatBase(uint16_t inValue)
         : value(inValue)
     {
     }
@@ -267,104 +200,37 @@ namespace Common {
     }
 
     template <std::endian E>
-    HalfFloat<E>::HalfFloat(const HalfFloat& inValue)
-        : HalfFloatBase<E>(inValue.value)
+    HalfFloat<E>::HalfFloat(const HalfFloat& inValue) = default;
+
+    template <std::endian E>
+    HalfFloat<E>::HalfFloat(HalfFloat&& inValue) noexcept = default;
+
+    template <std::endian E>
+    HalfFloat<E>::HalfFloat(float inValue)
+        : HalfFloatBase<E>(Internal::FloatToHalfBits(inValue))
     {
     }
 
     template <std::endian E>
-    HalfFloat<E>::HalfFloat(HalfFloat&& inValue) noexcept
-        : HalfFloatBase<E>(inValue.value)
-    {
-    }
-
-    template <std::endian E>
-    HalfFloat<E>::HalfFloat(const float inValue)
-        : HalfFloatBase<E>(0)
-    {
-        Set(inValue);
-    }
-
-    template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator=(const float inValue)
+    HalfFloat<E>& HalfFloat<E>::operator=(float inValue)
     {
         Set(inValue);
         return *this;
     }
 
     template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator=(const HalfFloat& inValue)
-    {
-        this->value = inValue.value;
-        return *this;
-    }
+    HalfFloat<E>& HalfFloat<E>::operator=(const HalfFloat& inValue) = default;
 
     template <std::endian E>
     void HalfFloat<E>::Set(float inValue)
     {
-        Internal::FullFloat<E> full(inValue);
-
-        this->sign = full.sign;
-        if (full.exponent <= 112)
-        {
-            this->exponent = 0;
-            this->mantissa = 0;
-
-            if (const int32_t newExp = full.exponent - 127 + 15;
-                14 - newExp <= 24)
-            {
-                const uint32_t tMantissa = full.mantissa | 0x800000;
-                this->mantissa = static_cast<uint16_t>(tMantissa >> (14 - newExp));
-                if (((this->mantissa >> (13 - newExp)) & 1) != 0u)
-                {
-                    ++this->value;
-                }
-            }
-        }
-        else if (full.exponent >= 143)
-        {
-            this->exponent = 30;
-            this->mantissa = 1023;
-        }
-        else
-        {
-            this->exponent = static_cast<uint16_t>(static_cast<int32_t>(full.exponent) - 127 + 15);
-            this->mantissa = static_cast<uint16_t>(full.mantissa >> 13);
-        }
+        this->value = Internal::FloatToHalfBits(inValue);
     }
 
     template <std::endian E>
     float HalfFloat<E>::AsFloat() const
     {
-        Internal::FullFloat<E> result;
-
-        result.sign = this->sign;
-        if (this->exponent == 0)
-        {
-            if (const uint32_t tMantissa = this->mantissa;
-                tMantissa == 0)
-            {
-                result.exponent = 0;
-                result.mantissa = 0;
-            }
-            else
-            {
-                const uint32_t mantissaShift = 10 - static_cast<uint32_t>(std::trunc(std::log2(static_cast<float>(tMantissa))));
-                result.exponent = 127 - (15 - 1) - mantissaShift;
-                result.mantissa = tMantissa << (mantissaShift + 23 - 10);
-            }
-        }
-        else if (this->exponent == 31)
-        {
-            result.exponent = 142;
-            result.mantissa = 8380416;
-        }
-        else
-        {
-            result.exponent = static_cast<int32_t>(this->exponent) - 15 + 127;
-            result.mantissa = static_cast<uint32_t>(this->mantissa) << 13;
-        }
-        return result.value;
+        return Internal::HalfBitsToFloat(this->value);
     }
 
     template <std::endian E>
@@ -374,27 +240,27 @@ namespace Common {
     }
 
     template <std::endian E>
-    bool HalfFloat<E>::operator==(const float rhs) const
+    bool HalfFloat<E>::operator==(float rhs) const
     {
-        return std::abs(AsFloat() - rhs) < halfEpsilon;
+        return AsFloat() == rhs;
     }
 
     template <std::endian E>
-    bool HalfFloat<E>::operator!=(const float rhs) const
+    bool HalfFloat<E>::operator!=(float rhs) const
     {
-        return std::abs(AsFloat() - rhs) >= halfEpsilon;
+        return !this->operator==(rhs);
     }
 
     template <std::endian E>
     bool HalfFloat<E>::operator==(const HalfFloat& rhs) const
     {
-        return std::abs(AsFloat() - rhs.AsFloat()) < halfEpsilon;
+        return AsFloat() == rhs.AsFloat();
     }
 
     template <std::endian E>
     bool HalfFloat<E>::operator!=(const HalfFloat& rhs) const
     {
-        return std::abs(AsFloat() - rhs.AsFloat()) >= halfEpsilon;
+        return !this->operator==(rhs);
     }
 
     template <std::endian E>
@@ -422,25 +288,25 @@ namespace Common {
     }
 
     template <std::endian E>
-    HalfFloat<E> HalfFloat<E>::operator+(const float rhs) const
+    HalfFloat<E> HalfFloat<E>::operator+(float rhs) const
     {
         return { AsFloat() + rhs };
     }
 
     template <std::endian E>
-    HalfFloat<E> HalfFloat<E>::operator-(const float rhs) const
+    HalfFloat<E> HalfFloat<E>::operator-(float rhs) const
     {
         return { AsFloat() - rhs };
     }
 
     template <std::endian E>
-    HalfFloat<E> HalfFloat<E>::operator*(const float rhs) const
+    HalfFloat<E> HalfFloat<E>::operator*(float rhs) const
     {
         return { AsFloat() * rhs };
     }
 
     template <std::endian E>
-    HalfFloat<E> HalfFloat<E>::operator/(const float rhs) const
+    HalfFloat<E> HalfFloat<E>::operator/(float rhs) const
     {
         return { AsFloat() / rhs };
     }
@@ -470,28 +336,28 @@ namespace Common {
     }
 
     template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator+=(const float rhs)
+    HalfFloat<E>& HalfFloat<E>::operator+=(float rhs)
     {
         Set(AsFloat() + rhs);
         return *this;
     }
 
     template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator-=(const float rhs)
+    HalfFloat<E>& HalfFloat<E>::operator-=(float rhs)
     {
         Set(AsFloat() - rhs);
         return *this;
     }
 
     template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator*=(const float rhs)
+    HalfFloat<E>& HalfFloat<E>::operator*=(float rhs)
     {
         Set(AsFloat() * rhs);
         return *this;
     }
 
     template <std::endian E>
-    HalfFloat<E>& HalfFloat<E>::operator/=(const float rhs)
+    HalfFloat<E>& HalfFloat<E>::operator/=(float rhs)
     {
         Set(AsFloat() / rhs);
         return *this;

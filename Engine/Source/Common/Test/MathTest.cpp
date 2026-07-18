@@ -4,6 +4,9 @@
 
 #include <Test/Test.h>
 
+#include <limits>
+#include <numbers>
+
 #include <Common/Math/Vector.h>
 #include <Common/Math/Matrix.h>
 #include <Common/Math/Quaternion.h>
@@ -32,6 +35,10 @@ TEST(MathTest, CompareNumberTest)
 {
     ASSERT_TRUE(CompareNumber(1.0f, 1.0f + epsilon / 2.0f));
     ASSERT_FALSE(CompareNumber(1.0f, 1.1f));
+    ASSERT_TRUE(CompareNumber(1.0e9, 1.0e9 + 0.0005));
+    ASSERT_TRUE(CompareNumber(std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()));
+    ASSERT_FALSE(CompareNumber(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN()));
+    ASSERT_DOUBLE_EQ(Pi<double>(), std::numbers::pi_v<double>);
     ASSERT_TRUE(CompareNumber(5, 5));
     ASSERT_FALSE(CompareNumber(5, 6));
 }
@@ -40,6 +47,8 @@ TEST(MathTest, CompareNumberTest)
 
 TEST(MathTest, HFloatTest) // NOLINT
 {
+    static_assert(sizeof(HFloat) == sizeof(uint16_t));
+
     const HFloat v0 = 1.0f;
     ASSERT_FLOAT_EQ(v0, 1.0f);
     ASSERT_TRUE(v0 == 1.0f);
@@ -53,14 +62,14 @@ TEST(MathTest, HFloatTest) // NOLINT
 
     HFloat v3 = 1.0f;
     v3 /= v2;
-    ASSERT_TRUE(v3 == (1.0f / 1.5f));
+    ASSERT_NEAR(v3.AsFloat(), 1.0f / 1.5f, halfEpsilon);
 
     HFloat v4 = 2.0f;
     v4 -= v2;
     ASSERT_TRUE(v4 == HFloat(0.5f));
 
     const HFloat v5 = 3.0f;
-    ASSERT_TRUE(HFloat(9.0f) = HFloat(std::pow(v5, 2.0f)));
+    ASSERT_TRUE(HFloat(9.0f) == HFloat(std::pow(v5, 2.0f)));
 
     const HFloat v6 = 9.0f;
     ASSERT_TRUE(v5 == HFloat(std::sqrt(v6)));
@@ -99,10 +108,40 @@ TEST(MathTest, HFloatEdgeCaseTest) // NOLINT
     ASSERT_TRUE(HFloat(0.5f) == 0.5f);
     ASSERT_TRUE(HFloat(0.25f) == 0.25f);
 
-    // values beyond the half range are clamped to the largest representable finite half (~65504)
-    const float large = static_cast<float>(HFloat(100000.0f));
-    ASSERT_GT(large, 60000.0f);
-    ASSERT_LT(large, 70000.0f);
+    ASSERT_FLOAT_EQ(HFloat(65504.0f).AsFloat(), 65504.0f);
+    ASSERT_TRUE(std::isinf(HFloat(100000.0f).AsFloat()));
+    ASSERT_TRUE(std::isinf(HFloat(std::numeric_limits<float>::infinity()).AsFloat()));
+    ASSERT_TRUE(std::isnan(HFloat(std::numeric_limits<float>::quiet_NaN()).AsFloat()));
+
+    HFloat minimumSubnormal;
+    minimumSubnormal.value = 1;
+    ASSERT_FLOAT_EQ(minimumSubnormal.AsFloat(), std::ldexp(1.0f, -24));
+
+    const HFloat positiveZero(0.0f);
+    const HFloat negativeZero(-0.0f);
+    ASSERT_TRUE(positiveZero == negativeZero);
+    ASSERT_FALSE(std::signbit(positiveZero.AsFloat()));
+    ASSERT_TRUE(std::signbit(negativeZero.AsFloat()));
+
+    const HFloat one(1.0f);
+    const float halfwayToNext = 1.0f + std::ldexp(1.0f, -11);
+    ASSERT_EQ(HFloat(halfwayToNext).value, one.value);
+    ASSERT_EQ(HFloat(std::nextafter(halfwayToNext, 2.0f)).value, one.value + 1);
+    ASSERT_FALSE(one == HFloat(1.0f + std::ldexp(1.0f, -10)));
+}
+
+TEST(MathTest, HFloatBitPatternRoundTripTest) // NOLINT
+{
+    for (uint32_t bits = 0; bits <= std::numeric_limits<uint16_t>::max(); ++bits) {
+        HFloat value;
+        value.value = static_cast<uint16_t>(bits);
+        const float asFloat = value.AsFloat();
+        if ((bits & 0x7c00u) == 0x7c00u && (bits & 0x03ffu) != 0) {
+            ASSERT_TRUE(std::isnan(asFloat));
+        } else {
+            ASSERT_EQ(HFloat(asFloat).value, value.value);
+        }
+    }
 }
 
 // ==================================== Vector ====================================
@@ -365,6 +404,18 @@ TEST(MathTest, VecNormalizeTest)
 
     v0.Normalize();
     ASSERT_TRUE(v0 == n0);
+
+    FVec3 zero = FVec3Consts::zero;
+    ASSERT_FALSE(zero.TryNormalize());
+    ASSERT_TRUE(zero == FVec3Consts::zero);
+
+    FVec3 infinite(std::numeric_limits<float>::infinity(), 0.0f, 0.0f);
+    ASSERT_FALSE(infinite.TryNormalize());
+
+    FVec3 tiny(1.0e-8f, 0.0f, 0.0f);
+    ASSERT_FALSE(tiny.TryNormalize());
+    ASSERT_TRUE(tiny.TryNormalize(1.0e-9f));
+    ASSERT_TRUE(tiny == FVec3Consts::unitX);
 }
 
 TEST(MathTest, VecConstsTest)
@@ -605,6 +656,18 @@ TEST(MathTest, MatCanInverseTest)
 
     const FMat2x2 m1(1, 2, 2, 4);
     ASSERT_FALSE(m1.CanInverse());
+
+    FMat2x2 result(7.0f);
+    ASSERT_FALSE(m1.TryInverse(result));
+    ASSERT_TRUE(result == 7.0f);
+
+    const FMat2x2 nearSingular(1.0f, 1.0f, 1.0f, 1.0f + 1.0e-7f);
+    ASSERT_FALSE(nearSingular.CanInverse());
+
+    const FMat2x2 smallButInvertible(1.0e-8f, 0.0f, 0.0f, 1.0e-8f);
+    ASSERT_TRUE(smallButInvertible.CanInverse());
+    ASSERT_TRUE(smallButInvertible.TryInverse(result));
+    ASSERT_TRUE(result == FMat2x2(1.0e8f, 0.0f, 0.0f, 1.0e8f));
 }
 
 TEST(MathTest, MatScalarArithmeticTest)
@@ -666,6 +729,17 @@ TEST(MathTest, AngleRadianConvertTest)
     const FAngle a1(r1);
     ASSERT_TRUE(a1 == FAngle(180.0f));
 
+    FAngle assignedAngle;
+    assignedAngle = FRadian(pi / 2.0f);
+    ASSERT_TRUE(assignedAngle == FAngle(90.0f));
+
+    FRadian assignedRadian;
+    assignedRadian = FAngle(180.0f);
+    ASSERT_TRUE(assignedRadian == FRadian(pi));
+
+    const DAngle preciseAngle { DRadian(std::numbers::pi_v<double>) };
+    ASSERT_TRUE(preciseAngle == DAngle(180.0));
+
     ASSERT_TRUE(FAngle(45.0f) == FAngle(45.0f));
     ASSERT_FALSE(FRadian(1.0f) == FRadian(2.0f));
 }
@@ -713,6 +787,14 @@ TEST(MathTest, QuaternionPropertiesTest)
 
     const FQuat v1(2, 0, 0, 0);
     ASSERT_TRUE(v1.Normalized() == FQuat(1, 0, 0, 0));
+
+    FQuat zero;
+    ASSERT_FALSE(zero.TryNormalize());
+    ASSERT_TRUE(zero == FQuatConsts::zero);
+
+    FQuat normalized(2, 0, 0, 0);
+    ASSERT_TRUE(normalized.TryNormalize());
+    ASSERT_TRUE(normalized == FQuatConsts::identity);
 
     const FQuat v2(2, 3, 4, 5);
     ASSERT_FLOAT_EQ(v0.Dot(v2), 1.0f * 2 + 2 * 3 + 3 * 4 + 4 * 5);
@@ -908,6 +990,16 @@ TEST(MathTest, TransformLookAtTest)
     const float invSqrt2 = std::sqrt(0.5f);
     ASSERT_TRUE((r3 * FVec4(1, 0, 0, 0)) == FVec4(invSqrt2, invSqrt2, 0, 0));
     ASSERT_TRUE((r3 * FVec4(0, 0, 1, 0)) == FVec4(0, 0, 1, 0));
+
+    FTransform invalidLook(FQuatConsts::identity, FVec3(1, 2, 3));
+    ASSERT_FALSE(invalidLook.TryLookTo(invalidLook.translation));
+    ASSERT_TRUE(invalidLook == FTransform(FQuatConsts::identity, FVec3(1, 2, 3)));
+    ASSERT_FALSE(invalidLook.TryMoveAndLookTo(FVec3(4, 5, 6), FVec3(4, 5, 6)));
+    ASSERT_TRUE(invalidLook.translation == FVec3(1, 2, 3));
+
+    FTransform parallelUp;
+    ASSERT_TRUE(parallelUp.TryLookTo(FVec3Consts::unitZ, FVec3Consts::unitZ));
+    ASSERT_TRUE(CompareNumber(parallelUp.rotation.Model(), 1.0f));
 }
 
 TEST(MathTest, TransformCastToTest)

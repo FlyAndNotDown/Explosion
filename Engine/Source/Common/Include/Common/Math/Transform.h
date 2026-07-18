@@ -45,6 +45,8 @@ namespace Common {
         Transform& Rotate(const Quaternion<T>& inRotation);
         Transform& Scale(const Vec<T, 3>& inScale);
         Transform& UpdateRotation(const Vec<T, 3>& forward, const Vec<T, 3>& side, const Vec<T, 3>& up);
+        bool TryLookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ, T tolerance = DefaultTolerance<T>());
+        bool TryMoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ, T tolerance = DefaultTolerance<T>());
         Transform& LookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ);
         Transform& MoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ);
 
@@ -348,38 +350,55 @@ namespace Common {
     }
 
     template <typename T>
-    Transform<T>& Transform<T>::LookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection)
+    bool Transform<T>::TryLookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection, T tolerance)
     {
         Vec<T, 3> f(inTargetPosition - this->translation);
-        f.Normalize();
+        if (!f.TryNormalize(tolerance)) {
+            return false;
+        }
 
         Vec<T, 3> s = inUpDirection.Cross(f);
-        s.Normalize();
+        if (!s.TryNormalize(tolerance)) {
+            const Vec<T, 3>& fallbackUp = std::abs(static_cast<double>(f.z)) < 0.999
+                ? VecConsts<T, 3>::unitZ
+                : VecConsts<T, 3>::unitY;
+            s = fallbackUp.Cross(f);
+            if (!s.TryNormalize(tolerance)) {
+                return false;
+            }
+        }
 
         Vec<T, 3> u = f.Cross(s);
 
         this->UpdateRotation(f, s, u);
+        return true;
+    }
 
+    template <typename T>
+    bool Transform<T>::TryMoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection, T tolerance)
+    {
+        Transform result(*this);
+        result.translation = inPosition;
+        if (!result.TryLookTo(inTargetPosition, inUpDirection, tolerance)) {
+            return false;
+        }
+        *this = result;
+        return true;
+    }
+
+    template <typename T>
+    Transform<T>& Transform<T>::LookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection)
+    {
+        const bool success = TryLookTo(inTargetPosition, inUpDirection);
+        Assert(success);
         return *this;
     }
 
     template <typename T>
     Transform<T>& Transform<T>::MoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection)
     {
-        // Translation of LookAtMatrix ([s.Dot(inPosition), u.Dot(inPosition), f.Dot(inPosition)]) applying to visible objects is in camera space, whose coordinate system consists of s u and f
-        // The translation we need is in world space, exactly inPosition
-        this->translation = inPosition;
-
-        Vec<T, 3> f(inTargetPosition - this->translation);
-        f.Normalize();
-
-        Vec<T, 3> s = inUpDirection.Cross(f);
-        s.Normalize();
-
-        Vec<T, 3> u = f.Cross(s);
-
-        this->UpdateRotation(f, s, u);
-
+        const bool success = TryMoveAndLookTo(inPosition, inTargetPosition, inUpDirection);
+        Assert(success);
         return *this;
     }
 

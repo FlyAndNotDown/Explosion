@@ -92,10 +92,13 @@ namespace Common {
         Quaternion& operator/=(T rhs);
 
         Vec<T, 3, B> ImaginaryPart() const;
+        T ModelSquared() const;
         T Model() const;
         Quaternion Negatived() const;
         Quaternion Conjugated() const;
         Quaternion Normalized() const;
+        bool TryNormalize(T tolerance = DefaultTolerance<T>());
+        void Normalize();
         T Dot(const Quaternion& rhs) const;
         // when axis faced to us, ccw as positive direction
         Vec<T, 3, B> RotateVector(const Vec<T, 3, B>& inVector) const;
@@ -420,7 +423,7 @@ namespace Common {
     template <typename T>
     Angle<T>& Angle<T>::operator=(const Radian<T>& inValue)
     {
-        this->value = inValue.value;
+        this->value = inValue.ToAngle();
         return *this;
     }
 
@@ -433,7 +436,7 @@ namespace Common {
     template <typename T>
     T Angle<T>::ToRadian() const
     {
-        return this->value / 180.0f * pi;
+        return this->value / static_cast<T>(180) * Pi<T>();
     }
 
     template <typename T>
@@ -467,7 +470,7 @@ namespace Common {
     template <typename T>
     Radian<T>& Radian<T>::operator=(const Angle<T>& inValue)
     {
-        this->value = inValue.value;
+        this->value = inValue.ToRadian();
         return *this;
     }
 
@@ -480,7 +483,7 @@ namespace Common {
     template <typename T>
     T Radian<T>::ToAngle() const
     {
-        return this->value * 180.0f / pi;
+        return this->value * static_cast<T>(180) / Pi<T>();
     }
 
     template <typename T, MathBackend B>
@@ -524,7 +527,15 @@ namespace Common {
     template <typename T, MathBackend B>
     Quaternion<T, B>::Quaternion(const Vec<T, 3, B>& inAxis, float inAngle)
     {
-        Vec<T, 3, B> axis = inAxis.Normalized();
+        Vec<T, 3, B> axis = inAxis;
+        if (!axis.TryNormalize()) {
+            Assert(false);
+            this->w = 1;
+            this->x = 0;
+            this->y = 0;
+            this->z = 0;
+            return;
+        }
         T halfRadian = Angle<T>(inAngle).ToRadian() / 2.0f;
         T halfRadianSin = std::sin(halfRadian);
         T halfRadianCos = std::cos(halfRadian);
@@ -630,7 +641,13 @@ namespace Common {
     template <typename T, MathBackend B>
     T Quaternion<T, B>::Model() const
     {
-        return std::sqrt(Internal::QuatOps<T, B>::Dot(*this, *this));
+        return std::sqrt(ModelSquared());
+    }
+
+    template <typename T, MathBackend B>
+    T Quaternion<T, B>::ModelSquared() const
+    {
+        return Internal::QuatOps<T, B>::Dot(*this, *this);
     }
 
     template <typename T, MathBackend B>
@@ -658,7 +675,31 @@ namespace Common {
     template <typename T, MathBackend B>
     Quaternion<T, B> Quaternion<T, B>::Normalized() const
     {
-        return this->operator/(Model());
+        Quaternion result(*this);
+        result.Normalize();
+        return result;
+    }
+
+    template <typename T, MathBackend B>
+    bool Quaternion<T, B>::TryNormalize(T tolerance)
+    {
+        const T modelSquared = ModelSquared();
+        const double modelSquaredValue = static_cast<double>(modelSquared);
+        const double toleranceValue = static_cast<double>(tolerance);
+        if (!std::isfinite(modelSquaredValue) || modelSquaredValue <= toleranceValue * toleranceValue) {
+            return false;
+        }
+
+        const T oneOverModel = static_cast<T>(1) / static_cast<T>(std::sqrt(modelSquared));
+        *this = Internal::QuatOps<T, B>::MulScalar(*this, oneOverModel);
+        return true;
+    }
+
+    template <typename T, MathBackend B>
+    void Quaternion<T, B>::Normalize()
+    {
+        const bool normalized = TryNormalize();
+        Assert(normalized);
     }
 
     template <typename T, MathBackend B>

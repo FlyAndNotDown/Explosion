@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 #include <Common/Platform.h>
@@ -47,7 +49,10 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return { a.lanes[0] - b.lanes[0], a.lanes[1] - b.lanes[1], a.lanes[2] - b.lanes[2], a.lanes[3] - b.lanes[3] }; }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return { a.lanes[0] * b.lanes[0], a.lanes[1] * b.lanes[1], a.lanes[2] * b.lanes[2], a.lanes[3] * b.lanes[3] }; }
     inline F32x4 Div(F32x4 a, F32x4 b) { return { a.lanes[0] / b.lanes[0], a.lanes[1] / b.lanes[1], a.lanes[2] / b.lanes[2], a.lanes[3] / b.lanes[3] }; }
+    inline F32x4 Abs(F32x4 v) { return { std::abs(v.lanes[0]), std::abs(v.lanes[1]), std::abs(v.lanes[2]), std::abs(v.lanes[3]) }; }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return { std::max(a.lanes[0], b.lanes[0]), std::max(a.lanes[1], b.lanes[1]), std::max(a.lanes[2], b.lanes[2]), std::max(a.lanes[3], b.lanes[3]) }; }
     inline float Sum(F32x4 v) { return v.lanes[0] + v.lanes[1] + v.lanes[2] + v.lanes[3]; }
+    inline float MaxValue(F32x4 v) { return std::max(std::max(v.lanes[0], v.lanes[1]), std::max(v.lanes[2], v.lanes[3])); }
     inline F32x4 Set(float x, float y, float z, float w) { return { x, y, z, w }; }
 
     template <int L>
@@ -74,6 +79,8 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return _mm_sub_ps(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return _mm_mul_ps(a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return _mm_div_ps(a, b); }
+    inline F32x4 Abs(F32x4 v) { return _mm_andnot_ps(_mm_set1_ps(-0.0f), v); }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return _mm_max_ps(a, b); }
 
     inline float Sum(F32x4 v)
     {
@@ -82,6 +89,12 @@ namespace Common::Simd {
         shuf = _mm_movehl_ps(shuf, sums);
         sums = _mm_add_ss(sums, shuf);
         return _mm_cvtss_f32(sums);
+    }
+
+    inline float MaxValue(F32x4 v)
+    {
+        const F32x4 pairMax = _mm_max_ps(v, _mm_movehl_ps(v, v));
+        return _mm_cvtss_f32(_mm_max_ss(pairMax, _mm_shuffle_ps(pairMax, pairMax, _MM_SHUFFLE(1, 1, 1, 1))));
     }
 
     inline F32x4 Set(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
@@ -107,7 +120,10 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return vsubq_f32(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return vmulq_f32(a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return vdivq_f32(a, b); }
+    inline F32x4 Abs(F32x4 v) { return vabsq_f32(v); }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return vmaxq_f32(a, b); }
     inline float Sum(F32x4 v) { return vaddvq_f32(v); }
+    inline float MaxValue(F32x4 v) { return vmaxvq_f32(v); }
 
     inline F32x4 Set(float x, float y, float z, float w)
     {

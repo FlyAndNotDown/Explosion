@@ -9,6 +9,7 @@
 
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
+#include <Common/Debug.h>
 #include <Common/Serialization.h>
 #include <Common/String.h>
 
@@ -82,8 +83,10 @@ namespace Common {
         template <uint8_t... I>
         Vec<T, sizeof...(I), B> SubVec() const;
 
+        T ModelSquared() const;
         T Model() const;
         Vec Normalized() const;
+        bool TryNormalize(T tolerance = DefaultTolerance<T>());
         void Normalize();
         T Dot(const Vec& rhs) const;
         typename Internal::VecCrossResultTraits<T, L, B>::Type Cross(const Vec& rhs) const;
@@ -817,20 +820,45 @@ namespace Common {
     T Vec<T, L, B>::Model() const
     {
         static_assert(FloatingPoint<T>);
-        return std::sqrt(Internal::VecOps<T, L, B>::Dot(*this, *this));
+        return std::sqrt(ModelSquared());
+    }
+
+    template <typename T, uint8_t L, MathBackend B>
+    T Vec<T, L, B>::ModelSquared() const
+    {
+        static_assert(FloatingPoint<T>);
+        return Internal::VecOps<T, L, B>::Dot(*this, *this);
     }
 
     template <typename T, uint8_t L, MathBackend B>
     Vec<T, L, B> Vec<T, L, B>::Normalized() const
     {
-        return this->operator/(Model());
+        Vec result(*this);
+        result.Normalize();
+        return result;
+    }
+
+    template <typename T, uint8_t L, MathBackend B>
+    bool Vec<T, L, B>::TryNormalize(T tolerance)
+    {
+        static_assert(FloatingPoint<T>);
+        const T modelSquared = ModelSquared();
+        const double modelSquaredValue = static_cast<double>(modelSquared);
+        const double toleranceValue = static_cast<double>(tolerance);
+        if (!std::isfinite(modelSquaredValue) || modelSquaredValue <= toleranceValue * toleranceValue) {
+            return false;
+        }
+
+        const T oneOverModel = static_cast<T>(1) / static_cast<T>(std::sqrt(modelSquared));
+        *this = Internal::VecOps<T, L, B>::MulScalar(*this, oneOverModel);
+        return true;
     }
 
     template <typename T, uint8_t L, MathBackend B>
     void Vec<T, L, B>::Normalize()
     {
-        T oneOverModel = static_cast<T>(1.0) / Model();
-        *this = Internal::VecOps<T, L, B>::MulScalar(*this, oneOverModel);
+        const bool normalized = TryNormalize();
+        Assert(normalized);
     }
 
     template <typename T, uint8_t L, MathBackend B>
