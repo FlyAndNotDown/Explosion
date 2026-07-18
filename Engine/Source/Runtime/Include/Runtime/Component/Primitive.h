@@ -16,5 +16,6 @@ namespace Runtime {
         StaticPrimitive();
 
         EProperty() AssetPtr<StaticMesh> mesh;
+        EProperty() AssetPtr<MaterialInstance> materialOverride;
     };
 }

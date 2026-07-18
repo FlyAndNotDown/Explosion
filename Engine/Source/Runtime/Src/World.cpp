@@ -80,16 +80,6 @@ namespace Runtime {
         return executor.has_value() && !Paused();
     }
 
-    ECRegistry& World::GetRegistry()
-    {
-        return ecRegistry;
-    }
-
-    const ECRegistry& World::GetRegistry() const
-    {
-        return ecRegistry;
-    }
-
     void World::LoadFrom(AssetPtr<Level> inLevel)
     {
         Assert(Stopped());
@@ -102,6 +92,14 @@ namespace Runtime {
         Assert(systemSetupContext.playType == PlayType::editor || Stopped());
         ecRegistry.Save(inLevel->GetArchive());
     }
+
+#if BUILD_EDITOR
+    void World::EditorAccess(const std::function<void(ECRegistry&)>& inAccessFunc)
+    {
+        Assert(systemSetupContext.playType == PlayType::editor);
+        inAccessFunc(ecRegistry);
+    }
+#endif
 
     void World::Tick(float inDeltaTimeSeconds)
     {

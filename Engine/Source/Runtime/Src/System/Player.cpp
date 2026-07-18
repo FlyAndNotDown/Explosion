@@ -32,17 +32,13 @@ namespace Runtime {
 
     Entity PlayerSystem::CreateLocalPlayer()
     {
-        // a game world requires exactly one player start, the result is copied because View() returns a temporary the
-        // reference would dangle into
-        const auto playerStartQuery = registry.View<PlayerStart, WorldTransform>().All();
-        Assert(playerStartQuery.size() == 1);
+        const auto playerStarts = registry.View<PlayerStart, WorldTransform>().All();
+        Assert(!playerStarts.empty());
 
         const auto playerEntity = registry.Create();
         registry.AddTag<TransientTag>(playerEntity);
         registry.Emplace<Camera>(playerEntity);
-        // the registered reflected constructor takes an FTransform, passing a WorldTransform copy would silently
-        // match the wrong constructor and lose the data
-        registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStartQuery[0]).localToWorld);
+        registry.Emplace<WorldTransform>(playerEntity, std::get<2>(playerStarts.front()).localToWorld);
         registry.Emplace<LocalPlayer>(playerEntity).localPlayerIndex = activeLocalPlayerNum++;
         return playerEntity;
     }

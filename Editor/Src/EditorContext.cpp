@@ -10,9 +10,6 @@ namespace Editor {
     EditorContext::EditorContext()
         : sceneClient(Common::MakeUnique<SceneClient>())
         , selectedEntity(Runtime::entityNull)
-        , selectionVersion(0)
-        , worldStructureVersion(0)
-        , componentsVersion(0)
     {
     }
 
@@ -28,19 +25,28 @@ namespace Editor {
         return selectedEntity;
     }
 
-    uint64_t EditorContext::GetSelectionVersion() const
+    bool EditorContext::CanAddComponent(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass) const
     {
-        return selectionVersion;
+        const bool isTag = inClass != nullptr && inClass->HasMeta(Runtime::MetaPresets::tag);
+        if (!inRegistry.Valid(inEntity)
+            || inClass == nullptr
+            || !inClass->HasMeta("comp")
+            || (!isTag && !inClass->HasDefaultConstructor())) {
+            return false;
+        }
+        return isTag
+            ? !inRegistry.HasTagDyn(inClass, inEntity)
+            : !inRegistry.HasDyn(inClass, inEntity);
     }
 
-    uint64_t EditorContext::GetWorldStructureVersion() const
+    bool EditorContext::CanRemoveComponent(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass) const
     {
-        return worldStructureVersion;
-    }
-
-    uint64_t EditorContext::GetComponentsVersion() const
-    {
-        return componentsVersion;
+        if (!inRegistry.Valid(inEntity) || inClass == nullptr || !inClass->HasMeta("comp")) {
+            return false;
+        }
+        return inClass->HasMeta(Runtime::MetaPresets::tag)
+            ? inRegistry.HasTagDyn(inClass, inEntity)
+            : inRegistry.HasDyn(inClass, inEntity);
     }
 
     void EditorContext::SetSelectedEntity(Runtime::Entity inEntity)
@@ -49,59 +55,71 @@ namespace Editor {
             return;
         }
         selectedEntity = inEntity;
-        selectionVersion++;
     }
 
-    Runtime::Entity EditorContext::CreateEntity(const std::string& inName)
+    Runtime::Entity EditorContext::CreateEntity(Runtime::ECRegistry& inRegistry, const std::string& inName)
     {
-        auto& registry = sceneClient->GetWorld().GetRegistry();
-        const auto entity = registry.Create();
-        // Name's reflected constructor takes a std::string.
-        registry.Emplace<Runtime::Name>(entity, inName);
-        registry.Emplace<Runtime::WorldTransform>(entity);
-        worldStructureVersion++;
+        const Runtime::Entity entity = inRegistry.Create();
+        inRegistry.Emplace<Runtime::Name>(entity, inName);
+        inRegistry.Emplace<Runtime::WorldTransform>(entity);
         return entity;
     }
 
-    void EditorContext::DestroyEntity(Runtime::Entity inEntity)
+    void EditorContext::DestroyEntity(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity)
     {
-        auto& registry = sceneClient->GetWorld().GetRegistry();
-        if (!registry.Valid(inEntity)) {
+        if (!inRegistry.Valid(inEntity)) {
             return;
         }
-        registry.Destroy(inEntity);
+        Runtime::HierarchyOps::Destroy(inRegistry, inEntity);
         if (selectedEntity == inEntity) {
             SetSelectedEntity(Runtime::entityNull);
         }
-        worldStructureVersion++;
     }
 
-    void EditorContext::RenameEntity(Runtime::Entity inEntity, const std::string& inName)
+    bool EditorContext::AddComponent(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass)
     {
-        auto& registry = sceneClient->GetWorld().GetRegistry();
-        if (!registry.Valid(inEntity)) {
-            return;
+        if (!CanAddComponent(inRegistry, inEntity, inClass)) {
+            return false;
         }
-        if (registry.Has<Runtime::Name>(inEntity)) {
-            registry.Update<Runtime::Name>(inEntity, [&](Runtime::Name& name) -> void { name.value = inName; });
+        if (inClass->HasMeta(Runtime::MetaPresets::tag)) {
+            inRegistry.AddTagDyn(inClass, inEntity);
         } else {
-            registry.Emplace<Runtime::Name>(inEntity, inName);
+            inRegistry.EmplaceDyn(inClass, inEntity, {});
         }
-        worldStructureVersion++;
+        return true;
     }
 
-    void EditorContext::NotifyComponentEdited(Runtime::Entity inEntity, Runtime::CompClass inClass)
+    bool EditorContext::RemoveComponent(Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity, Runtime::CompClass inClass)
     {
-        auto& registry = sceneClient->GetWorld().GetRegistry();
-        if (!registry.Valid(inEntity) || !registry.HasDyn(inClass, inEntity)) {
-            return;
+        if (!CanRemoveComponent(inRegistry, inEntity, inClass)) {
+            return false;
         }
-        registry.NotifyUpdatedDyn(inClass, inEntity);
-        NotifyComponentsChanged(inEntity);
+        if (inClass->HasMeta(Runtime::MetaPresets::tag)) {
+            inRegistry.RemoveTagDyn(inClass, inEntity);
+        } else if (inClass == &Runtime::Hierarchy::GetStaticClass()) {
+            Runtime::HierarchyOps::Remove(inRegistry, inEntity);
+        } else {
+            inRegistry.RemoveDyn(inClass, inEntity);
+        }
+        return true;
     }
 
-    void EditorContext::NotifyComponentsChanged(Runtime::Entity)
+    bool EditorContext::SetComponentMember(
+        Runtime::ECRegistry& inRegistry,
+        Runtime::Entity inEntity,
+        Runtime::CompClass inClass,
+        const Mirror::MemberVariable& inMemberVariable,
+        const Mirror::Any& inValue)
     {
-        componentsVersion++;
+        if (inClass == nullptr
+            || !inRegistry.Valid(inEntity)
+            || !inRegistry.HasDyn(inClass, inEntity)
+            || &inMemberVariable.GetOwner() != inClass) {
+            return false;
+        }
+        inRegistry.UpdateDyn(inClass, inEntity, [&](const Mirror::Any& inComponent) -> void {
+            inMemberVariable.SetDyn(inComponent, inValue);
+        });
+        return true;
     }
 }

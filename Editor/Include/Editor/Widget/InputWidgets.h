@@ -11,6 +11,19 @@
 #include <Mirror/Mirror.h>
 
 namespace Editor {
+    class InputWidgetRow final {
+    public:
+        explicit InputWidgetRow(const std::string& inLabel);
+        InputWidgetRow(const InputWidgetRow&) = delete;
+        InputWidgetRow& operator=(const InputWidgetRow&) = delete;
+        ~InputWidgetRow();
+
+        bool IsVisible() const;
+
+    private:
+        bool visible;
+    };
+
     template <typename T>
     class InputWidget;
 
@@ -134,5 +147,5 @@ namespace Editor {
         static bool Render(const std::string& inLabel, Common::Color& inValue);
     };
 
-    bool RenderInputWidget(const std::string& inLabel, Mirror::Any inValue);
+    bool RenderInputWidget(const std::string& inLabel, Mirror::Any& inValue);
 }

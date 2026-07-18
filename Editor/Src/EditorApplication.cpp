@@ -13,6 +13,7 @@
 #include <Common/Time.h>
 #include <Core/Paths.h>
 #include <Editor/EditorApplication.h>
+#include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/Utils/ImGuiCompatibility.h>
 #include <Runtime/Engine.h>
 
@@ -25,9 +26,9 @@ namespace Editor::Internal {
     constexpr float defaultRightColumnRatio = 0.22f;
     constexpr float minRightColumnWidth = 360.0f;
     constexpr float maxRightColumnWidth = 480.0f;
-    constexpr float defaultLogRatio = 0.22f;
-    constexpr float minLogHeight = 200.0f;
-    constexpr float maxLogHeight = 300.0f;
+    constexpr float defaultBottomPanelRatio = 0.22f;
+    constexpr float minBottomPanelHeight = 200.0f;
+    constexpr float maxBottomPanelHeight = 300.0f;
     constexpr float defaultOutlinerRatio = 0.35f;
     constexpr float minOutlinerHeight = 280.0f;
     constexpr float maxOutlinerHeight = 420.0f;
@@ -35,7 +36,7 @@ namespace Editor::Internal {
     constexpr uint32_t defaultSceneHeight = 720;
     constexpr RHI::PixelFormat sceneColorFormat = RHI::PixelFormat::rgba8Unorm;
     constexpr const char* editorDockSpaceName = "EditorDockSpace";
-    constexpr const char* editorDockSpaceId = "EditorDockSpaceV2";
+    constexpr const char* editorDockSpaceId = "EditorDockSpaceV3";
 
     static Runtime::CanvasDesc CreateSceneRenderCanvasDesc()
     {
@@ -103,18 +104,19 @@ namespace Editor::Internal {
         ImGuiID rightColumnNodeId = 0;
         ImGuiID outlinerNodeId = 0;
         ImGuiID inspectorNodeId = 0;
-        ImGuiID logNodeId = 0;
+        ImGuiID bottomNodeId = 0;
         const float rightColumnRatio = CalculatePanelRatio(inSize.x, defaultRightColumnRatio, minRightColumnWidth, maxRightColumnWidth);
-        const float logRatio = CalculatePanelRatio(inSize.y, defaultLogRatio, minLogHeight, maxLogHeight);
+        const float bottomPanelRatio = CalculatePanelRatio(inSize.y, defaultBottomPanelRatio, minBottomPanelHeight, maxBottomPanelHeight);
         const float outlinerRatio = CalculatePanelRatio(inSize.y, defaultOutlinerRatio, minOutlinerHeight, maxOutlinerHeight);
         ImGui::DockBuilderSplitNode(inDockSpaceId, ImGuiDir_Right, rightColumnRatio, &rightColumnNodeId, &sceneNodeId);
-        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, logRatio, &logNodeId, &sceneNodeId);
+        ImGui::DockBuilderSplitNode(sceneNodeId, ImGuiDir_Down, bottomPanelRatio, &bottomNodeId, &sceneNodeId);
         ImGui::DockBuilderSplitNode(rightColumnNodeId, ImGuiDir_Up, outlinerRatio, &outlinerNodeId, &inspectorNodeId);
 
-        ImGui::DockBuilderDockWindow("Scene", sceneNodeId);
-        ImGui::DockBuilderDockWindow("Outliner", outlinerNodeId);
-        ImGui::DockBuilderDockWindow("Inspector", inspectorNodeId);
-        ImGui::DockBuilderDockWindow("Log", logNodeId);
+        ImGui::DockBuilderDockWindow(PanelNames::scene, sceneNodeId);
+        ImGui::DockBuilderDockWindow(PanelNames::outliner, outlinerNodeId);
+        ImGui::DockBuilderDockWindow(PanelNames::inspector, inspectorNodeId);
+        ImGui::DockBuilderDockWindow(PanelNames::assets, bottomNodeId);
+        ImGui::DockBuilderDockWindow(PanelNames::log, bottomNodeId);
         ImGui::DockBuilderFinish(inDockSpaceId);
     }
 
@@ -299,7 +301,9 @@ namespace Editor {
     void EditorApplication::RenderEditorFrame(float inDeltaSeconds)
     {
         DrawDockSpace();
-        editorFrame.Render(*context, *sceneRenderCanvas, requestQuit);
+        context->GetSceneClient().GetWorld().EditorAccess([&](Runtime::ECRegistry& registry) -> void {
+            editorFrame.Render(*context, registry, *sceneRenderCanvas, requestQuit);
+        });
         if (requestQuit) {
             window->RequestClose();
         }
@@ -310,7 +314,6 @@ namespace Editor {
 
         ImGui::Render();
         window->SetDrawData(Internal::CloneDrawData(*ImGui::GetDrawData()));
-        context->GetSceneClient().TickEditorCamera(inDeltaSeconds);
         Runtime::EngineHolder::Get().Tick(inDeltaSeconds);
         window->RenderPendingUi();
     }
@@ -342,7 +345,7 @@ namespace Editor {
             }
             if (inAction == GLFW_PRESS || inAction == GLFW_RELEASE) {
                 const bool canRouteToScene = sceneClient.IsCameraLooking() || (!io.WantCaptureKeyboard && sceneClient.IsSceneHovered());
-                if (canRouteToScene) {
+                if (canRouteToScene || inAction == GLFW_RELEASE) {
                     sceneClient.OnKey(inKey, inAction == GLFW_PRESS);
                 }
             }

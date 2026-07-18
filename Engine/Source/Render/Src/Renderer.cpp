@@ -94,7 +94,7 @@ namespace Render {
             ShaderMap& shaderMap = ShaderMap::Get(*device);
             size_t drawIndex = 0;
 
-            for (const auto& [entity, proxy] : scene->All<PrimitiveSceneProxy>()) {
+            for (const auto& [entity, proxy] : scene->All<StaticPrimitiveSceneProxy>()) {
                 if (!proxy.mesh.Valid() || proxy.vertexFactoryType == nullptr || proxy.vertexShaderType == nullptr || proxy.pixelShaderType == nullptr) {
                     continue;
                 }

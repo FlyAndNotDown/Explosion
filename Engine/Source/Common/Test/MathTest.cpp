@@ -755,6 +755,23 @@ TEST(MathTest, EulerRotationTest)
     ASSERT_TRUE(FQuatConsts::identity == FQuat::FromEulerZYX(0, 0, 0));
 }
 
+TEST(MathTest, QuaternionToEulerZYXTest)
+{
+    constexpr float angleTolerance = 1e-4f;
+
+    const FVec3 euler = FQuat::FromEulerZYX(30.0f, -45.0f, 120.0f).ToEulerZYX();
+    EXPECT_NEAR(euler.x, 30.0f, angleTolerance);
+    EXPECT_NEAR(euler.y, -45.0f, angleTolerance);
+    EXPECT_NEAR(euler.z, 120.0f, angleTolerance);
+
+    const FVec3 nonNormalizedEuler = (FQuat::FromEulerZYX(-60.0f, 75.0f, -150.0f) * 2.0f).ToEulerZYX();
+    EXPECT_NEAR(nonNormalizedEuler.x, -60.0f, angleTolerance);
+    EXPECT_NEAR(nonNormalizedEuler.y, 75.0f, angleTolerance);
+    EXPECT_NEAR(nonNormalizedEuler.z, -150.0f, angleTolerance);
+
+    ASSERT_TRUE(FQuat().ToEulerZYX() == FVec3Consts::zero);
+}
+
 TEST(MathTest, QuaternionToRotationMatrixTest)
 {
     auto applyRotationMatrix = [](const FMat4x4& rotationMatrix, const FVec3& vec) -> FVec3 {
