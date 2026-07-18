@@ -38,6 +38,13 @@ namespace Editor::Internal {
             : std::format("Entity {}", inEntity);
     }
 
+    static void SetNextItemWidthWithTrailingButton(const char* inButtonLabel)
+    {
+        const auto& style = ImGui::GetStyle();
+        const float buttonWidth = ImGui::CalcTextSize(inButtonLabel).x + style.FramePadding.x * 2.0f;
+        ImGui::SetNextItemWidth(-(buttonWidth + style.ItemSpacing.x));
+    }
+
     static std::string LevelString(Core::LogLevel inLevel)
     {
         switch (inLevel) {
@@ -150,11 +157,17 @@ namespace Editor {
             ImGui::End();
             return;
         }
-        ImGui::InputText("New Entity", &createEntityName);
-        ImGui::SameLine();
-        if (ImGui::Button("Create")) {
-            const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
-            inContext.SetSelectedEntity(entity);
+        {
+            InputWidgetRow createEntityRow("New Entity");
+            if (createEntityRow.IsVisible()) {
+                Internal::SetNextItemWidthWithTrailingButton("Create");
+                ImGui::InputText("##Value", &createEntityName);
+                ImGui::SameLine();
+                if (ImGui::Button("Create")) {
+                    const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
+                    inContext.SetSelectedEntity(entity);
+                }
+            }
         }
         ImGui::Separator();
 
@@ -203,25 +216,29 @@ namespace Editor {
         if (!addableComponents.empty()) {
             selectedAddComponentIndex = std::clamp(selectedAddComponentIndex, 0, static_cast<int>(addableComponents.size() - 1));
             const std::string selectedComponentName = Internal::ComponentDisplayName(*addableComponents[selectedAddComponentIndex]);
-            if (ImGui::BeginCombo("Add Component", selectedComponentName.c_str())) {
-                for (int i = 0; i < static_cast<int>(addableComponents.size()); i++) {
-                    const bool selected = i == selectedAddComponentIndex;
-                    const std::string componentName = Internal::ComponentDisplayName(*addableComponents[i]);
-                    ImGui::PushID(addableComponents[i]->GetName().c_str());
-                    if (ImGui::Selectable(componentName.c_str(), selected)) {
-                        selectedAddComponentIndex = i;
+            InputWidgetRow addComponentRow("Add Component");
+            if (addComponentRow.IsVisible()) {
+                Internal::SetNextItemWidthWithTrailingButton("Add");
+                if (ImGui::BeginCombo("##Value", selectedComponentName.c_str())) {
+                    for (int i = 0; i < static_cast<int>(addableComponents.size()); i++) {
+                        const bool selected = i == selectedAddComponentIndex;
+                        const std::string componentName = Internal::ComponentDisplayName(*addableComponents[i]);
+                        ImGui::PushID(addableComponents[i]->GetName().c_str());
+                        if (ImGui::Selectable(componentName.c_str(), selected)) {
+                            selectedAddComponentIndex = i;
+                        }
+                        if (selected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::PopID();
                     }
-                    if (selected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::PopID();
+                    ImGui::EndCombo();
                 }
-                ImGui::EndCombo();
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Add")) {
-                const auto* selectedClass = addableComponents[selectedAddComponentIndex];
-                inContext.AddComponent(inRegistry, selectedEntity, selectedClass);
+                ImGui::SameLine();
+                if (ImGui::Button("Add")) {
+                    const auto* selectedClass = addableComponents[selectedAddComponentIndex];
+                    inContext.AddComponent(inRegistry, selectedEntity, selectedClass);
+                }
             }
         }
 

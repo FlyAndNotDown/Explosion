@@ -6,24 +6,77 @@
 #include <Editor/Widget/InputWidgets.h>
 
 namespace Editor::Internal {
+    constexpr float inputLabelColumnWeight = 0.3f;
+    constexpr float inputValueColumnWeight = 1.0f - inputLabelColumnWeight;
+
+    template <typename F>
+    static bool RenderLabeledInput(const std::string& inLabel, F&& inRenderInput)
+    {
+        InputWidgetRow row(inLabel);
+        if (!row.IsVisible()) {
+            return false;
+        }
+        ImGui::SetNextItemWidth(-1.0f);
+        return inRenderInput();
+    }
+
     template <typename T>
     static bool RenderScalarValue(const std::string& inLabel, ImGuiDataType inDataType, T& inValue, float inSpeed)
     {
-        return ImGui::DragScalar(inLabel.c_str(), inDataType, &inValue, inSpeed);
+        return RenderLabeledInput(inLabel, [&]() -> bool {
+            return ImGui::DragScalar("##Value", inDataType, &inValue, inSpeed);
+        });
     }
 
     template <typename T>
     static bool RenderUnsignedScalarValue(const std::string& inLabel, ImGuiDataType inDataType, T& inValue)
     {
         const T minValue = 0;
-        return ImGui::DragScalar(inLabel.c_str(), inDataType, &inValue, 1.0f, &minValue);
+        return RenderLabeledInput(inLabel, [&]() -> bool {
+            return ImGui::DragScalar("##Value", inDataType, &inValue, 1.0f, &minValue);
+        });
     }
 }
 
 namespace Editor {
+    InputWidgetRow::InputWidgetRow(const std::string& inLabel)
+        : visible(false)
+    {
+        ImGui::PushID(inLabel.c_str());
+        visible = ImGui::BeginTable("##Input", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoSavedSettings);
+        if (!visible) {
+            return;
+        }
+
+        ImGui::TableSetupColumn("##Label", ImGuiTableColumnFlags_WidthStretch, Internal::inputLabelColumnWeight);
+        ImGui::TableSetupColumn("##Value", ImGuiTableColumnFlags_WidthStretch, Internal::inputValueColumnWeight);
+        ImGui::TableNextRow();
+
+        ImGui::TableSetColumnIndex(0);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(inLabel.c_str());
+
+        ImGui::TableSetColumnIndex(1);
+    }
+
+    InputWidgetRow::~InputWidgetRow()
+    {
+        if (visible) {
+            ImGui::EndTable();
+        }
+        ImGui::PopID();
+    }
+
+    bool InputWidgetRow::IsVisible() const
+    {
+        return visible;
+    }
+
     bool InputWidget<bool>::Render(const std::string& inLabel, bool& inValue)
     {
-        return ImGui::Checkbox(inLabel.c_str(), &inValue);
+        return Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+            return ImGui::Checkbox("##Value", &inValue);
+        });
     }
 
     bool InputWidget<int8_t>::Render(const std::string& inLabel, int8_t& inValue)
@@ -78,7 +131,9 @@ namespace Editor {
 
     bool InputWidget<std::string>::Render(const std::string& inLabel, std::string& inValue)
     {
-        return ImGui::InputText(inLabel.c_str(), &inValue);
+        return Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+            return ImGui::InputText("##Value", &inValue);
+        });
     }
 
     bool InputWidget<Core::Uri>::Render(const std::string& inLabel, Core::Uri& inValue)
@@ -94,7 +149,9 @@ namespace Editor {
     bool InputWidget<Common::FVec2>::Render(const std::string& inLabel, Common::FVec2& inValue)
     {
         float value[2] = { inValue.x, inValue.y };
-        if (!ImGui::DragFloat2(inLabel.c_str(), value, 0.05f)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::DragFloat2("##Value", value, 0.05f);
+            })) {
             return false;
         }
         inValue = Common::FVec2(value[0], value[1]);
@@ -104,7 +161,9 @@ namespace Editor {
     bool InputWidget<Common::FVec3>::Render(const std::string& inLabel, Common::FVec3& inValue)
     {
         float value[3] = { inValue.x, inValue.y, inValue.z };
-        if (!ImGui::DragFloat3(inLabel.c_str(), value, 0.05f)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::DragFloat3("##Value", value, 0.05f);
+            })) {
             return false;
         }
         inValue = Common::FVec3(value[0], value[1], value[2]);
@@ -114,7 +173,9 @@ namespace Editor {
     bool InputWidget<Common::FVec4>::Render(const std::string& inLabel, Common::FVec4& inValue)
     {
         float value[4] = { inValue.x, inValue.y, inValue.z, inValue.w };
-        if (!ImGui::DragFloat4(inLabel.c_str(), value, 0.05f)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::DragFloat4("##Value", value, 0.05f);
+            })) {
             return false;
         }
         inValue = Common::FVec4(value[0], value[1], value[2], value[3]);
@@ -124,7 +185,9 @@ namespace Editor {
     bool InputWidget<Common::FQuat>::Render(const std::string& inLabel, Common::FQuat& inValue)
     {
         float value[4] = { inValue.w, inValue.x, inValue.y, inValue.z };
-        if (!ImGui::DragFloat4(inLabel.c_str(), value, 0.01f)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::DragFloat4("##Value", value, 0.01f);
+            })) {
             return false;
         }
         inValue = Common::FQuat(value[0], value[1], value[2], value[3]);
@@ -146,7 +209,9 @@ namespace Editor {
     bool InputWidget<Common::LinearColor>::Render(const std::string& inLabel, Common::LinearColor& inValue)
     {
         float value[4] = { inValue.r, inValue.g, inValue.b, inValue.a };
-        if (!ImGui::ColorEdit4(inLabel.c_str(), value)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::ColorEdit4("##Value", value);
+            })) {
             return false;
         }
         inValue = Common::LinearColor(value[0], value[1], value[2], value[3]);
@@ -161,7 +226,9 @@ namespace Editor {
             static_cast<float>(inValue.b) / 255.0f,
             static_cast<float>(inValue.a) / 255.0f
         };
-        if (!ImGui::ColorEdit4(inLabel.c_str(), value)) {
+        if (!Internal::RenderLabeledInput(inLabel, [&]() -> bool {
+                return ImGui::ColorEdit4("##Value", value);
+            })) {
             return false;
         }
         inValue = Common::Color(
