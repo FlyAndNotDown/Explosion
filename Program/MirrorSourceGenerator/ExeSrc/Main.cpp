@@ -6,8 +6,8 @@
 
 #include <clipp.h>
 
-#include <MirrorTool/Parser.h>
-#include <MirrorTool/Generator.h>
+#include <MirrorSourceGenerator/Parser.h>
+#include <MirrorSourceGenerator/Generator.h>
 #include <Common/IO.h>
 #include <Common/String.h>
 #include <Common/FileSystem.h>
@@ -69,9 +69,9 @@ int main(int argc, char* argv[]) // NOLINT
     headerDirs = ProcessHeaderDirs(headerDirs);
 
     auto outputErrorWithDebugContext = [fullCmdLineStr, inputFile, outputFile, headerDirs, frameworkDirs, dynamic](const std::string& error) -> void {
-        std::cout << "MirrorTool fatal error:" << Common::newline;
+        std::cout << "MirrorSourceGenerator fatal error:" << Common::newline;
         std::cout << error << Common::newline;
-        std::cout << "MirrorTool debug context: " << Common::newline;
+        std::cout << "MirrorSourceGenerator debug context: " << Common::newline;
         std::cout << "[fullCmdLine] " << fullCmdLineStr << Common::newline;
         std::cout << "[dynamic] " << dynamic << Common::newline;
         std::cout << "[inputFile] " << inputFile << Common::newline;
@@ -96,14 +96,14 @@ int main(int argc, char* argv[]) // NOLINT
         return 1;
     }
 
-    MirrorTool::Parser parser(inputFile, headerDirs, frameworkDirs);
+    MirrorSourceGenerator::Parser parser(inputFile, headerDirs, frameworkDirs);
     const auto parseResult = parser.Parse();
     if (parseResult.IsErr()) {
         outputErrorWithDebugContext(parseResult.Error());
         return 1;
     }
 
-    MirrorTool::Generator generator(inputFile, outputFile, headerDirs, parseResult.Value(), dynamic);
+    MirrorSourceGenerator::Generator generator(inputFile, outputFile, headerDirs, parseResult.Value(), dynamic);
     if (const auto generateResult = generator.Generate();
         generateResult.IsErr()) {
         outputErrorWithDebugContext(generateResult.Error());

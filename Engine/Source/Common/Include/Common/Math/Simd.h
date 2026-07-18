@@ -8,7 +8,7 @@
 
 #include <Common/Platform.h>
 
-// MirrorTool parses these headers only to harvest reflection metadata, and its libclang has no usable SSE2/NEON
+// MirrorSourceGenerator parses these headers only to harvest reflection metadata, and its libclang has no usable SSE2/NEON
 // intrinsic header (no clang resource headers on Linux, a version-mismatched arm_neon.h on macOS). Reflection needs the
 // declarations below but never the vectorized bodies, so under the parser we skip the intrinsic include and stand in a
 // scalar F32x4 instead; every real translation unit still takes the intrinsic backend.

@@ -415,8 +415,8 @@ function(exp_add_mirror_info_source_generation_target)
 
             add_custom_command(
                 OUTPUT ${output_source}
-                COMMAND "$<TARGET_FILE:MirrorTool>" ${dynamic_arg} "-i" ${input_header_file} "-o" ${output_source} ${inc_args} ${fwk_dir_args}
-                DEPENDS MirrorTool ${input_header_file}
+                COMMAND "$<TARGET_FILE:MirrorSourceGenerator>" ${dynamic_arg} "-i" ${input_header_file} "-o" ${output_source} ${inc_args} ${fwk_dir_args}
+                DEPENDS MirrorSourceGenerator ${input_header_file}
             )
         endforeach()
     endforeach ()
@@ -424,7 +424,7 @@ function(exp_add_mirror_info_source_generation_target)
     set(custom_target_name "${arg_NAME}.Generated")
     add_custom_target(
         ${custom_target_name}
-        DEPENDS MirrorTool ${output_sources}
+        DEPENDS MirrorSourceGenerator ${output_sources}
     )
     set_target_properties(${custom_target_name} PROPERTIES FOLDER ${AUX_TARGETS_FOLDER})
     set(${arg_OUTPUT_SRC} ${output_sources} PARENT_SCOPE)

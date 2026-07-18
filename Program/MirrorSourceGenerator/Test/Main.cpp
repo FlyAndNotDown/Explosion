@@ -4,10 +4,10 @@
 
 #include <gtest/gtest.h>
 
-#include <MirrorTool/Parser.h>
-#include <MirrorTool/Generator.h>
+#include <MirrorSourceGenerator/Parser.h>
+#include <MirrorSourceGenerator/Generator.h>
 
-using namespace MirrorTool;
+using namespace MirrorSourceGenerator;
 
 void AssertMetaDatasEqual(const MetaDataMap& lhs, const MetaDataMap& rhs)
 {
@@ -120,7 +120,7 @@ void AssertNamespaceInfoEqual(const NamespaceInfo& lhs, const NamespaceInfo& rhs
 
 TEST(MirrorTest, ParserTest)
 {
-    const Parser parser("../Test/Resource/Mirror/MirrorToolInput.h", { "../Test/Resource/Mirror" }, {});
+    const Parser parser("../Test/Resource/Mirror/MirrorSourceGeneratorInput.h", { "../Test/Resource/Mirror" }, {});
     const auto parseResult = parser.Parse();
     ASSERT_TRUE(parseResult.IsOk());
 
@@ -160,11 +160,11 @@ TEST(MirrorTest, ParserTest)
 
 TEST(MirrorTest, GeneratorTest)
 {
-    const Parser parser("../Test/Resource/Mirror/MirrorToolInput.h", { "../Test/Resource/Mirror" }, {});
+    const Parser parser("../Test/Resource/Mirror/MirrorSourceGeneratorInput.h", { "../Test/Resource/Mirror" }, {});
     const auto parseResult = parser.Parse();
     ASSERT_TRUE(parseResult.IsOk());
 
-    const Generator generator("../Test/Resource/Mirror/MirrorToolInput.h", "../Test/Generated/Mirror/MirrorToolTest.generated.cpp", { "../" }, parseResult.Value(), false);
+    const Generator generator("../Test/Resource/Mirror/MirrorSourceGeneratorInput.h", "../Test/Generated/Mirror/MirrorSourceGeneratorTest.generated.cpp", { "../" }, parseResult.Value(), false);
     const auto generateResult = generator.Generate();
     ASSERT_TRUE(generateResult.IsOk());
 }

@@ -8,7 +8,7 @@
 #include <array>
 
 #include <Common/String.h>
-#include <MirrorTool/Parser.h>
+#include <MirrorSourceGenerator/Parser.h>
 
 #define DEBUG_OUTPUT 0
 
@@ -22,7 +22,7 @@
 #define VisitChildren(funcName, contextType, cursor, context) \
     clang_visitChildren(cursor, [](CXCursor c, CXCursor p, CXClientData cd) -> CXChildVisitResult { \
         auto* ctx = reinterpret_cast<contextType*>(cd); \
-        return MirrorTool::funcName(c, p, *ctx); \
+        return MirrorSourceGenerator::funcName(c, p, *ctx); \
     }, &context); \
 
 #define FetchCursorInfo(visitorName, cursorVar) \
@@ -67,7 +67,7 @@ static void PrintDebugInfo(const std::string& visitorName, CXCursor cursor)
 #endif
 }
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
     static constexpr auto propertyMetaTag = "property";
     static constexpr auto functionMetaTag = "func";
     static constexpr auto classMetaTag = "class";
@@ -414,7 +414,7 @@ namespace MirrorTool {
     }
 }
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
 #if PLATFORM_LINUX
     // The conan libclang package ships only libclang.so, without clang's builtin headers (stddef.h, stdarg.h, ...) or any
     // system include paths, so query the host GCC for the directories it searches and feed them to clang verbatim.
