@@ -33,6 +33,20 @@ namespace Editor::Internal {
         result.resize(static_cast<size_t>(length - 1));
         return result;
     }
+
+    static void SetInitialFolder(IFileOpenDialog& inDialog, const std::string& inInitialDirectory)
+    {
+        if (inInitialDirectory.empty()) {
+            return;
+        }
+
+        IShellItem* initialFolder = nullptr;
+        const std::wstring initialDirectory = Utf8ToWide(inInitialDirectory);
+        if (SUCCEEDED(SHCreateItemFromParsingName(initialDirectory.c_str(), nullptr, IID_PPV_ARGS(&initialFolder)))) {
+            inDialog.SetFolder(initialFolder);
+            initialFolder->Release();
+        }
+    }
 }
 
 namespace Editor {
@@ -55,14 +69,7 @@ namespace Editor {
             const std::wstring title = Internal::Utf8ToWide(inTitle);
             dialog->SetTitle(title.c_str());
 
-            if (!inInitialDirectory.empty()) {
-                IShellItem* initialFolder = nullptr;
-                const std::wstring initialDirectory = Internal::Utf8ToWide(inInitialDirectory);
-                if (SUCCEEDED(SHCreateItemFromParsingName(initialDirectory.c_str(), nullptr, IID_PPV_ARGS(&initialFolder)))) {
-                    dialog->SetFolder(initialFolder);
-                    initialFolder->Release();
-                }
-            }
+            Internal::SetInitialFolder(*dialog, inInitialDirectory);
 
             if (SUCCEEDED(dialog->Show(nullptr))) {
                 IShellItem* selectedFolder = nullptr;
@@ -73,6 +80,54 @@ namespace Editor {
                         CoTaskMemFree(selectedPath);
                     }
                     selectedFolder->Release();
+                }
+            }
+            dialog->Release();
+        }
+
+        if (shouldUninitialize) {
+            CoUninitialize();
+        }
+        return result;
+    }
+
+    std::vector<std::string> PlatformUtils::SelectFiles(const std::string& inTitle, const std::string& inInitialDirectory)
+    {
+        const HRESULT initializeResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        const bool shouldUninitialize = SUCCEEDED(initializeResult);
+        if (FAILED(initializeResult) && initializeResult != RPC_E_CHANGED_MODE) {
+            return {};
+        }
+
+        std::vector<std::string> result;
+        IFileOpenDialog* dialog = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+            FILEOPENDIALOGOPTIONS options = 0;
+            if (SUCCEEDED(dialog->GetOptions(&options))) {
+                dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_NOCHANGEDIR);
+            }
+
+            const std::wstring title = Internal::Utf8ToWide(inTitle);
+            dialog->SetTitle(title.c_str());
+            Internal::SetInitialFolder(*dialog, inInitialDirectory);
+
+            if (SUCCEEDED(dialog->Show(nullptr))) {
+                IShellItemArray* selectedFiles = nullptr;
+                if (SUCCEEDED(dialog->GetResults(&selectedFiles))) {
+                    DWORD count = 0;
+                    selectedFiles->GetCount(&count);
+                    for (DWORD index = 0; index < count; index++) {
+                        IShellItem* selectedFile = nullptr;
+                        if (SUCCEEDED(selectedFiles->GetItemAt(index, &selectedFile))) {
+                            PWSTR selectedPath = nullptr;
+                            if (SUCCEEDED(selectedFile->GetDisplayName(SIGDN_FILESYSPATH, &selectedPath))) {
+                                result.emplace_back(Internal::WideToUtf8(selectedPath));
+                                CoTaskMemFree(selectedPath);
+                            }
+                            selectedFile->Release();
+                        }
+                    }
+                    selectedFiles->Release();
                 }
             }
             dialog->Release();

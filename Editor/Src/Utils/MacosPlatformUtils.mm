@@ -30,6 +30,32 @@ namespace Editor {
             return std::string(panel.URL.path.fileSystemRepresentation);
         }
     }
+
+    std::vector<std::string> PlatformUtils::SelectFiles(const std::string& inTitle, const std::string& inInitialDirectory)
+    {
+        @autoreleasepool {
+            NSOpenPanel* const panel = [NSOpenPanel openPanel];
+            panel.title = [NSString stringWithUTF8String:inTitle.c_str()];
+            panel.canChooseFiles = YES;
+            panel.canChooseDirectories = NO;
+            panel.allowsMultipleSelection = YES;
+
+            if (!inInitialDirectory.empty()) {
+                NSString* const initialPath = [NSString stringWithUTF8String:inInitialDirectory.c_str()];
+                panel.directoryURL = [NSURL fileURLWithPath:initialPath isDirectory:YES];
+            }
+
+            if ([panel runModal] != NSModalResponseOK) {
+                return {};
+            }
+
+            std::vector<std::string> result;
+            for (NSURL* url in panel.URLs) {
+                result.emplace_back(url.path.fileSystemRepresentation);
+            }
+            return result;
+        }
+    }
 }
 
 #endif

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <Editor/EditorContext.h>
+#include <Editor/Panel/EditorPanels.h>
 #include <Runtime/Canvas.h>
 
 namespace Editor::Internal {
@@ -37,5 +38,6 @@ namespace Editor {
         std::string createEntityName;
         std::vector<Runtime::CompClass> componentClasses;
         Internal::EditorTabVisibility tabVisibility;
+        EditorPanels panels;
     };
 }

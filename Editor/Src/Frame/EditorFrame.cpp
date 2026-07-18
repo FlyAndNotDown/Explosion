@@ -13,6 +13,7 @@
 
 #include <Editor/EditorLog.h>
 #include <Editor/Frame/EditorFrame.h>
+#include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/System/Camera.h>
 #include <Editor/Widget/InputWidgets.h>
 #include <Mirror/Mirror.h>
@@ -92,6 +93,7 @@ namespace Editor {
         if (tabVisibility.log) {
             RenderLogTab(tabVisibility.log);
         }
+        panels.Render();
     }
 
     void EditorFrame::RenderMenuBar(EditorContext& inContext, bool& outRequestQuit)
@@ -110,10 +112,11 @@ namespace Editor {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Scene", nullptr, &tabVisibility.scene);
-            ImGui::MenuItem("Outliner", nullptr, &tabVisibility.outliner);
-            ImGui::MenuItem("Inspector", nullptr, &tabVisibility.inspector);
-            ImGui::MenuItem("Log", nullptr, &tabVisibility.log);
+            ImGui::MenuItem(PanelNames::scene, nullptr, &tabVisibility.scene);
+            ImGui::MenuItem(PanelNames::outliner, nullptr, &tabVisibility.outliner);
+            ImGui::MenuItem(PanelNames::inspector, nullptr, &tabVisibility.inspector);
+            panels.RenderViewMenuItems();
+            ImGui::MenuItem(PanelNames::log, nullptr, &tabVisibility.log);
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -123,7 +126,7 @@ namespace Editor {
     {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         auto& sceneClient = inContext.GetSceneClient();
-        if (ImGui::Begin("Scene", &inOutOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+        if (ImGui::Begin(PanelNames::scene, &inOutOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
             ImVec2 sceneSize = ImGui::GetContentRegionAvail();
             sceneSize.x = std::max(sceneSize.x, 1.0f);
             sceneSize.y = std::max(sceneSize.y, 1.0f);
@@ -145,7 +148,7 @@ namespace Editor {
 
     void EditorFrame::RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        if (!ImGui::Begin("Outliner", &inOutOpen)) {
+        if (!ImGui::Begin(PanelNames::outliner, &inOutOpen)) {
             ImGui::End();
             return;
         }
@@ -193,7 +196,7 @@ namespace Editor {
 
     void EditorFrame::RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        if (!ImGui::Begin("Inspector", &inOutOpen)) {
+        if (!ImGui::Begin(PanelNames::inspector, &inOutOpen)) {
             ImGui::End();
             return;
         }
@@ -274,7 +277,7 @@ namespace Editor {
 
     void EditorFrame::RenderLogTab(bool& inOutOpen)
     {
-        if (!ImGui::Begin("Log", &inOutOpen)) {
+        if (!ImGui::Begin(PanelNames::log, &inOutOpen)) {
             ImGui::End();
             return;
         }

@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <sstream>
 #include <utility>
 
 namespace Editor::Internal {
@@ -50,6 +51,22 @@ namespace Editor::Internal {
         }
         return result.empty() ? std::nullopt : std::optional<std::string>(std::move(result));
     }
+
+    static std::vector<std::string> SplitPaths(const std::optional<std::string>& inPaths)
+    {
+        if (!inPaths) {
+            return {};
+        }
+
+        std::vector<std::string> result;
+        std::istringstream stream(*inPaths);
+        for (std::string path; std::getline(stream, path);) {
+            if (!path.empty()) {
+                result.emplace_back(std::move(path));
+            }
+        }
+        return result;
+    }
 }
 
 namespace Editor {
@@ -63,6 +80,18 @@ namespace Editor {
             return Internal::RunDirectoryDialog("kdialog --getexistingdirectory " + Internal::QuoteShellArgument(inInitialDirectory) + " --title " + Internal::QuoteShellArgument(inTitle) + " 2>/dev/null");
         }
         return std::nullopt;
+    }
+
+    std::vector<std::string> PlatformUtils::SelectFiles(const std::string& inTitle, const std::string& inInitialDirectory)
+    {
+        if (Internal::HasCommand("zenity")) {
+            const std::string initialPath = inInitialDirectory.empty() ? std::string() : inInitialDirectory + "/";
+            return Internal::SplitPaths(Internal::RunDirectoryDialog("zenity --file-selection --multiple --separator='\\n' --title=" + Internal::QuoteShellArgument(inTitle) + " --filename=" + Internal::QuoteShellArgument(initialPath) + " 2>/dev/null"));
+        }
+        if (Internal::HasCommand("kdialog")) {
+            return Internal::SplitPaths(Internal::RunDirectoryDialog("kdialog --getopenfilename " + Internal::QuoteShellArgument(inInitialDirectory) + " --multiple --separate-output --title " + Internal::QuoteShellArgument(inTitle) + " 2>/dev/null"));
+        }
+        return {};
     }
 }
 

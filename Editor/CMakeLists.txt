@@ -19,6 +19,13 @@ exp_add_executable(
     REFLECT Include
 )
 
+file(GLOB editor_test_sources Test/*.cpp)
+exp_add_test(
+    NAME Editor.Test
+    SRC ${editor_test_sources} Src/Asset/AssetFileSystem.cpp
+    INC Include
+)
+
 # ---- begin shaders/resources -----------------------------------------------------------------------
 get_engine_shader_resources(OUTPUT editor_resources)
 
