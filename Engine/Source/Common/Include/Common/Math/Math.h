@@ -16,3 +16,4 @@
 #include <Common/Math/Transform.h>
 #include <Common/Math/View.h>
 #include <Common/Math/Projection.h>
+#include <Common/Math/Adapters.h>

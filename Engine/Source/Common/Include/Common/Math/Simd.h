@@ -134,15 +134,17 @@ namespace Common::Simd {
     template <int L>
     inline F32x4 Splat(F32x4 v) { return vdupq_n_f32(vgetq_lane_f32(v, L)); }
 
-    // NEON has no single arbitrary 4-lane float shuffle, so go through memory; for a compile-time permutation the
-    // compiler routinely folds the store/reload back into register moves.
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v)
     {
-        float tmp[4];
-        vst1q_f32(tmp, v);
-        const float out[4] = { tmp[I0], tmp[I1], tmp[I2], tmp[I3] };
-        return vld1q_f32(out);
+        static_assert(I0 >= 0 && I0 < 4 && I1 >= 0 && I1 < 4 && I2 >= 0 && I2 < 4 && I3 >= 0 && I3 < 4);
+        static constexpr uint8_t indices[16] = {
+            I0 * 4 + 0, I0 * 4 + 1, I0 * 4 + 2, I0 * 4 + 3,
+            I1 * 4 + 0, I1 * 4 + 1, I1 * 4 + 2, I1 * 4 + 3,
+            I2 * 4 + 0, I2 * 4 + 1, I2 * 4 + 2, I2 * 4 + 3,
+            I3 * 4 + 0, I3 * 4 + 1, I3 * 4 + 2, I3 * 4 + 3
+        };
+        return vreinterpretq_f32_u8(vqtbl1q_u8(vreinterpretq_u8_f32(v), vld1q_u8(indices)));
     }
 
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.

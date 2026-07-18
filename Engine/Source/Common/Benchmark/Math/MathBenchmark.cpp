@@ -10,6 +10,9 @@
 #include <Common/Math/Vector.h>
 #include <Common/Math/Matrix.h>
 #include <Common/Math/Quaternion.h>
+#include <Common/Math/Sphere.h>
+#include <Common/Math/Transform.h>
+#include <Common/Math/View.h>
 
 using namespace Common;
 
@@ -93,6 +96,20 @@ namespace {
                 p[0], p[1], p[2],
                 p[3], p[4], p[5],
                 p[6], p[7], p[8]);
+        }
+        return result;
+    }
+
+    std::vector<FTransform> MakeRandomTransforms(const size_t count)
+    {
+        const auto raw = MakeRandomFloats(count * 9);
+        std::vector<FTransform> result(count);
+        for (size_t i = 0; i < count; i++) {
+            const float* p = &raw[i * 9];
+            result[i] = FTransform(
+                FVec3(p[0], p[1], p[2]),
+                FQuat::FromEulerZYX(p[3] * 90.0f, p[4] * 90.0f, p[5] * 90.0f),
+                FVec3(p[6], p[7], p[8]));
         }
         return result;
     }
@@ -192,6 +209,23 @@ BENCHMARK(Mat4InverseBatch<MathBackend::scalar>);
 BENCHMARK(Mat4InverseBatch<MathBackend::simd>);
 
 template <MathBackend B>
+static void Mat4InverseUncheckedBatch(benchmark::State& state)
+{
+    const auto a = MakeRandomMats<B>(batchSize);
+    std::vector<Mat<float, 4, 4, B>> c(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            c[i] = a[i].InverseUnchecked();
+        }
+        benchmark::DoNotOptimize(c.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(Mat4InverseUncheckedBatch<MathBackend::scalar>);
+BENCHMARK(Mat4InverseUncheckedBatch<MathBackend::simd>);
+
+template <MathBackend B>
 static void Mat3MulBatch(benchmark::State& state)
 {
     const auto a = MakeRandomMat3s<B>(batchSize);
@@ -226,3 +260,154 @@ static void Mat3MulVecBatch(benchmark::State& state)
 }
 BENCHMARK(Mat3MulVecBatch<MathBackend::scalar>);
 BENCHMARK(Mat3MulVecBatch<MathBackend::simd>);
+
+template <MathBackend B>
+static void VecNormalizeBatch(benchmark::State& state)
+{
+    const auto input = MakeRandomVecs<B>(batchSize);
+    std::vector<Vec<float, 4, B>> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = input[i].Normalized();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(VecNormalizeBatch<MathBackend::scalar>);
+BENCHMARK(VecNormalizeBatch<MathBackend::simd>);
+
+static void TransformMatrixComposedBatch(benchmark::State& state)
+{
+    const auto input = MakeRandomTransforms(batchSize);
+    std::vector<FMat4x4> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = input[i].GetTranslationMatrix() * input[i].GetRotationMatrix() * input[i].GetScaleMatrix();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(TransformMatrixComposedBatch);
+
+static void TransformMatrixDirectBatch(benchmark::State& state)
+{
+    const auto input = MakeRandomTransforms(batchSize);
+    std::vector<FMat4x4> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = input[i].GetTransformMatrix();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(TransformMatrixDirectBatch);
+
+static void TransformPositionMatrixBatch(benchmark::State& state)
+{
+    const auto transforms = MakeRandomTransforms(batchSize);
+    const auto positions = MakeRandomVec3s<MathBackend::simd>(batchSize);
+    std::vector<FVec3> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = (transforms[i].GetTransformMatrix() * FVec4(positions[i].x, positions[i].y, positions[i].z, 1)).SubVec<0, 1, 2>();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(TransformPositionMatrixBatch);
+
+static void TransformPositionDirectBatch(benchmark::State& state)
+{
+    const auto transforms = MakeRandomTransforms(batchSize);
+    const auto positions = MakeRandomVec3s<MathBackend::simd>(batchSize);
+    std::vector<FVec3> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = transforms[i].TransformPosition(positions[i]);
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(TransformPositionDirectBatch);
+
+static void ViewMatrixGenericBatch(benchmark::State& state)
+{
+    const auto transforms = MakeRandomTransforms(batchSize);
+    const FMat4x4 axisTransform(
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        1, 0, 0, 0,
+        0, 0, 0, 1);
+    std::vector<FMat4x4> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            const FViewTransform view(transforms[i]);
+            output[i] = axisTransform * view.GetTransformMatrixNoScale().InverseUnchecked();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(ViewMatrixGenericBatch);
+
+static void ViewMatrixDirectBatch(benchmark::State& state)
+{
+    const auto transforms = MakeRandomTransforms(batchSize);
+    std::vector<FMat4x4> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = FViewTransform(transforms[i]).GetViewMatrix();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(ViewMatrixDirectBatch);
+
+static void SphereInsideBatch(benchmark::State& state)
+{
+    const auto centers = MakeRandomVec3s<MathBackend::simd>(batchSize);
+    const auto points = MakeRandomVec3s<MathBackend::simd>(batchSize);
+    std::vector<FSphere> spheres(batchSize);
+    for (int i = 0; i < batchSize; i++) {
+        spheres[i] = FSphere(centers[i], 1.0f);
+    }
+    for (auto _ : state) {
+        size_t insideCount = 0;
+        for (int i = 0; i < batchSize; i++) {
+            insideCount += spheres[i].Inside(points[i]);
+        }
+        benchmark::DoNotOptimize(insideCount);
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(SphereInsideBatch);
+
+static void HalfConvertBatch(benchmark::State& state)
+{
+    const auto input = MakeRandomFloats(batchSize);
+    std::vector<HFloat> half(batchSize);
+    std::vector<float> output(batchSize);
+    for (auto _ : state) {
+        for (int i = 0; i < batchSize; i++) {
+            half[i] = input[i];
+            output[i] = half[i].AsFloat();
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(HalfConvertBatch);

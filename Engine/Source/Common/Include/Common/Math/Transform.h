@@ -7,8 +7,6 @@
 #include <Common/Math/Vector.h>
 #include <Common/Math/Matrix.h>
 #include <Common/Math/Quaternion.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <FloatingPoint T>
@@ -21,6 +19,7 @@ namespace Common {
     template <typename T>
     struct Transform : TransformBase<T> {
         static Transform LookAt(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ);
+        static bool TryFromMatrix(const Mat<T, 4, 4>& inMatrix, Transform& outTransform, T tolerance = DefaultTolerance<T>());
 
         Transform();
         Transform(const Mat<T, 4, 4>& inMatrix);
@@ -44,6 +43,7 @@ namespace Common {
         Transform& Translate(const Vec<T, 3>& inTranslation);
         Transform& Rotate(const Quaternion<T>& inRotation);
         Transform& Scale(const Vec<T, 3>& inScale);
+        bool TrySetFromMatrix(const Mat<T, 4, 4>& inMatrix, T tolerance = DefaultTolerance<T>());
         Transform& UpdateRotation(const Vec<T, 3>& forward, const Vec<T, 3>& side, const Vec<T, 3>& up);
         bool TryLookTo(const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ, T tolerance = DefaultTolerance<T>());
         bool TryMoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection = VecConsts<T, 3>::unitZ, T tolerance = DefaultTolerance<T>());
@@ -64,86 +64,11 @@ namespace Common {
         Transform<IT> CastTo() const;
     };
 
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const Transform<T>& lhs, const Transform<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
     using HTransform = Transform<HFloat>;
     using FTransform = Transform<float>;
     using DTransform = Transform<double>;
-}
-
-namespace Common {
-    template <Serializable T>
-    struct Serializer<Transform<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Transform")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Transform<T>& value)
-        {
-            size_t serialized = 0;
-            serialized += Serializer<Vec<T, 3>>::Serialize(stream, value.scale);
-            serialized += Serializer<Quaternion<T>>::Serialize(stream, value.rotation);
-            serialized += Serializer<Vec<T, 3>>::Serialize(stream, value.translation);
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Transform<T>& value)
-        {
-            size_t deserialized = 0;
-            deserialized += Serializer<Vec<T, 3>>::Deserialize(stream, value.scale);
-            deserialized += Serializer<Quaternion<T>>::Deserialize(stream, value.rotation);
-            deserialized += Serializer<Vec<T, 3>>::Deserialize(stream, value.translation);
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<Transform<T>> {
-        static std::string ToString(const Transform<T>& inValue)
-        {
-            return std::format(
-                "{}scale={}, rotation={}, translation={}{}",
-                "{",
-                StringConverter<Vec<T, 3>>::ToString(inValue.scale),
-                StringConverter<Quaternion<T>>::ToString(inValue.rotation),
-                StringConverter<Vec<T, 3>>::ToString(inValue.translation),
-                "}");
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<Transform<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Transform<T>& inValue)
-        {
-            rapidjson::Value scaleJson;
-            JsonSerializer<Vec<T, 3>>::JsonSerialize(scaleJson, inAllocator, inValue.scale);
-
-            rapidjson::Value rotationJson;
-            JsonSerializer<Quaternion<T>>::JsonSerialize(rotationJson, inAllocator, inValue.rotation);
-
-            rapidjson::Value translationJson;
-            JsonSerializer<Vec<T, 3>>::JsonSerialize(translationJson, inAllocator, inValue.translation);
-
-            outJsonValue.SetObject();
-            outJsonValue.AddMember("scale", scaleJson, inAllocator);
-            outJsonValue.AddMember("rotation", rotationJson, inAllocator);
-            outJsonValue.AddMember("translation", translationJson, inAllocator);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Transform<T>& outValue)
-        {
-            if (!inJsonValue.IsObject()) {
-                return;
-            }
-            if (inJsonValue.HasMember("scale")) {
-                JsonSerializer<Vec<T, 3>>::JsonDeserialize(inJsonValue["scale"], outValue.scale);
-            }
-            if (inJsonValue.HasMember("rotation")) {
-                JsonSerializer<Quaternion<T>>::JsonDeserialize(inJsonValue["rotation"], outValue.rotation);
-            }
-            if (inJsonValue.HasMember("translation")) {
-                JsonSerializer<Vec<T, 3>>::JsonDeserialize(inJsonValue["translation"], outValue.translation);
-            }
-        }
-    };
 }
 
 namespace Common {
@@ -156,6 +81,17 @@ namespace Common {
     }
 
     template <typename T>
+    bool Transform<T>::TryFromMatrix(const Mat<T, 4, 4>& inMatrix, Transform& outTransform, T tolerance)
+    {
+        Transform result;
+        if (!result.TrySetFromMatrix(inMatrix, tolerance)) {
+            return false;
+        }
+        outTransform = result;
+        return true;
+    }
+
+    template <typename T>
     Transform<T>::Transform()
     {
         this->scale = VecConsts<T, 3>::unit;
@@ -165,10 +101,10 @@ namespace Common {
 
     template <typename T>
     Transform<T>::Transform(const Mat<T, 4, 4>& inMatrix)
+        : Transform()
     {
-        this->translation = inMatrix.ExtractTranslation();
-        this->rotation = inMatrix.ExtractRotation();
-        this->scale = inMatrix.ExtractScale();
+        const bool decomposed = TrySetFromMatrix(inMatrix);
+        Assert(decomposed);
     }
 
     template <typename T>
@@ -188,29 +124,13 @@ namespace Common {
     }
 
     template <typename T>
-    Transform<T>::Transform(const Transform& other)
-    {
-        this->scale = other.scale;
-        this->rotation = other.rotation;
-        this->translation = other.translation;
-    }
+    Transform<T>::Transform(const Transform& other) = default;
 
     template <typename T>
-    Transform<T>::Transform(Transform&& other) noexcept
-    {
-        this->scale = std::move(other.scale);
-        this->rotation = std::move(other.rotation);
-        this->translation = std::move(other.translation);
-    }
+    Transform<T>::Transform(Transform&& other) noexcept = default;
 
     template <typename T>
-    Transform<T>& Transform<T>::operator=(const Transform& other)
-    {
-        this->scale = other.scale;
-        this->rotation = other.rotation;
-        this->translation = other.translation;
-        return *this;
-    }
+    Transform<T>& Transform<T>::operator=(const Transform& other) = default;
 
     template <typename T>
     bool Transform<T>::operator==(const Transform& rhs) const
@@ -395,6 +315,22 @@ namespace Common {
     }
 
     template <typename T>
+    bool Transform<T>::TrySetFromMatrix(const Mat<T, 4, 4>& inMatrix, T tolerance)
+    {
+        Vec<T, 3> translation;
+        Quaternion<T> rotation;
+        Vec<T, 3> scale;
+        if (!inMatrix.TryDecomposeAffine(translation, rotation, scale, tolerance)) {
+            return false;
+        }
+
+        this->translation = translation;
+        this->rotation = rotation;
+        this->scale = scale;
+        return true;
+    }
+
+    template <typename T>
     Transform<T>& Transform<T>::MoveAndLookTo(const Vec<T, 3>& inPosition, const Vec<T, 3>& inTargetPosition, const Vec<T, 3>& inUpDirection)
     {
         const bool success = TryMoveAndLookTo(inPosition, inTargetPosition, inUpDirection);
@@ -429,27 +365,40 @@ namespace Common {
     template <typename T>
     Mat<T, 4, 4> Transform<T>::GetTransformMatrix() const
     {
-        return GetTranslationMatrix() * GetRotationMatrix() * GetScaleMatrix();
+        Mat<T, 4, 4> result = GetRotationMatrix();
+        for (auto row = 0; row < 3; row++) {
+            result.At(row, 0) *= this->scale.x;
+            result.At(row, 1) *= this->scale.y;
+            result.At(row, 2) *= this->scale.z;
+        }
+        result.At(0, 3) = this->translation.x;
+        result.At(1, 3) = this->translation.y;
+        result.At(2, 3) = this->translation.z;
+        return result;
     }
 
     template <typename T>
     Mat<T, 4, 4> Transform<T>::GetTransformMatrixNoScale() const
     {
-        return GetTranslationMatrix() * GetRotationMatrix();
+        Mat<T, 4, 4> result = GetRotationMatrix();
+        result.At(0, 3) = this->translation.x;
+        result.At(1, 3) = this->translation.y;
+        result.At(2, 3) = this->translation.z;
+        return result;
     }
 
     template <typename T>
     Vec<T, 3> Transform<T>::TransformPosition(const Vec<T, 3>& inPosition) const
     {
-        Mat<T, 4, 1> posColMat = Mat<T, 4, 1>::FromColVecs(Vec<T, 4>(inPosition.x, inPosition.y, inPosition.z, 1));
-        return (GetTransformMatrix() * posColMat).Col(0).template SubVec<0, 1, 2>();
+        return this->rotation.RotateVector(this->scale * inPosition) + this->translation;
     }
 
     template <typename T>
     Vec<T, 4> Transform<T>::TransformPosition(const Vec<T, 4>& inPosition) const
     {
-        Mat<T, 4, 1> posColMat = Mat<T, 4, 1>::FromColVecs(Vec<T, 4>(inPosition));
-        return (GetTransformMatrix() * posColMat).Col(0);
+        const Vec<T, 3> scaled(inPosition.x * this->scale.x, inPosition.y * this->scale.y, inPosition.z * this->scale.z);
+        const Vec<T, 3> transformed = this->rotation.RotateVector(scaled) + this->translation * inPosition.w;
+        return Vec<T, 4>(transformed.x, transformed.y, transformed.z, inPosition.w);
     }
 
     template <typename T>
@@ -461,5 +410,14 @@ namespace Common {
         result.rotation = this->rotation.template CastTo<IT>();
         result.scale = this->scale.template CastTo<IT>();
         return result;
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Transform<T>& lhs, const Transform<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.scale, rhs.scale, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.rotation, rhs.rotation, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.translation, rhs.translation, absoluteTolerance, relativeTolerance);
     }
 }

@@ -8,8 +8,6 @@
 #include <cstdint>
 
 #include <Common/Math/Common.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <std::endian E> concept ValidEndian = E == std::endian::little || E == std::endian::big;
@@ -66,46 +64,9 @@ namespace Common {
 
     template <typename T> concept HalfFloatingPoint = std::is_same_v<T, HFloat>;
     template <typename T> concept FloatingPoint = std::is_floating_point_v<T> || HalfFloatingPoint<T>;
-}
-
-namespace Common {
-    template <std::endian E>
-    struct Serializer<HalfFloat<E>> {
-        static constexpr size_t typeId = HashUtils::StrCrc32("Common::Internal::HalfFloat");
-
-        static size_t Serialize(BinarySerializeStream& stream, const HalfFloat<E>& value)
-        {
-            return Serializer<uint16_t>::Serialize(stream, value.value);
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, HalfFloat<E>& value)
-        {
-            return Serializer<uint16_t>::Deserialize(stream, value.value);
-        }
-    };
 
     template <std::endian E>
-    struct StringConverter<HalfFloat<E>> {
-        static std::string ToString(const HalfFloat<E>& inValue)
-        {
-            return StringConverter<float>::ToString(inValue.AsFloat());
-        }
-    };
-
-    template <std::endian E>
-    struct JsonSerializer<HalfFloat<E>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const HalfFloat<E>& inValue)
-        {
-            JsonSerializer<float>::JsonSerialize(outJsonValue, inAllocator, inValue.AsFloat());
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, HalfFloat<E>& outValue)
-        {
-            float floatValue = 0.0f;
-            JsonSerializer<float>::JsonDeserialize(inJsonValue, floatValue);
-            outValue = floatValue;
-        }
-    };
+    bool AlmostEqual(HalfFloat<E> lhs, HalfFloat<E> rhs, HalfFloat<E> absoluteTolerance = DefaultTolerance<HalfFloat<E>>(), HalfFloat<E> relativeTolerance = DefaultTolerance<HalfFloat<E>>());
 }
 
 namespace Common::Internal {
@@ -186,6 +147,12 @@ namespace Common::Internal {
 }
 
 namespace Common {
+    template <std::endian E>
+    bool AlmostEqual(HalfFloat<E> lhs, HalfFloat<E> rhs, HalfFloat<E> absoluteTolerance, HalfFloat<E> relativeTolerance)
+    {
+        return AlmostEqual(lhs.AsFloat(), rhs.AsFloat(), absoluteTolerance.AsFloat(), relativeTolerance.AsFloat());
+    }
+
     template <std::endian E>
     requires ValidEndian<E>
     HalfFloatBase<E>::HalfFloatBase(uint16_t inValue)

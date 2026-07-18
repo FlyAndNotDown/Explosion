@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <Common/Math/Color.h>
+#include <Common/Math/Adapters.h>
 #include <Runtime/Meta.h>
 #include <Runtime/Api.h>
 

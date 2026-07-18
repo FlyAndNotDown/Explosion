@@ -7,6 +7,7 @@
 
 #include <directx/d3dx12.h>
 
+#include <Common/String.h>
 #include <RHI/Common.h>
 #include <RHI/DirectX12/Buffer.h>
 #include <RHI/DirectX12/BufferView.h>

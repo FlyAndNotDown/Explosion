@@ -32,10 +32,7 @@ namespace Common {
 
     Color::Color(const Color& inOther) = default;
 
-    Color::Color(Color&& inOther) noexcept
-        : r(inOther.r), g(inOther.g), b(inOther.b), a(inOther.a)
-    {
-    }
+    Color::Color(Color&& inOther) noexcept = default;
 
     Color& Color::operator=(const Color& inOther) = default;
 
@@ -92,34 +89,26 @@ namespace Common {
         CheckValid();
     }
 
-    LinearColor::LinearColor(const LinearColor& inOther)
-        : r(inOther.r), g(inOther.g), b(inOther.b), a(inOther.a)
-    {
-        CheckValid();
-    }
+    LinearColor::LinearColor(const LinearColor& inOther) = default;
 
-    LinearColor::LinearColor(LinearColor&& inOther) noexcept
-        : r(inOther.r), g(inOther.g), b(inOther.b), a(inOther.a)
-    {
-        CheckValid();
-    }
+    LinearColor::LinearColor(LinearColor&& inOther) noexcept = default;
 
-    LinearColor& LinearColor::operator=(const LinearColor& inOther)
-    {
-        r = inOther.r;
-        g = inOther.g;
-        b = inOther.b;
-        a = inOther.a;
-        CheckValid();
-        return *this;
-    }
+    LinearColor& LinearColor::operator=(const LinearColor& inOther) = default;
 
     bool LinearColor::operator==(const LinearColor& inRhs) const
     {
-        return CompareNumber(r, inRhs.r)
-            && CompareNumber(g, inRhs.g)
-            && CompareNumber(b, inRhs.b)
-            && CompareNumber(a, inRhs.a);
+        return r == inRhs.r
+            && g == inRhs.g
+            && b == inRhs.b
+            && a == inRhs.a;
+    }
+
+    bool AlmostEqual(const LinearColor& lhs, const LinearColor& rhs, float absoluteTolerance, float relativeTolerance)
+    {
+        return AlmostEqual(lhs.r, rhs.r, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.g, rhs.g, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.b, rhs.b, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.a, rhs.a, absoluteTolerance, relativeTolerance);
     }
 
     Color LinearColor::ToColor() const

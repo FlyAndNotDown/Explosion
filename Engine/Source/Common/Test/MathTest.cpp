@@ -18,6 +18,7 @@
 #include <Common/Math/View.h>
 #include <Common/Math/Half.h>
 #include <Common/Math/Projection.h>
+#include <Common/Math/Adapters.h>
 #include <SerializationTest.h>
 
 using namespace Common;
@@ -85,6 +86,11 @@ TEST(MathTest, HFloatComparisonTest) // NOLINT
     ASSERT_TRUE(a >= HFloat(1.0f));
     ASSERT_FALSE(a > b);
     ASSERT_TRUE(a != b);
+
+    const HFloat adjacent = 1.0009765625f;
+    ASSERT_FALSE(a == adjacent);
+    ASSERT_TRUE(AlmostEqual(a, adjacent));
+    ASSERT_TRUE(AlmostEqual(HVec2(a, a), HVec2(adjacent, adjacent)));
 
     ASSERT_TRUE((HFloat(1.0f) + HFloat(2.0f)) == 3.0f);
     ASSERT_TRUE((HFloat(6.0f) - HFloat(2.0f)) == 4.0f);
@@ -339,6 +345,11 @@ TEST(MathTest, VecScalarCompareTest)
     ASSERT_TRUE(v0 == 2.0f);
     ASSERT_TRUE(v0 != 3.0f);
     ASSERT_FALSE(FVec3(1, 2, 3) == 1.0f);
+
+    const FVec2 exact(1.0f, 2.0f);
+    const FVec2 adjacent(std::nextafter(1.0f, 2.0f), 2.0f);
+    ASSERT_FALSE(exact == adjacent);
+    ASSERT_TRUE(AlmostEqual(exact, adjacent));
 }
 
 TEST(MathTest, VecCastToTest)
@@ -415,6 +426,8 @@ TEST(MathTest, VecNormalizeTest)
     FVec3 tiny(1.0e-8f, 0.0f, 0.0f);
     ASSERT_FALSE(tiny.TryNormalize());
     ASSERT_TRUE(tiny.TryNormalize(1.0e-9f));
+    ASSERT_TRUE(tiny.IsNormalized());
+    ASSERT_FALSE(FVec3(2, 0, 0).IsNormalized());
     ASSERT_TRUE(tiny == FVec3Consts::unitX);
 }
 
@@ -545,6 +558,12 @@ TEST(MathTest, MatSetTest) // NOLINT
     );
     ASSERT_TRUE(v0.Row(0) == FVec4(2, 3, 4, 5));
     ASSERT_TRUE(v0.Row(1) == FVec4(6, 7, 8, 9));
+
+    const FVec4 row0(10, 11, 12, 13);
+    const FVec4 row1(14, 15, 16, 17);
+    v0.SetRows(row0, row1);
+    ASSERT_TRUE(v0.Row(0) == row0);
+    ASSERT_TRUE(v0.Row(1) == row1);
 }
 
 TEST(MathTest, MatFromVecsTest)
@@ -556,6 +575,12 @@ TEST(MathTest, MatFromVecsTest)
     const FMat2x3 m1 = FMat2x3::FromColVecs(FVec2(1, 4), FVec2(2, 5), FVec2(3, 6));
     ASSERT_TRUE(m1.Col(0) == FVec2(1, 4));
     ASSERT_TRUE(m1 == m0);
+
+    const FVec3 row0(7, 8, 9);
+    const FVec3 row1(10, 11, 12);
+    const FMat2x3 m2 = FMat2x3::FromRowVecs(row0, row1);
+    ASSERT_TRUE(m2.Row(0) == row0);
+    ASSERT_TRUE(m2.Row(1) == row1);
 }
 
 TEST(MathTest, MatCastToTest)
@@ -593,6 +618,9 @@ TEST(MathTest, MatMulTest)
     ASSERT_TRUE(m2.Row(2) == FVec2(178, 220));
     ASSERT_TRUE(v2 == FVec3(30, 70, 110));
     ASSERT_TRUE(v3 == FVec4(5, 11, 17, 23));
+
+    const IMat2x3 intMatrix(1, 2, 3, 4, 5, 6);
+    ASSERT_TRUE((intMatrix * IVec3(2, 3, 4)) == IVec2(20, 47));
 }
 
 TEST(MathTest, MathTranposeTest)
@@ -632,6 +660,7 @@ TEST(MathTest, MatrixDetInverseTest)
     const FMat2x2 im0 = m0.Inverse();
     const FMat3x3 im1 = m1.Inverse();
     const FMat4x4 im2 = m2.Inverse();
+    const FMat4x4 uim2 = m2.InverseUnchecked();
 
     const FMat2x2 inverse0(
         -4, 7,
@@ -647,6 +676,7 @@ TEST(MathTest, MatrixDetInverseTest)
     ASSERT_TRUE(im0 == inverse0);
     ASSERT_TRUE(im1.Col(0) == col1);
     ASSERT_TRUE(im2.Col(0) == col2);
+    ASSERT_TRUE(uim2 == im2);
 }
 
 TEST(MathTest, MatCanInverseTest)
@@ -698,14 +728,37 @@ TEST(MathTest, MatExtractionTest)
         0, -2, 0, 7,
         4, 0, 0, 5,
         0, 0, 3, 3,
-        7, 5, 3, 1
+        0, 0, 0, 1
     };
 
     const FTransform trans = FTransform(m);
 
     ASSERT_TRUE(trans.translation == FVec3(7.0f, 5.0f, 3.0f));
     ASSERT_TRUE(trans.scale == FVec3(4.0f, 2.0f, 3.0f));
-    ASSERT_TRUE(trans.rotation == FQuat(0.7071067f, .0f, .0f, .7071067f));
+    ASSERT_TRUE(AlmostEqual(trans.rotation, FQuat(0.7071067f, .0f, .0f, .7071067f)));
+
+    FVec3 translation(9.0f);
+    FQuat rotation(9.0f, 9.0f, 9.0f, 9.0f);
+    FVec3 scale(9.0f);
+
+    FMat4x4 nonAffine = m;
+    nonAffine.At(3, 0) = 1.0f;
+    ASSERT_FALSE(nonAffine.TryDecomposeAffine(translation, rotation, scale));
+    ASSERT_TRUE(translation == FVec3(9.0f));
+    ASSERT_TRUE(rotation == FQuat(9.0f, 9.0f, 9.0f, 9.0f));
+    ASSERT_TRUE(scale == FVec3(9.0f));
+
+    FMat4x4 shear = FMat4x4Consts::identity;
+    shear.At(0, 1) = 0.25f;
+    ASSERT_FALSE(shear.TryDecomposeAffine(translation, rotation, scale));
+
+    FMat4x4 zeroScale = FMat4x4Consts::identity;
+    zeroScale.At(1, 1) = 0.0f;
+    ASSERT_FALSE(zeroScale.TryDecomposeAffine(translation, rotation, scale));
+
+    FTransform unchanged(FQuatConsts::identity, FVec3(1, 2, 3));
+    ASSERT_FALSE(FTransform::TryFromMatrix(nonAffine, unchanged));
+    ASSERT_TRUE(unchanged == FTransform(FQuatConsts::identity, FVec3(1, 2, 3)));
 }
 
 // ==================================== Quaternion ====================================
@@ -795,6 +848,8 @@ TEST(MathTest, QuaternionPropertiesTest)
     FQuat normalized(2, 0, 0, 0);
     ASSERT_TRUE(normalized.TryNormalize());
     ASSERT_TRUE(normalized == FQuatConsts::identity);
+    ASSERT_TRUE(normalized.IsNormalized());
+    ASSERT_FALSE(FQuat(2, 0, 0, 0).IsNormalized());
 
     const FQuat v2(2, 3, 4, 5);
     ASSERT_FLOAT_EQ(v0.Dot(v2), 1.0f * 2 + 2 * 3 + 3 * 4 + 4 * 5);
@@ -804,13 +859,13 @@ TEST(MathTest, QuaternionRotationTest)
 {
     const FQuat v0(FVec3(0, 0, 1), 90);
     const FVec3 v0r0 = v0.RotateVector(FVec3(1, 0, 0));
-    ASSERT_TRUE(v0r0 == FVec3(0, -1, 0));
+    ASSERT_TRUE(AlmostEqual(v0r0, FVec3(0, -1, 0)));
     const FVec3 v0r1 = v0.RotateVector(FVec3(1, 1, 1));
-    ASSERT_TRUE(v0r1 == FVec3(1, -1, 1));
+    ASSERT_TRUE(AlmostEqual(v0r1, FVec3(1, -1, 1)));
 
     const FQuat v1(FVec3(1, 0, 0), 90);
     const FVec3 v1r0 = v1.RotateVector(FVec3(0, 1, 0));
-    ASSERT_TRUE(v1r0 == FVec3(0, 0, -1));
+    ASSERT_TRUE(AlmostEqual(v1r0, FVec3(0, 0, -1)));
 }
 
 TEST(MathTest, QuaternionRadianTest)
@@ -822,17 +877,23 @@ TEST(MathTest, QuaternionRadianTest)
     const FQuat v2 = FQuat::FromEulerZYX(FRadian(0.0f), FRadian(0.0f), FRadian(pi / 2.0f));
     const FQuat v3 = FQuat::FromEulerZYX(0.0f, 0.0f, 90.0f);
     ASSERT_TRUE(v2 == v3);
+
+    const double preciseAngle = 90.000000001;
+    const DQuat precise(DVec3Consts::unitZ, preciseAngle);
+    const double halfRadian = preciseAngle * std::numbers::pi_v<double> / 360.0;
+    EXPECT_NEAR(precise.w, std::cos(halfRadian), 1.0e-15);
+    EXPECT_NEAR(precise.z, std::sin(halfRadian), 1.0e-15);
 }
 
 TEST(MathTest, EulerRotationTest)
 {
     const FQuat v0 = FQuat::FromEulerZYX(0, 0, 90);
     const FVec3 v0r0 = v0.RotateVector(FVec3(1, 0, 0));
-    ASSERT_TRUE(v0r0 == FVec3(0, -1, 0));
+    ASSERT_TRUE(AlmostEqual(v0r0, FVec3(0, -1, 0)));
 
     const FQuat v1 = FQuat::FromEulerZYX(90, 0, 90);
     const FVec3 v1r0 = v1.RotateVector(FVec3(1, 0, 0));
-    ASSERT_TRUE(v1r0 == FVec3(0, 0, 1));
+    ASSERT_TRUE(AlmostEqual(v1r0, FVec3(0, 0, 1)));
 
     ASSERT_TRUE(FQuatConsts::identity == FQuat::FromEulerZYX(0, 0, 0));
 }
@@ -862,11 +923,19 @@ TEST(MathTest, QuaternionToRotationMatrixTest)
 
     const FMat4x4 v0 = FQuat(FVec3Consts::unitZ, 90).GetRotationMatrix();
     const FVec3 v0r0 = applyRotationMatrix(v0, FVec3(1, 0, 0));
-    ASSERT_TRUE(v0r0 == FVec3(0, -1, 0));
+    ASSERT_TRUE(AlmostEqual(v0r0, FVec3(0, -1, 0)));
 
     const FMat4x4 v1 = (FQuat(FVec3Consts::unitZ, 90) * FQuat(FVec3Consts::unitY, 180)).GetRotationMatrix();
     const FVec3 v1r0 = applyRotationMatrix(v1, FVec3(0, 1, 0));
-    ASSERT_TRUE(v1r0 == FVec3(-1, 0, 0));
+    ASSERT_TRUE(AlmostEqual(v1r0, FVec3(-1, 0, 0)));
+
+    const FQuat nonNormalized(2, 3, 4, 5);
+    const FVec3 input(1, -2, 3);
+    const FVec3 matrixResult = applyRotationMatrix(nonNormalized.GetRotationMatrix(), input);
+    const FVec3 directResult = nonNormalized.RotateVector(input);
+    EXPECT_NEAR(directResult.x, matrixResult.x, 1.0e-5f);
+    EXPECT_NEAR(directResult.y, matrixResult.y, 1.0e-5f);
+    EXPECT_NEAR(directResult.z, matrixResult.z, 1.0e-5f);
 }
 
 TEST(MathTest, QuatConstsTest)
@@ -892,7 +961,7 @@ TEST(MathTest, TransformTest)
 
     FTransform v0(FVec3(2, 2, 2), FQuat(FVec3Consts::unitZ, 90), FVec3(5, 0, 0));
     FVec3 v0r0 = v0.TransformPosition(x);
-    ASSERT_TRUE(v0r0 == FVec3(5, -2, 0));
+    ASSERT_TRUE(AlmostEqual(v0r0, FVec3(5, -2, 0)));
 
     FTransform v1(FQuat::FromEulerZYX(90, 0, 90), FVec3(0, 0, 0));
     FTransform v2(FQuat::FromEulerZYX(0, 90, 90), FVec3(0, 0, 0));
@@ -901,10 +970,10 @@ TEST(MathTest, TransformTest)
     FVec3 v2y = v2.TransformPosition(y);
     FVec3 v3x = v3.TransformPosition(x);
     FVec3 v3z = v3.TransformPosition(z);
-    ASSERT_TRUE(v1x == FVec3(0, 0, 1));
-    ASSERT_TRUE(v2y == FVec3(0, 0, 1));
-    ASSERT_TRUE(v3x == FVec3(0, 1, 0));
-    ASSERT_TRUE(v3z == FVec3(-1, 0, 0));
+    ASSERT_TRUE(AlmostEqual(v1x, FVec3(0, 0, 1)));
+    ASSERT_TRUE(AlmostEqual(v2y, FVec3(0, 0, 1)));
+    ASSERT_TRUE(AlmostEqual(v3x, FVec3(0, 1, 0)));
+    ASSERT_TRUE(AlmostEqual(v3z, FVec3(-1, 0, 0)));
     // In general, quaternion from eular angle performs z-axis rotation first, then y-axis, and last z-axis
 
 }
@@ -958,6 +1027,20 @@ TEST(MathTest, TransformMatrixTest)
     const FVec4 p1 = (v0.GetTransformMatrixNoScale() * FVec4(1, 1, 1, 1));
     const FVec3 p1Xyz = p1.SubVec<0, 1, 2>();
     ASSERT_TRUE(p1Xyz == FVec3(6, 7, 8));
+
+    const FTransform complex(FVec3(2, 3, 4), FQuat::FromEulerZYX(20, -35, 70), FVec3(5, -6, 7));
+    const FMat4x4 composed = complex.GetTranslationMatrix() * complex.GetRotationMatrix() * complex.GetScaleMatrix();
+    const FMat4x4 direct = complex.GetTransformMatrix();
+    for (auto i = 0; i < 16; i++) {
+        EXPECT_NEAR(direct[i], composed[i], 1.0e-5f);
+    }
+
+    const FVec3 input(3, -2, 1);
+    const FVec4 matrixPosition = direct * FVec4(input.x, input.y, input.z, 1);
+    const FVec3 directPosition = complex.TransformPosition(input);
+    EXPECT_NEAR(directPosition.x, matrixPosition.x, 1.0e-5f);
+    EXPECT_NEAR(directPosition.y, matrixPosition.y, 1.0e-5f);
+    EXPECT_NEAR(directPosition.z, matrixPosition.z, 1.0e-5f);
 }
 
 TEST(MathTest, TransformPositionVec4Test)
@@ -965,6 +1048,9 @@ TEST(MathTest, TransformPositionVec4Test)
     const FTransform v0(FVec3(2, 2, 2), FQuatConsts::identity, FVec3(1, 1, 1));
     const FVec4 p0 = v0.TransformPosition(FVec4(1, 1, 1, 1));
     ASSERT_TRUE(p0 == FVec4(3, 3, 3, 1));
+
+    const FVec4 direction = v0.TransformPosition(FVec4(1, 1, 1, 0));
+    ASSERT_TRUE(direction == FVec4(2, 2, 2, 0));
 }
 
 TEST(MathTest, TransformLookAtTest)
@@ -988,7 +1074,7 @@ TEST(MathTest, TransformLookAtTest)
     v3.LookTo(FVec3(1, 1, 0));
     const FMat4x4 r3 = v3.GetRotationMatrix();
     const float invSqrt2 = std::sqrt(0.5f);
-    ASSERT_TRUE((r3 * FVec4(1, 0, 0, 0)) == FVec4(invSqrt2, invSqrt2, 0, 0));
+    ASSERT_TRUE(AlmostEqual(r3 * FVec4(1, 0, 0, 0), FVec4(invSqrt2, invSqrt2, 0, 0)));
     ASSERT_TRUE((r3 * FVec4(0, 0, 1, 0)) == FVec4(0, 0, 1, 0));
 
     FTransform invalidLook(FQuatConsts::identity, FVec3(1, 2, 3));
@@ -1110,6 +1196,13 @@ TEST(MathTest, SphereGeometryTest)
     ASSERT_FLOAT_EQ(v0.Distance(v1), 3.0f);
     ASSERT_FALSE(v0.Inside(FVec3(2, 0, 0)));
     ASSERT_TRUE(v0.Inside(FVec3(0.5f, 0, 0)));
+    ASSERT_TRUE(v0.Inside(FVec3(1, 0, 0)));
+    ASSERT_TRUE(v0.Intersect(FSphere(FVec3(3, 0, 0), 2.0f)));
+    ASSERT_FALSE(FSphere(FVec3Consts::zero, -1.0f).Inside(FVec3Consts::zero));
+
+    const ISphere integerSphere(IVec3Consts::zero, 3);
+    ASSERT_TRUE(integerSphere.Inside(IVec3(1, 2, 2)));
+    ASSERT_FALSE(integerSphere.Inside(IVec3(1, 2, 3)));
 
     const FSphere v2(FVec3(1, 2, 3), 1.0f);
     const DSphere v3 = v2.CastTo<double>();
@@ -1151,6 +1244,16 @@ TEST(MathTest, ViewMatrixTest)
 
     const FViewTransform v1 = FViewTransform::LookAt(FVec3(3, 4, 5), FVec3(0, 0, 0), FVec3Consts::unitZ);
     const FMat4x4 vm1 = v1.GetViewMatrix();
+
+    const FMat4x4 axisTransform(
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        1, 0, 0, 0,
+        0, 0, 0, 1);
+    const FMat4x4 genericView = axisTransform * v1.GetTransformMatrixNoScale().InverseUnchecked();
+    for (auto i = 0; i < 16; i++) {
+        EXPECT_NEAR(vm1[i], genericView[i], 1.0e-5f);
+    }
 
     const FVec4 camInView = vm1 * FVec4(3, 4, 5, 1);
     ASSERT_NEAR(camInView.x, 0.0f, 1e-4f);

@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 
+#include <Common/String.h>
 #include <RHI/DirectX12/Common.h>
 #include <RHI/DirectX12/Device.h>
 #include <RHI/DirectX12/ShaderModule.h>

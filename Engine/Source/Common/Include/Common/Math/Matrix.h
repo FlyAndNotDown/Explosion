@@ -6,8 +6,6 @@
 
 #include <Common/Math/Simd.h>
 #include <Common/Math/Vector.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 #include <Common/Debug.h>
 #include <Common/Utility.h>
 
@@ -120,12 +118,16 @@ namespace Common {
         bool CanInverse(T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
         bool TryInverse(Mat& outResult, T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
         Mat Inverse(T tolerance = DefaultTolerance<T>()) const requires (R == C && R > 1 && FloatingPoint<T>);
+        Mat InverseUnchecked() const requires (R == C && R > 1 && FloatingPoint<T>);
         T Determinant() const requires (R == C && R > 1);
 
-        Vec<T, 3, B> ExtractTranslation() const;
-        Vec<T, 3, B> ExtractScale() const;
-        Quaternion<T, B> ExtractRotation() const;
+        bool TryDecomposeAffine(Vec<T, 3, B>& outTranslation, Quaternion<T, B>& outRotation, Vec<T, 3, B>& outScale, T tolerance = DefaultTolerance<T>()) const requires (R == 4 && C == 4 && FloatingPoint<T>);
+        Vec<T, 3, B> ExtractTranslation() const requires (R == 4 && C == 4);
+        Vec<T, 3, B> ExtractScale(T tolerance = DefaultTolerance<T>()) const requires (R == 4 && C == 4 && FloatingPoint<T>);
+        Quaternion<T, B> ExtractRotation(T tolerance = DefaultTolerance<T>()) const requires (R == 4 && C == 4 && FloatingPoint<T>);
     };
+
+    template <typename T, uint8_t R, uint8_t C, MathBackend B> requires FloatingPoint<T> bool AlmostEqual(const Mat<T, R, C, B>& lhs, const Mat<T, R, C, B>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B = MathBackend::defaultBackend>
     requires ValidMatDims<R, C>
@@ -311,83 +313,6 @@ namespace Common {
     using DMat4x4Consts = MatConsts<double, 4, 4>;
 }
 
-namespace Common { // NOLINT
-    template <Serializable T, uint8_t R, uint8_t C, MathBackend B>
-    struct Serializer<Mat<T, R, C, B>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Matrix")
-            + Serializer<T>::typeId + (R << 8) + C;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Mat<T, R, C, B>& value)
-        {
-            auto serialized = 0;
-            for (auto i = 0; i < R * C; i++) {
-                serialized += Serializer<T>::Serialize(stream, value.data[i]);
-            }
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Mat<T, R, C, B>& value)
-        {
-            auto deserialized = 0;
-            for (auto i = 0; i < R * C; i++) {
-                deserialized += Serializer<T>::Deserialize(stream, value.data[i]);
-            }
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T, uint8_t R, uint8_t C, MathBackend B>
-    struct StringConverter<Mat<T, R, C, B>> {
-        static std::string ToString(const Mat<T, R, C, B>& inValue)
-        {
-            std::stringstream stream;
-            stream << "(";
-            for (auto i = 0; i < R; i++) {
-                for (auto j = 0; j < C; j++) {
-                    stream << StringConverter<T>::ToString(inValue.At(i, j));
-                    if (i * C + j != R * C - 1) {
-                        stream << ", ";
-                    }
-                }
-            }
-            stream << ")";
-            return stream.str();
-        }
-    };
-
-    template <StringConvertible T, uint8_t R, uint8_t C, MathBackend B>
-    struct JsonSerializer<Mat<T, R, C, B>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Mat<T, R, C, B>& inValue)
-        {
-            outJsonValue.SetArray();
-            outJsonValue.Reserve(R * C, inAllocator);
-            for (auto i = 0; i < R; i++) {
-                for (auto j = 0; j < C; j++) {
-                    rapidjson::Value jsonElement;
-                    JsonSerializer<T>::JsonSerialize(jsonElement, inAllocator, inValue.At(i, j));
-                    outJsonValue.PushBack(jsonElement, inAllocator);
-                }
-            }
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Mat<T, R, C, B>& outValue)
-        {
-            if (!inJsonValue.IsArray() || inJsonValue.Size() != R * C) {
-                return;
-            }
-            for (auto i = 0; i < inJsonValue.Size(); i++) {
-                auto row = i / C;
-                auto col = i % C;
-
-                T element;
-                JsonSerializer<T>::JsonDeserialize(inJsonValue[i], element);
-                outValue.At(row, col) = std::move(element);
-            }
-        }
-    };
-}
-
 namespace Common::Internal {
     template <typename T, uint8_t R, uint8_t C, MathBackend B, typename... VT, size_t... VI>
     static void CopyValuesToMatrix(Mat<T, R, C, B>& matrix, VT&&... inValue, std::index_sequence<VI...>)
@@ -439,7 +364,7 @@ namespace Common::Internal {
     {
         static_assert(R == sizeof...(VT) && sizeof...(VT) == sizeof...(VI));
         (void) std::initializer_list<int> { ([&]() -> void {
-            static_assert(std::is_same_v<VT, Vec<T, C, B>>);
+            static_assert(std::is_same_v<std::remove_cvref_t<VT>, Vec<T, C, B>>);
             CopyVectorToMatrixRow(matrix, VI, inVectors, std::make_index_sequence<C> {});
         }(), 0)... };
     }
@@ -449,7 +374,7 @@ namespace Common::Internal {
     {
         static_assert(C == sizeof...(VT) && sizeof...(VT) == sizeof...(VI));
         (void) std::initializer_list<int> { ([&]() -> void {
-            static_assert(std::is_same_v<VT, Vec<T, R, B>>);
+            static_assert(std::is_same_v<std::remove_cvref_t<VT>, Vec<T, R, B>>);
             CopyVectorToMatrixCol(matrix, VI, inVectors, std::make_index_sequence<R> {});
         }(), 0)... };
     }
@@ -494,7 +419,12 @@ namespace Common::Internal {
     {
         Vec<T, R, B> result;
         for (auto i = 0; i < R; i++) {
-            result[i] = mat.Row(i).Dot(vec);
+            const T* row = &mat.data[i * C];
+            T value = row[0] * vec.data[0];
+            for (auto j = 1; j < C; j++) {
+                value += row[j] * vec.data[j];
+            }
+            result.data[i] = value;
         }
         return result;
     }
@@ -708,6 +638,10 @@ namespace Common::Internal {
             outResult = MatInverseScalar(m, determinant);
             return true;
         }
+        static Mat<T, R, C, B> InverseUnchecked(const Mat<T, R, C, B>& m)
+        {
+            return MatInverseScalar(m, MatDeterminantScalar(m));
+        }
     };
 
     // Row-major 4x4 float matrix, backed by float[16] (four contiguous rows of 16 bytes each), so each row maps to an
@@ -786,6 +720,19 @@ namespace Common::Internal {
         // Determinant pass.
         static bool TryInverse(const M& m, M& outResult, float tolerance)
         {
+            return InverseImpl(m, outResult, tolerance, true);
+        }
+
+        static M InverseUnchecked(const M& m)
+        {
+            M result;
+            InverseImpl(m, result, 0.0f, false);
+            return result;
+        }
+
+    private:
+        static bool InverseImpl(const M& m, M& outResult, float tolerance, bool validate)
+        {
             const Simd::F32x4 r0 = Simd::LoadU(&m.data[0]);
             const Simd::F32x4 r1 = Simd::LoadU(&m.data[4]);
             const Simd::F32x4 r2 = Simd::LoadU(&m.data[8]);
@@ -825,9 +772,11 @@ namespace Common::Internal {
             // det = row0 . (column 0 of the cofactor matrix). That column is the col0 register as-is, so compute the
             // determinant before Transpose4 turns col0 into the cofactor matrix's first row.
             const float det = Simd::Sum(Simd::Mul(r0, col0));
-            const float scale = Simd::MaxValue(Simd::Max(Simd::Max(Simd::Abs(r0), Simd::Abs(r1)), Simd::Max(Simd::Abs(r2), Simd::Abs(r3))));
-            if (!ScaledDeterminantIsInvertible<float, 4>(det, scale, tolerance)) {
-                return false;
+            if (validate) {
+                const float scale = Simd::MaxValue(Simd::Max(Simd::Max(Simd::Abs(r0), Simd::Abs(r1)), Simd::Max(Simd::Abs(r2), Simd::Abs(r3))));
+                if (!ScaledDeterminantIsInvertible<float, 4>(det, scale, tolerance)) {
+                    return false;
+                }
             }
             const Simd::F32x4 oneOverDet = Simd::Set1(1.0f / det);
 
@@ -840,6 +789,7 @@ namespace Common::Internal {
             return true;
         }
 
+    public:
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
     };
 
@@ -920,6 +870,7 @@ namespace Common::Internal {
             outResult = MatInverseScalar(m, determinant);
             return true;
         }
+        static M InverseUnchecked(const M& m) { return MatInverseScalar(m, MatDeterminantScalar(m)); }
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
     };
 }
@@ -1007,7 +958,7 @@ namespace Common {
     {
         bool result = true;
         for (auto i = 0; i < R * C; i++) {
-            result = result && CompareNumber(this->data[i], rhs);
+            result = result && this->data[i] == rhs;
         }
         return result;
     }
@@ -1017,7 +968,7 @@ namespace Common {
     {
         bool result = true;
         for (auto i = 0; i < R * C; i++) {
-            result = result && CompareNumber(this->data[i], rhs.data[i]);
+            result = result && this->data[i] == rhs.data[i];
         }
         return result;
     }
@@ -1228,80 +1179,142 @@ namespace Common {
         return Internal::MatOps<T, R, C, B>::Transpose(*this);
     }
 
-    template<typename T, uint8_t R, uint8_t C, MathBackend B>
-    Vec<T, 3, B> Mat<T, R, C, B>::ExtractTranslation() const
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    bool Mat<T, R, C, B>::TryDecomposeAffine(Vec<T, 3, B>& outTranslation, Quaternion<T, B>& outRotation, Vec<T, 3, B>& outScale, T tolerance) const requires (R == 4 && C == 4 && FloatingPoint<T>)
     {
-        static_assert( R == 4 && C == 4);
-        Vec<T, 3, B> ret = Vec<T, 3, B>(this->data[3], this->data[7], this->data[11]);
-        return ret;
-    }
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
 
-    template<typename T, uint8_t R, uint8_t C, MathBackend B>
-    Quaternion<T, B> Mat<T, R, C, B>::ExtractRotation() const
-    {
-        static_assert( R == 4 && C == 4);
-        Quaternion<T, B> ret = Quaternion<T, B>(1, 0, 0, 0);
+        const EvaluationT toleranceValue = std::abs(static_cast<EvaluationT>(tolerance));
+        const EvaluationT m30 = static_cast<EvaluationT>(this->data[12]);
+        const EvaluationT m31 = static_cast<EvaluationT>(this->data[13]);
+        const EvaluationT m32 = static_cast<EvaluationT>(this->data[14]);
+        const EvaluationT m33 = static_cast<EvaluationT>(this->data[15]);
+        const EvaluationT tx = static_cast<EvaluationT>(this->data[3]);
+        const EvaluationT ty = static_cast<EvaluationT>(this->data[7]);
+        const EvaluationT tz = static_cast<EvaluationT>(this->data[11]);
+        if (!std::isfinite(tx) || !std::isfinite(ty) || !std::isfinite(tz)
+            || !std::isfinite(m30) || !std::isfinite(m31) || !std::isfinite(m32) || !std::isfinite(m33)
+            || std::abs(m30) > toleranceValue || std::abs(m31) > toleranceValue || std::abs(m32) > toleranceValue
+            || std::abs(m33 - static_cast<EvaluationT>(1)) > toleranceValue) {
+            return false;
+        }
 
-        T sx = Vec<T, 3, B>(this->data[0], this->data[4], this->data[8]).Model();
-        T sy = Vec<T, 3, B>(this->data[1], this->data[5], this->data[9]).Model();
-        T sz = Vec<T, 3, B>(this->data[2], this->data[6], this->data[10]).Model();
-        T det = this->Determinant();
-        if (det < 0) {
+        const EvaluationT c00 = static_cast<EvaluationT>(this->data[0]);
+        const EvaluationT c01 = static_cast<EvaluationT>(this->data[4]);
+        const EvaluationT c02 = static_cast<EvaluationT>(this->data[8]);
+        const EvaluationT c10 = static_cast<EvaluationT>(this->data[1]);
+        const EvaluationT c11 = static_cast<EvaluationT>(this->data[5]);
+        const EvaluationT c12 = static_cast<EvaluationT>(this->data[9]);
+        const EvaluationT c20 = static_cast<EvaluationT>(this->data[2]);
+        const EvaluationT c21 = static_cast<EvaluationT>(this->data[6]);
+        const EvaluationT c22 = static_cast<EvaluationT>(this->data[10]);
+
+        EvaluationT sx = std::sqrt(c00 * c00 + c01 * c01 + c02 * c02);
+        const EvaluationT sy = std::sqrt(c10 * c10 + c11 * c11 + c12 * c12);
+        const EvaluationT sz = std::sqrt(c20 * c20 + c21 * c21 + c22 * c22);
+        const EvaluationT maxScale = std::max(sx, std::max(sy, sz));
+        const EvaluationT scaleThreshold = toleranceValue * maxScale;
+        if (!std::isfinite(maxScale) || maxScale == static_cast<EvaluationT>(0)
+            || sx <= scaleThreshold || sy <= scaleThreshold || sz <= scaleThreshold) {
+            return false;
+        }
+
+        const EvaluationT determinant = c00 * (c11 * c22 - c12 * c21)
+            - c10 * (c01 * c22 - c02 * c21)
+            + c20 * (c01 * c12 - c02 * c11);
+        if (!std::isfinite(determinant) || std::abs(determinant) <= toleranceValue * sx * sy * sz) {
+            return false;
+        }
+        if (determinant < static_cast<EvaluationT>(0)) {
             sx = -sx;
         }
 
-        T m11 = this->data[0] / sx, m21 = this->data[4] / sx, m31 = this->data[8] / sx;
-        T m12 = this->data[1] / sy, m22 = this->data[5] / sy, m32 = this->data[9] / sy;
-        T m13 = this->data[2] / sz, m23 = this->data[6] / sz, m33 = this->data[10] / sz;
+        const EvaluationT m11 = c00 / sx, m21 = c01 / sx, m31n = c02 / sx;
+        const EvaluationT m12 = c10 / sy, m22 = c11 / sy, m32n = c12 / sy;
+        const EvaluationT m13 = c20 / sz, m23 = c21 / sz, m33n = c22 / sz;
+        if (std::abs(m11 * m12 + m21 * m22 + m31n * m32n) > toleranceValue
+            || std::abs(m11 * m13 + m21 * m23 + m31n * m33n) > toleranceValue
+            || std::abs(m12 * m13 + m22 * m23 + m32n * m33n) > toleranceValue) {
+            return false;
+        }
 
-        // http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
-        // assumes the upper 3x3 of m is a pure rotation matrix (i.e, unscaled)
-        T trace = m11 + m22 + m33;
-        if (trace > 0) {
-            T s = 0.5 / std::sqrt(trace + 1.0);
-            ret.w = 0.25 / s;
-            ret.x = (m32 - m23) * s;
-            ret.y = (m13 - m31) * s;
-            ret.z = (m21 - m12) * s;
-        } else if (m11 > m22 && m11 > m33) {
-            T s = 2.0 * std::sqrt(1.0 + m11 - m22 - m33);
-            ret.w = ( m32 - m23 ) / s;
-            ret.x = 0.25 * s;
-            ret.y = ( m12 + m21 ) / s;
-            ret.z = ( m13 + m31 ) / s;
-        } else if (m22 > m33) {
-            T s = 2.0 * std::sqrt( 1.0 + m22 - m11 - m33 );
-            ret.w = ( m13 - m31 ) / s;
-            ret.x = ( m12 + m21 ) / s;
-            ret.y = 0.25 * s;
-            ret.z = ( m23 + m32 ) / s;
+        EvaluationT qw;
+        EvaluationT qx;
+        EvaluationT qy;
+        EvaluationT qz;
+        const EvaluationT trace = m11 + m22 + m33n;
+        if (trace > static_cast<EvaluationT>(0)) {
+            const EvaluationT s = static_cast<EvaluationT>(0.5) / std::sqrt(trace + static_cast<EvaluationT>(1));
+            qw = static_cast<EvaluationT>(0.25) / s;
+            qx = (m32n - m23) * s;
+            qy = (m13 - m31n) * s;
+            qz = (m21 - m12) * s;
+        } else if (m11 > m22 && m11 > m33n) {
+            const EvaluationT s = static_cast<EvaluationT>(2) * std::sqrt(std::max(static_cast<EvaluationT>(0), static_cast<EvaluationT>(1) + m11 - m22 - m33n));
+            if (s <= toleranceValue) {
+                return false;
+            }
+            qw = (m32n - m23) / s;
+            qx = static_cast<EvaluationT>(0.25) * s;
+            qy = (m12 + m21) / s;
+            qz = (m13 + m31n) / s;
+        } else if (m22 > m33n) {
+            const EvaluationT s = static_cast<EvaluationT>(2) * std::sqrt(std::max(static_cast<EvaluationT>(0), static_cast<EvaluationT>(1) + m22 - m11 - m33n));
+            if (s <= toleranceValue) {
+                return false;
+            }
+            qw = (m13 - m31n) / s;
+            qx = (m12 + m21) / s;
+            qy = static_cast<EvaluationT>(0.25) * s;
+            qz = (m23 + m32n) / s;
         } else {
-            T s = 2.0 * std::sqrt( 1.0 + m33 - m11 - m22 );
-            ret.w = ( m21 - m12 ) / s;
-            ret.x = ( m13 + m31 ) / s;
-            ret.y = ( m23 + m32 ) / s;
-            ret.z = 0.25 * s;
+            const EvaluationT s = static_cast<EvaluationT>(2) * std::sqrt(std::max(static_cast<EvaluationT>(0), static_cast<EvaluationT>(1) + m33n - m11 - m22));
+            if (s <= toleranceValue) {
+                return false;
+            }
+            qw = (m21 - m12) / s;
+            qx = (m13 + m31n) / s;
+            qy = (m23 + m32n) / s;
+            qz = static_cast<EvaluationT>(0.25) * s;
         }
 
-        return ret;
+        Quaternion<T, B> rotation(static_cast<T>(qw), static_cast<T>(qx), static_cast<T>(qy), static_cast<T>(qz));
+        if (!rotation.TryNormalize(tolerance)) {
+            return false;
+        }
+
+        outTranslation = Vec<T, 3, B>(this->data[3], this->data[7], this->data[11]);
+        outRotation = rotation;
+        outScale = Vec<T, 3, B>(static_cast<T>(sx), static_cast<T>(sy), static_cast<T>(sz));
+        return true;
     }
 
-    template<typename T, uint8_t R, uint8_t C, MathBackend B>
-    Vec<T, 3, B> Mat<T, R, C, B>::ExtractScale() const
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    Vec<T, 3, B> Mat<T, R, C, B>::ExtractTranslation() const requires (R == 4 && C == 4)
     {
-        static_assert( R == 4 && C == 4);
+        return Vec<T, 3, B>(this->data[3], this->data[7], this->data[11]);
+    }
 
-        T sx = Vec<T, 3, B>(this->data[0], this->data[4], this->data[8]).Model();
-        T sy = Vec<T, 3, B>(this->data[1], this->data[5], this->data[9]).Model();
-        T sz = Vec<T, 3, B>(this->data[2], this->data[6], this->data[10]).Model();
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    Quaternion<T, B> Mat<T, R, C, B>::ExtractRotation(T tolerance) const requires (R == 4 && C == 4 && FloatingPoint<T>)
+    {
+        Vec<T, 3, B> translation;
+        Quaternion<T, B> rotation;
+        Vec<T, 3, B> scale;
+        const bool decomposed = TryDecomposeAffine(translation, rotation, scale, tolerance);
+        Assert(decomposed);
+        return rotation;
+    }
 
-        T det = this->Determinant();
-        if (det < 0) {
-            sx = -sx;
-        }
-        Vec<T, 3, B> ret = Vec<T, 3, B>(sx, sy, sz);
-
-        return ret;
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    Vec<T, 3, B> Mat<T, R, C, B>::ExtractScale(T tolerance) const requires (R == 4 && C == 4 && FloatingPoint<T>)
+    {
+        Vec<T, 3, B> translation;
+        Quaternion<T, B> rotation;
+        Vec<T, 3, B> scale;
+        const bool decomposed = TryDecomposeAffine(translation, rotation, scale, tolerance);
+        Assert(decomposed);
+        return scale;
     }
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
@@ -1342,9 +1355,27 @@ namespace Common {
     }
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    Mat<T, R, C, B> Mat<T, R, C, B>::InverseUnchecked() const requires (R == C && R > 1 && FloatingPoint<T>)
+    {
+        return Internal::MatOps<T, R, C, B>::InverseUnchecked(*this);
+    }
+
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
     T Mat<T, R, C, B>::Determinant() const requires (R == C && R > 1)
     {
         return Internal::MatOps<T, R, C, B>::Determinant(*this);
+    }
+
+    template <typename T, uint8_t R, uint8_t C, MathBackend B>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Mat<T, R, C, B>& lhs, const Mat<T, R, C, B>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        for (auto i = 0; i < R * C; i++) {
+            if (!AlmostEqual(lhs.data[i], rhs.data[i], absoluteTolerance, relativeTolerance)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     template <typename T, uint8_t R, uint8_t C, MathBackend B>

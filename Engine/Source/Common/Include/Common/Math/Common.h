@@ -19,7 +19,7 @@ namespace Common {
 namespace Common {
     template <typename T> T DefaultTolerance();
     template <typename T> T Pi();
-    template <typename T> bool AlmostEqual(T lhs, T rhs, T absoluteTolerance, T relativeTolerance);
+    template <typename T> requires std::is_floating_point_v<T> bool AlmostEqual(T lhs, T rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
     template <typename T> bool CompareNumber(T lhs, T rhs);
     template <CppIntegral T> T DivideAndRoundUp(T lhs, T rhs);
 }
@@ -50,9 +50,9 @@ namespace Common {
     }
 
     template <typename T>
+    requires std::is_floating_point_v<T>
     bool AlmostEqual(T lhs, T rhs, T absoluteTolerance, T relativeTolerance)
     {
-        static_assert(std::is_floating_point_v<T>);
         if (lhs == rhs) {
             return true;
         }

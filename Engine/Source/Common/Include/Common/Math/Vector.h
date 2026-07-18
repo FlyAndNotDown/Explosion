@@ -10,8 +10,6 @@
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
 #include <Common/Debug.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <typename T, uint8_t L, MathBackend B = MathBackend::defaultBackend> struct Vec;
@@ -26,7 +24,7 @@ namespace Common::Internal {
 
 namespace Common {
     template <uint8_t L> concept ValidVecDim = L >= 1 && L <= 4;
-    template <typename CheckT, typename VT, uint8_t L, MathBackend B> concept VecN = std::is_same_v<CheckT, Vec<VT, L, B>>;
+    template <typename CheckT, typename VT, uint8_t L, MathBackend B> concept VecN = std::is_same_v<std::remove_cvref_t<CheckT>, Vec<VT, L, B>>;
 
     template <typename T, uint8_t L, MathBackend B>
     requires ValidVecDim<L>
@@ -84,13 +82,16 @@ namespace Common {
         Vec<T, sizeof...(I), B> SubVec() const;
 
         T ModelSquared() const;
-        T Model() const;
-        Vec Normalized() const;
-        bool TryNormalize(T tolerance = DefaultTolerance<T>());
-        void Normalize();
+        T Model() const requires FloatingPoint<T>;
+        bool IsNormalized(T tolerance = DefaultTolerance<T>()) const requires FloatingPoint<T>;
+        Vec Normalized() const requires FloatingPoint<T>;
+        bool TryNormalize(T tolerance = DefaultTolerance<T>()) requires FloatingPoint<T>;
+        void Normalize() requires FloatingPoint<T>;
         T Dot(const Vec& rhs) const;
-        typename Internal::VecCrossResultTraits<T, L, B>::Type Cross(const Vec& rhs) const;
+        typename Internal::VecCrossResultTraits<T, L, B>::Type Cross(const Vec& rhs) const requires (FloatingPoint<T> && (L == 2 || L == 3));
     };
+
+    template <typename T, uint8_t L, MathBackend B> requires FloatingPoint<T> bool AlmostEqual(const Vec<T, L, B>& lhs, const Vec<T, L, B>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
 
     template <typename T, uint8_t L, MathBackend B = MathBackend::defaultBackend>
     requires ValidVecDim<L>
@@ -219,75 +220,6 @@ namespace Common::Internal {
     template <typename T, MathBackend B>
     struct VecCrossResultTraits<T, 3, B> {
         using Type = Vec<T, 3, B>;
-    };
-}
-
-namespace Common {
-    template <Serializable T, uint8_t L, MathBackend B>
-    struct Serializer<Vec<T, L, B>> {
-        static constexpr size_t typeId
-            = Common::HashUtils::StrCrc32("Common::Vector")
-            + Serializer<T>::typeId
-            + L;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Vec<T, L, B>& value)
-        {
-            size_t serialized = 0;
-            for (auto i = 0; i < L; i++) {
-                serialized += Serializer<T>::Serialize(stream, value.data[i]);
-            }
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Vec<T, L, B>& value)
-        {
-            size_t deserialized = 0;
-            for (auto i = 0; i < L; i++) {
-                deserialized += Serializer<T>::Deserialize(stream, value.data[i]);
-            }
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T, uint8_t L, MathBackend B>
-    struct StringConverter<Vec<T, L, B>> {
-        static std::string ToString(const Vec<T, L, B>& inValue)
-        {
-            std::stringstream stream;
-            stream << "(";
-            for (auto i = 0; i < L; i++) {
-                stream << StringConverter<T>::ToString(inValue.data[i]);
-                if (i != L - 1) {
-                    stream << ", ";
-                }
-            }
-            stream << ")";
-            return stream.str();
-        }
-    };
-
-    template <JsonSerializable T, uint8_t L, MathBackend B>
-    struct JsonSerializer<Vec<T, L, B>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Vec<T, L, B>& inValue)
-        {
-            outJsonValue.SetArray();
-            outJsonValue.Reserve(L, inAllocator);
-            for (auto i = 0; i < L; i++) {
-                rapidjson::Value elementJson;
-                JsonSerializer<T>::JsonSerialize(elementJson, inAllocator, inValue[i]);
-                outJsonValue.PushBack(elementJson, inAllocator);
-            }
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Vec<T, L, B>& outValue)
-        {
-            if (!inJsonValue.IsArray() || inJsonValue.Size() != L) {
-                return;
-            }
-            for (auto i = 0; i < L; i++) {
-                JsonSerializer<T>::JsonDeserialize(inJsonValue[i], outValue[i]);
-            }
-        }
     };
 }
 
@@ -665,7 +597,7 @@ namespace Common {
     {
         bool result = true;
         for (auto i = 0; i < L; i++) {
-            result = result && CompareNumber(this->data[i], rhs);
+            result = result && this->data[i] == rhs;
         }
         return result;
     }
@@ -675,7 +607,7 @@ namespace Common {
     {
         bool result = true;
         for (auto i = 0; i < L; i++) {
-            result = result && CompareNumber(this->data[i], rhs.data[i]);
+            result = result && this->data[i] == rhs.data[i];
         }
         return result;
     }
@@ -817,21 +749,28 @@ namespace Common {
     }
 
     template <typename T, uint8_t L, MathBackend B>
-    T Vec<T, L, B>::Model() const
+    T Vec<T, L, B>::Model() const requires FloatingPoint<T>
     {
-        static_assert(FloatingPoint<T>);
         return std::sqrt(ModelSquared());
     }
 
     template <typename T, uint8_t L, MathBackend B>
     T Vec<T, L, B>::ModelSquared() const
     {
-        static_assert(FloatingPoint<T>);
         return Internal::VecOps<T, L, B>::Dot(*this, *this);
     }
 
     template <typename T, uint8_t L, MathBackend B>
-    Vec<T, L, B> Vec<T, L, B>::Normalized() const
+    bool Vec<T, L, B>::IsNormalized(T tolerance) const requires FloatingPoint<T>
+    {
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
+        const EvaluationT modelSquared = static_cast<EvaluationT>(ModelSquared());
+        const EvaluationT toleranceValue = std::abs(static_cast<EvaluationT>(tolerance));
+        return std::isfinite(modelSquared) && std::abs(modelSquared - static_cast<EvaluationT>(1)) <= toleranceValue;
+    }
+
+    template <typename T, uint8_t L, MathBackend B>
+    Vec<T, L, B> Vec<T, L, B>::Normalized() const requires FloatingPoint<T>
     {
         Vec result(*this);
         result.Normalize();
@@ -839,9 +778,8 @@ namespace Common {
     }
 
     template <typename T, uint8_t L, MathBackend B>
-    bool Vec<T, L, B>::TryNormalize(T tolerance)
+    bool Vec<T, L, B>::TryNormalize(T tolerance) requires FloatingPoint<T>
     {
-        static_assert(FloatingPoint<T>);
         const T modelSquared = ModelSquared();
         const double modelSquaredValue = static_cast<double>(modelSquared);
         const double toleranceValue = static_cast<double>(tolerance);
@@ -855,7 +793,7 @@ namespace Common {
     }
 
     template <typename T, uint8_t L, MathBackend B>
-    void Vec<T, L, B>::Normalize()
+    void Vec<T, L, B>::Normalize() requires FloatingPoint<T>
     {
         const bool normalized = TryNormalize();
         Assert(normalized);
@@ -864,14 +802,12 @@ namespace Common {
     template <typename T, uint8_t L, MathBackend B>
     T Vec<T, L, B>::Dot(const Vec& rhs) const
     {
-        static_assert(FloatingPoint<T>);
         return Internal::VecOps<T, L, B>::Dot(*this, rhs);
     }
 
     template <typename T, uint8_t L, MathBackend B>
-    typename Internal::VecCrossResultTraits<T, L, B>::Type Vec<T, L, B>::Cross(const Vec& rhs) const
+    typename Internal::VecCrossResultTraits<T, L, B>::Type Vec<T, L, B>::Cross(const Vec& rhs) const requires (FloatingPoint<T> && (L == 2 || L == 3))
     {
-        static_assert(FloatingPoint<T> && L >= 2 && L <= 3);
         typename Internal::VecCrossResultTraits<T, L, B>::Type result;
         if constexpr (L == 2) {
             result = this->x * rhs.y - this->y * rhs.x;
@@ -881,5 +817,17 @@ namespace Common {
             result.z = this->x * rhs.y - this->y * rhs.x;
         }
         return result;
+    }
+
+    template <typename T, uint8_t L, MathBackend B>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Vec<T, L, B>& lhs, const Vec<T, L, B>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        for (auto i = 0; i < L; i++) {
+            if (!AlmostEqual(lhs.data[i], rhs.data[i], absoluteTolerance, relativeTolerance)) {
+                return false;
+            }
+        }
+        return true;
     }
 }
