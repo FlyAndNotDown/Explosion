@@ -40,7 +40,7 @@ else ()
 endif ()
 
 add_subdirectory(Engine)
-add_subdirectory(Tool)
+add_subdirectory(Program)
 add_subdirectory(Sample)
 
 if (BUILD_EDITOR)

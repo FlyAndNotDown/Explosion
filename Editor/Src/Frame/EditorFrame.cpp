@@ -15,7 +15,9 @@
 #include <Editor/Frame/EditorFrame.h>
 #include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/System/Camera.h>
+#include <Editor/Widget/IconWidgets.h>
 #include <Editor/Widget/InputWidgets.h>
+#include <Editor/Widget/TablerIcons.h>
 #include <Mirror/Mirror.h>
 #include <Runtime/Component/Name.h>
 #include <Runtime/Component/Transform.h>
@@ -101,22 +103,30 @@ namespace Editor {
         if (!ImGui::BeginMainMenuBar()) {
             return;
         }
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Save Level", "Ctrl+S")) {
+        const std::string fileMenuLabel = Widgets::Label(Icons::Tabler::file, "File");
+        if (ImGui::BeginMenu(fileMenuLabel.c_str())) {
+            const std::string saveLevelLabel = Widgets::Label(Icons::Tabler::deviceFloppy, "Save Level");
+            if (ImGui::MenuItem(saveLevelLabel.c_str(), "Ctrl+S")) {
                 inContext.GetSceneClient().SaveLevel();
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Exit")) {
+            const std::string exitLabel = Widgets::Label(Icons::Tabler::doorExit, "Exit");
+            if (ImGui::MenuItem(exitLabel.c_str())) {
                 outRequestQuit = true;
             }
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem(PanelNames::scene, nullptr, &tabVisibility.scene);
-            ImGui::MenuItem(PanelNames::outliner, nullptr, &tabVisibility.outliner);
-            ImGui::MenuItem(PanelNames::inspector, nullptr, &tabVisibility.inspector);
+        const std::string viewMenuLabel = Widgets::Label(Icons::Tabler::layoutDashboard, "View");
+        if (ImGui::BeginMenu(viewMenuLabel.c_str())) {
+            const std::string sceneLabel = Widgets::Label(Icons::Tabler::viewportWide, PanelNames::scene);
+            ImGui::MenuItem(sceneLabel.c_str(), nullptr, &tabVisibility.scene);
+            const std::string outlinerLabel = Widgets::Label(Icons::Tabler::hierarchy2, PanelNames::outliner);
+            ImGui::MenuItem(outlinerLabel.c_str(), nullptr, &tabVisibility.outliner);
+            const std::string inspectorLabel = Widgets::Label(Icons::Tabler::adjustmentsHorizontal, PanelNames::inspector);
+            ImGui::MenuItem(inspectorLabel.c_str(), nullptr, &tabVisibility.inspector);
             panels.RenderViewMenuItems();
-            ImGui::MenuItem(PanelNames::log, nullptr, &tabVisibility.log);
+            const std::string logLabel = Widgets::Label(Icons::Tabler::terminal2, PanelNames::log);
+            ImGui::MenuItem(logLabel.c_str(), nullptr, &tabVisibility.log);
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -124,9 +134,10 @@ namespace Editor {
 
     void EditorFrame::RenderSceneTab(EditorContext& inContext, Runtime::Canvas& inSceneRenderCanvas, bool& inOutOpen)
     {
+        static const std::string label = Widgets::Label(Icons::Tabler::viewportWide, PanelNames::scene, PanelNames::scene);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         auto& sceneClient = inContext.GetSceneClient();
-        if (ImGui::Begin(PanelNames::scene, &inOutOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+        if (ImGui::Begin(label.c_str(), &inOutOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
             ImVec2 sceneSize = ImGui::GetContentRegionAvail();
             sceneSize.x = std::max(sceneSize.x, 1.0f);
             sceneSize.y = std::max(sceneSize.y, 1.0f);
@@ -148,18 +159,21 @@ namespace Editor {
 
     void EditorFrame::RenderOutlinerTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        if (!ImGui::Begin(PanelNames::outliner, &inOutOpen)) {
+        static const std::string label = Widgets::Label(Icons::Tabler::hierarchy2, PanelNames::outliner, PanelNames::outliner);
+        if (!ImGui::Begin(label.c_str(), &inOutOpen)) {
             ImGui::End();
             return;
         }
-        if (ImGui::Button("New Entity")) {
+        const std::string newEntityLabel = Widgets::Label(Icons::Tabler::plus, "New Entity");
+        if (ImGui::Button(newEntityLabel.c_str())) {
             ImGui::OpenPopup("NewEntityMenu");
         }
         ImGui::SetNextWindowSize(ImVec2(260.0f, 0.0f), ImGuiCond_Appearing);
         if (ImGui::BeginPopup("NewEntityMenu")) {
             ImGui::SetNextItemWidth(-1.0f);
             ImGui::InputText("##EntityName", &createEntityName);
-            if (ImGui::Button("Create", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+            const std::string createLabel = Widgets::Label(Icons::Tabler::check, "Create");
+            if (ImGui::Button(createLabel.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
                 const auto entity = inContext.CreateEntity(inRegistry, createEntityName);
                 inContext.SetSelectedEntity(entity);
                 ImGui::CloseCurrentPopup();
@@ -173,7 +187,7 @@ namespace Editor {
             if (inRegistry.Has<EditorCameraController>(entity)) {
                 return;
             }
-            const std::string label = Internal::EntityDisplayName(inRegistry, entity);
+            const std::string label = Widgets::Label(Icons::Tabler::box, Internal::EntityDisplayName(inRegistry, entity));
             const bool selected = inContext.GetSelectedEntity() == entity;
             ImGui::PushID(static_cast<int>(entity));
             if (ImGui::Selectable(label.c_str(), selected)) {
@@ -181,7 +195,8 @@ namespace Editor {
             }
             if (ImGui::BeginPopupContextItem("EntityMenu")) {
                 inContext.SetSelectedEntity(entity);
-                if (ImGui::MenuItem("Delete")) {
+                const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
+                if (ImGui::MenuItem(deleteLabel.c_str())) {
                     entityToDelete = entity;
                 }
                 ImGui::EndPopup();
@@ -196,7 +211,8 @@ namespace Editor {
 
     void EditorFrame::RenderInspectorTab(EditorContext& inContext, Runtime::ECRegistry& inRegistry, bool& inOutOpen)
     {
-        if (!ImGui::Begin(PanelNames::inspector, &inOutOpen)) {
+        static const std::string label = Widgets::Label(Icons::Tabler::adjustmentsHorizontal, PanelNames::inspector, PanelNames::inspector);
+        if (!ImGui::Begin(label.c_str(), &inOutOpen)) {
             ImGui::End();
             return;
         }
@@ -216,7 +232,8 @@ namespace Editor {
         }
 
         ImGui::BeginDisabled(addableComponents.empty());
-        if (ImGui::Button("Add Component")) {
+        const std::string addComponentLabel = Widgets::Label(Icons::Tabler::plus, "Add Component");
+        if (ImGui::Button(addComponentLabel.c_str())) {
             ImGui::OpenPopup("AddComponentMenu");
         }
         ImGui::EndDisabled();
@@ -224,7 +241,8 @@ namespace Editor {
             for (const auto* clazz : addableComponents) {
                 const std::string componentName = Internal::ComponentDisplayName(*clazz);
                 ImGui::PushID(clazz->GetName().c_str());
-                if (ImGui::MenuItem(componentName.c_str())) {
+                const std::string componentLabel = Widgets::Label(Icons::Tabler::boxMultiple, componentName);
+                if (ImGui::MenuItem(componentLabel.c_str())) {
                     inContext.AddComponent(inRegistry, selectedEntity, clazz);
                 }
                 ImGui::PopID();
@@ -237,9 +255,11 @@ namespace Editor {
         inRegistry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {
             ImGui::PushID(compClass->GetName().c_str());
             const std::string componentName = Internal::ComponentDisplayName(*compClass);
-            const bool open = ImGui::CollapsingHeader(componentName.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+            const std::string componentLabel = Widgets::Label(Icons::Tabler::boxMultiple, componentName);
+            const bool open = ImGui::CollapsingHeader(componentLabel.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
             if (inContext.CanRemoveComponent(inRegistry, selectedEntity, compClass) && ImGui::BeginPopupContextItem("ComponentMenu")) {
-                if (ImGui::MenuItem("Remove")) {
+                const std::string removeLabel = Widgets::Label(Icons::Tabler::trash, "Remove");
+                if (ImGui::MenuItem(removeLabel.c_str())) {
                     componentToRemove = compClass;
                 }
                 ImGui::EndPopup();
@@ -259,9 +279,11 @@ namespace Editor {
         inRegistry.TagEach(selectedEntity, [&](Runtime::TagClass tagClass) -> void {
             ImGui::PushID(tagClass->GetName().c_str());
             const std::string tagName = Internal::ComponentDisplayName(*tagClass);
-            ImGui::TextUnformatted(tagName.c_str());
+            const std::string tagLabel = Widgets::Label(Icons::Tabler::box, tagName);
+            ImGui::TextUnformatted(tagLabel.c_str());
             if (inContext.CanRemoveComponent(inRegistry, selectedEntity, tagClass) && ImGui::BeginPopupContextItem("ComponentMenu")) {
-                if (ImGui::MenuItem("Remove")) {
+                const std::string removeLabel = Widgets::Label(Icons::Tabler::trash, "Remove");
+                if (ImGui::MenuItem(removeLabel.c_str())) {
                     componentToRemove = tagClass;
                 }
                 ImGui::EndPopup();
@@ -277,12 +299,14 @@ namespace Editor {
 
     void EditorFrame::RenderLogTab(bool& inOutOpen)
     {
-        if (!ImGui::Begin(PanelNames::log, &inOutOpen)) {
+        static const std::string label = Widgets::Label(Icons::Tabler::terminal2, PanelNames::log, PanelNames::log);
+        if (!ImGui::Begin(label.c_str(), &inOutOpen)) {
             ImGui::End();
             return;
         }
         const auto entries = EditorLogStream::Get().Snapshot();
-        if (ImGui::Button("Copy")) {
+        const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
+        if (ImGui::Button(copyLabel.c_str())) {
             std::string text;
             for (const auto& entry : entries) {
                 text += std::format("[{}][{}][{}] {}\n", entry.time, Internal::LevelString(entry.level), entry.tag, entry.content);
@@ -293,13 +317,16 @@ namespace Editor {
         ImGui::BeginChild("LogEntries", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
         for (const auto& entry : entries) {
             ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            const char* levelIcon = Icons::Tabler::infoCircle;
             if (entry.level == Core::LogLevel::warning) {
                 color = ImVec4(1.0f, 0.78f, 0.25f, 1.0f);
+                levelIcon = Icons::Tabler::alertTriangle;
             } else if (entry.level == Core::LogLevel::error) {
                 color = ImVec4(1.0f, 0.35f, 0.32f, 1.0f);
+                levelIcon = Icons::Tabler::circleX;
             }
             ImGui::PushStyleColor(ImGuiCol_Text, color);
-            ImGui::TextUnformatted(std::format("[{}][{}][{}] {}", entry.time, Internal::LevelString(entry.level), entry.tag, entry.content).c_str());
+            ImGui::TextUnformatted(std::format("{} [{}][{}][{}] {}", levelIcon, entry.time, Internal::LevelString(entry.level), entry.tag, entry.content).c_str());
             ImGui::PopStyleColor();
         }
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {

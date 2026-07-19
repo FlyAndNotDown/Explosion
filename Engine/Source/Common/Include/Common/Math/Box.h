@@ -5,8 +5,6 @@
 #pragma once
 
 #include <Common/Math/Vector.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <typename T>
@@ -35,9 +33,9 @@ namespace Common {
         T CenterX() const;
         T CenterY() const;
         T CenterZ() const;
-        T Distance(const Box& inOther) const;
+        T Distance(const Box& inOther) const requires FloatingPoint<T>;
         // half of diagonal
-        T Size() const;
+        T Size() const requires FloatingPoint<T>;
         bool Inside(const Vec<T, 3>& inPoint) const;
         bool Intersect(const Box& inOther) const;
         bool operator==(const Box& inRhs) const;
@@ -45,78 +43,13 @@ namespace Common {
         template <typename IT> Box<IT> CastTo() const;
     };
 
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const Box<T>& lhs, const Box<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
     using IBox = Box<int32_t>;
     using UBox = Box<uint32_t>;
     using HBox = Box<HFloat>;
     using FBox = Box<float>;
     using DBox = Box<double>;
-}
-
-namespace Common { // NOLINT
-    template <Serializable T>
-    struct Serializer<Box<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Box")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Box<T>& value)
-        {
-            size_t serialized = 0;
-            serialized += Serializer<Vec<T, 3>>::Serialize(stream, value.min);
-            serialized += Serializer<Vec<T, 3>>::Serialize(stream, value.max);
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Box<T>& value)
-        {
-            size_t deserialized = 0;
-            deserialized += Serializer<Vec<T, 3>>::Deserialize(stream, value.min);
-            deserialized += Serializer<Vec<T, 3>>::Deserialize(stream, value.max);
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<Box<T>> {
-        static std::string ToString(const Box<T>& inValue)
-        {
-            return std::format(
-                "{}min={}, max={}{}",
-                "{",
-                StringConverter<Vec<T, 3>>::ToString(inValue.min),
-                StringConverter<Vec<T, 3>>::ToString(inValue.max),
-                "}");
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<Box<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Box<T>& inValue)
-        {
-            rapidjson::Value minJson;
-            JsonSerializer<Vec<T, 3>>::JsonSerialize(minJson, inAllocator, inValue.min);
-
-            rapidjson::Value maxJson;
-            JsonSerializer<Vec<T, 3>>::JsonSerialize(maxJson, inAllocator, inValue.max);
-
-            outJsonValue.SetObject();
-            outJsonValue.AddMember("min", minJson, inAllocator);
-            outJsonValue.AddMember("max", maxJson, inAllocator);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Box<T>& outValue)
-        {
-            if (!inJsonValue.IsObject()) {
-                return;
-            }
-            if (inJsonValue.HasMember("min")) {
-                JsonSerializer<Vec<T, 3>>::JsonDeserialize(inJsonValue["min"], outValue.min);
-            }
-            if (inJsonValue.HasMember("max")) {
-                JsonSerializer<Vec<T, 3>>::JsonDeserialize(inJsonValue["max"], outValue.max);
-            }
-        }
-    };
 }
 
 namespace Common {
@@ -154,26 +87,13 @@ namespace Common {
     }
 
     template <typename T>
-    Box<T>::Box(const Box& inOther)
-    {
-        this->min = inOther.min;
-        this->max = inOther.max;
-    }
+    Box<T>::Box(const Box& inOther) = default;
 
     template <typename T>
-    Box<T>::Box(Box&& inOther) noexcept
-    {
-        this->min = std::move(inOther.min);
-        this->max = std::move(inOther.max);
-    }
+    Box<T>::Box(Box&& inOther) noexcept = default;
 
     template <typename T>
-    Box<T>& Box<T>::operator=(const Box& inOther)
-    {
-        this->min = inOther.min;
-        this->max = inOther.max;
-        return *this;
-    }
+    Box<T>& Box<T>::operator=(const Box& inOther) = default;
 
     template <typename T>
     Vec<T, 3> Box<T>::Extent() const
@@ -224,14 +144,14 @@ namespace Common {
     }
 
     template <typename T>
-    T Box<T>::Distance(const Box& inOther) const
+    T Box<T>::Distance(const Box& inOther) const requires FloatingPoint<T>
     {
         Vec<T, 3> direction = Center() - inOther.Center();
         return direction.Model();
     }
 
     template <typename T>
-    T Box<T>::Size() const
+    T Box<T>::Size() const requires FloatingPoint<T>
     {
         Vec<T, 3> diagonal = this->max - this->min;
         return diagonal.Model() / T(2);
@@ -271,5 +191,13 @@ namespace Common {
             this->min.template CastTo<IT>(),
             this->max.template CastTo<IT>()
         );
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Box<T>& lhs, const Box<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.min, rhs.min, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.max, rhs.max, absoluteTolerance, relativeTolerance);
     }
 }

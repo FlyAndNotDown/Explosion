@@ -7,6 +7,7 @@
 #include <utility>
 #include <variant>
 
+#include <Common/Hash.h>
 #include <Common/IO.h>
 #include <Core/Thread.h>
 #include <Render/ResourcePool.h>

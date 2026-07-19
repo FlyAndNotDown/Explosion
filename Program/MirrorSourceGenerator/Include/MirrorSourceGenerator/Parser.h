@@ -13,7 +13,7 @@
 #include <Common/Utility.h>
 #include <Common/Result.h>
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
     enum class FieldAccess : uint8_t {
         pub,
         pro,

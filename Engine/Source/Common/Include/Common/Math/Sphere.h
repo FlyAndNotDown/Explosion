@@ -5,8 +5,6 @@
 #pragma once
 
 #include <Common/Math/Vector.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <typename T>
@@ -24,7 +22,7 @@ namespace Common {
         Sphere(Sphere&& inOther) noexcept;
         Sphere& operator=(const Sphere& inOther);
 
-        T Distance(const Sphere& inOther) const;
+        T Distance(const Sphere& inOther) const requires FloatingPoint<T>;
         bool Inside(const Vec<T, 3>& inPoint) const;
         bool Intersect(const Sphere& inOther) const;
         bool operator==(const Sphere& inRhs) const;
@@ -32,77 +30,12 @@ namespace Common {
         template <typename IT> Sphere<IT> CastTo() const;
     };
 
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const Sphere<T>& lhs, const Sphere<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
     using ISphere = Sphere<int32_t>;
     using HSphere = Sphere<HFloat>;
     using FSphere = Sphere<float>;
     using DSphere = Sphere<double>;
-}
-
-namespace Common {
-    template <Serializable T>
-    struct Serializer<Sphere<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Sphere")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Sphere<T>& value)
-        {
-            size_t serialized = 0;
-            serialized += Serializer<Vec<T, 3>>::Serialize(stream, value.center);
-            serialized += Serializer<T>::Serialize(stream, value.radius);
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Sphere<T>& value)
-        {
-            size_t deserialized = 0;
-            deserialized += Serializer<Vec<T, 3>>::Deserialize(stream, value.center);
-            deserialized += Serializer<T>::Deserialize(stream, value.radius);
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<Sphere<T>> {
-        static std::string ToString(const Sphere<T>& inValue)
-        {
-            return std::format(
-                "{}center={}, radius={}{}",
-                "{",
-                StringConverter<Vec<T, 3>>::ToString(inValue.center),
-                StringConverter<T>::ToString(inValue.radius),
-                "}");
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<Sphere<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Sphere<T>& inValue)
-        {
-            rapidjson::Value centerJson;
-            JsonSerializer<Vec<T, 3>>::JsonSerialize(centerJson, inAllocator, inValue.center);
-
-            rapidjson::Value radiusJson;
-            JsonSerializer<T>::JsonSerialize(radiusJson, inAllocator, inValue.radius);
-
-            outJsonValue.SetObject();
-            outJsonValue.AddMember("center", centerJson, inAllocator);
-            outJsonValue.AddMember("radius", radiusJson, inAllocator);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Sphere<T>& outValue)
-        {
-            if (!inJsonValue.IsObject()) {
-                return;
-            }
-            if (inJsonValue.HasMember("center")) {
-                JsonSerializer<Vec<T, 3>>::JsonDeserialize(inJsonValue["center"], outValue.center);
-            }
-            if (inJsonValue.HasMember("radius")) {
-                JsonSerializer<T>::JsonDeserialize(inJsonValue["radius"], outValue.radius);
-            }
-        }
-    };
 }
 
 namespace Common {
@@ -128,29 +61,16 @@ namespace Common {
     }
 
     template <typename T>
-    Sphere<T>::Sphere(const Sphere<T>& inOther)
-    {
-        this->center = inOther.center;
-        this->radius = inOther.radius;
-    }
+    Sphere<T>::Sphere(const Sphere<T>& inOther) = default;
 
     template <typename T>
-    Sphere<T>::Sphere(Sphere<T>&& inOther) noexcept
-    {
-        this->center = std::move(inOther.center);
-        this->radius = inOther.radius;
-    }
+    Sphere<T>::Sphere(Sphere<T>&& inOther) noexcept = default;
 
     template <typename T>
-    Sphere<T>& Sphere<T>::operator=(const Sphere<T>& inOther)
-    {
-        this->center = inOther.center;
-        this->radius = inOther.radius;
-        return *this;
-    }
+    Sphere<T>& Sphere<T>::operator=(const Sphere<T>& inOther) = default;
 
     template <typename T>
-    T Sphere<T>::Distance(const Sphere& inOther) const
+    T Sphere<T>::Distance(const Sphere& inOther) const requires FloatingPoint<T>
     {
         Vec<T, 3> direction = this->center - inOther.center;
         return direction.Model();
@@ -159,22 +79,29 @@ namespace Common {
     template <typename T>
     bool Sphere<T>::Inside(const Vec<T, 3>& inPoint) const
     {
-        Vec<T, 3> direction = this->center - inPoint;
-        return direction.Model() <= this->radius;
+        if (this->radius < static_cast<T>(0)) {
+            return false;
+        }
+        const Vec<T, 3> direction = this->center - inPoint;
+        return direction.ModelSquared() <= this->radius * this->radius;
     }
 
     template <typename T>
     bool Sphere<T>::Intersect(const Sphere& inOther) const
     {
-        Vec<T, 3> direction = this->center - inOther.center;
-        return direction.Model() <= (this->radius + inOther.radius);
+        const T combinedRadius = this->radius + inOther.radius;
+        if (combinedRadius < static_cast<T>(0)) {
+            return false;
+        }
+        const Vec<T, 3> direction = this->center - inOther.center;
+        return direction.ModelSquared() <= combinedRadius * combinedRadius;
     }
 
     template <typename T>
     bool Sphere<T>::operator==(const Sphere& inRhs) const
     {
         return this->center == inRhs.center
-            && CompareNumber(this->radius, inRhs.radius);
+            && this->radius == inRhs.radius;
     }
 
     template <typename T>
@@ -185,5 +112,13 @@ namespace Common {
             this->center.template CastTo<IT>(),
             static_cast<IT>(this->radius)
         );
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Sphere<T>& lhs, const Sphere<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.center, rhs.center, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.radius, rhs.radius, absoluteTolerance, relativeTolerance);
     }
 }

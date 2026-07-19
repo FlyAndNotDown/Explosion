@@ -6,6 +6,9 @@
 
 #include <Render/Shader.h>
 #include <Common/Container.h>
+#include <Common/File.h>
+#include <Common/Hash.h>
+#include <Common/String.h>
 #include <Core/Paths.h>
 #include <Core/Thread.h>
 

@@ -10,6 +10,7 @@
 #include <tuple>
 #include <array>
 
+#include <Common/Hash.h>
 #include <RHI/RHI.h>
 
 #define ShaderTypeInfo(inClass, inStage, inSourceFile, inEntryPoint) \

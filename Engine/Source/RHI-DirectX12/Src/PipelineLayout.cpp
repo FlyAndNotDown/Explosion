@@ -7,6 +7,8 @@
 
 #include <directx/d3dx12.h>
 
+#include <Common/Hash.h>
+#include <Common/String.h>
 #include <RHI/DirectX12/Common.h>
 #include <RHI/DirectX12/Device.h>
 #include <RHI/DirectX12/PipelineLayout.h>

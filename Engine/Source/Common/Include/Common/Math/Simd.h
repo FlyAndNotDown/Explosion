@@ -4,11 +4,13 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 #include <Common/Platform.h>
 
-// MirrorTool parses these headers only to harvest reflection metadata, and its libclang has no usable SSE2/NEON
+// MirrorSourceGenerator parses these headers only to harvest reflection metadata, and its libclang has no usable SSE2/NEON
 // intrinsic header (no clang resource headers on Linux, a version-mismatched arm_neon.h on macOS). Reflection needs the
 // declarations below but never the vectorized bodies, so under the parser we skip the intrinsic include and stand in a
 // scalar F32x4 instead; every real translation unit still takes the intrinsic backend.
@@ -47,7 +49,10 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return { a.lanes[0] - b.lanes[0], a.lanes[1] - b.lanes[1], a.lanes[2] - b.lanes[2], a.lanes[3] - b.lanes[3] }; }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return { a.lanes[0] * b.lanes[0], a.lanes[1] * b.lanes[1], a.lanes[2] * b.lanes[2], a.lanes[3] * b.lanes[3] }; }
     inline F32x4 Div(F32x4 a, F32x4 b) { return { a.lanes[0] / b.lanes[0], a.lanes[1] / b.lanes[1], a.lanes[2] / b.lanes[2], a.lanes[3] / b.lanes[3] }; }
+    inline F32x4 Abs(F32x4 v) { return { std::abs(v.lanes[0]), std::abs(v.lanes[1]), std::abs(v.lanes[2]), std::abs(v.lanes[3]) }; }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return { std::max(a.lanes[0], b.lanes[0]), std::max(a.lanes[1], b.lanes[1]), std::max(a.lanes[2], b.lanes[2]), std::max(a.lanes[3], b.lanes[3]) }; }
     inline float Sum(F32x4 v) { return v.lanes[0] + v.lanes[1] + v.lanes[2] + v.lanes[3]; }
+    inline float MaxValue(F32x4 v) { return std::max(std::max(v.lanes[0], v.lanes[1]), std::max(v.lanes[2], v.lanes[3])); }
     inline F32x4 Set(float x, float y, float z, float w) { return { x, y, z, w }; }
 
     template <int L>
@@ -74,6 +79,8 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return _mm_sub_ps(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return _mm_mul_ps(a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return _mm_div_ps(a, b); }
+    inline F32x4 Abs(F32x4 v) { return _mm_andnot_ps(_mm_set1_ps(-0.0f), v); }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return _mm_max_ps(a, b); }
 
     inline float Sum(F32x4 v)
     {
@@ -82,6 +89,12 @@ namespace Common::Simd {
         shuf = _mm_movehl_ps(shuf, sums);
         sums = _mm_add_ss(sums, shuf);
         return _mm_cvtss_f32(sums);
+    }
+
+    inline float MaxValue(F32x4 v)
+    {
+        const F32x4 pairMax = _mm_max_ps(v, _mm_movehl_ps(v, v));
+        return _mm_cvtss_f32(_mm_max_ss(pairMax, _mm_shuffle_ps(pairMax, pairMax, _MM_SHUFFLE(1, 1, 1, 1))));
     }
 
     inline F32x4 Set(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
@@ -107,7 +120,10 @@ namespace Common::Simd {
     inline F32x4 Sub(F32x4 a, F32x4 b) { return vsubq_f32(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return vmulq_f32(a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return vdivq_f32(a, b); }
+    inline F32x4 Abs(F32x4 v) { return vabsq_f32(v); }
+    inline F32x4 Max(F32x4 a, F32x4 b) { return vmaxq_f32(a, b); }
     inline float Sum(F32x4 v) { return vaddvq_f32(v); }
+    inline float MaxValue(F32x4 v) { return vmaxvq_f32(v); }
 
     inline F32x4 Set(float x, float y, float z, float w)
     {
@@ -118,15 +134,17 @@ namespace Common::Simd {
     template <int L>
     inline F32x4 Splat(F32x4 v) { return vdupq_n_f32(vgetq_lane_f32(v, L)); }
 
-    // NEON has no single arbitrary 4-lane float shuffle, so go through memory; for a compile-time permutation the
-    // compiler routinely folds the store/reload back into register moves.
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v)
     {
-        float tmp[4];
-        vst1q_f32(tmp, v);
-        const float out[4] = { tmp[I0], tmp[I1], tmp[I2], tmp[I3] };
-        return vld1q_f32(out);
+        static_assert(I0 >= 0 && I0 < 4 && I1 >= 0 && I1 < 4 && I2 >= 0 && I2 < 4 && I3 >= 0 && I3 < 4);
+        static constexpr uint8_t indices[16] = {
+            I0 * 4 + 0, I0 * 4 + 1, I0 * 4 + 2, I0 * 4 + 3,
+            I1 * 4 + 0, I1 * 4 + 1, I1 * 4 + 2, I1 * 4 + 3,
+            I2 * 4 + 0, I2 * 4 + 1, I2 * 4 + 2, I2 * 4 + 3,
+            I3 * 4 + 0, I3 * 4 + 1, I3 * 4 + 2, I3 * 4 + 3
+        };
+        return vreinterpretq_f32_u8(vqtbl1q_u8(vreinterpretq_u8_f32(v), vld1q_u8(indices)));
     }
 
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.

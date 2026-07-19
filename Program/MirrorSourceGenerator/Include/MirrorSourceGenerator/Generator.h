@@ -9,9 +9,9 @@
 #include <Common/Utility.h>
 #include <Common/Result.h>
 
-#include <MirrorTool/Parser.h>
+#include <MirrorSourceGenerator/Parser.h>
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
     struct MetaInfo;
 
     class Generator {

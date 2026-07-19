@@ -2,6 +2,8 @@
 // Created by johnk on 2026/7/5.
 //
 
+#include <cstring>
+
 #include <Render/MeshRenderData.h>
 
 namespace Render::Internal {
@@ -16,7 +18,7 @@ namespace Render::Internal {
         Common::UniquePtr<RHI::Buffer> result = inDevice.CreateBuffer(createInfo);
         Assert(result.Valid());
         auto* data = result->Map(RHI::MapMode::write, 0, inSize);
-        memcpy(data, inData, inSize);
+        std::memcpy(data, inData, inSize);
         result->Unmap();
         return result;
     }

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <Common/Math/Transform.h>
+#include <Common/Math/Adapters.h>
 #include <Runtime/Meta.h>
 #include <Runtime/ECS.h>
 #include <Runtime/Api.h>

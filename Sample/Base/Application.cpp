@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <Application.h>
+#include <Common/File.h>
 #include <Common/Hash.h>
 #include <Common/Time.h>
 #include <Core/Cmdline.h>

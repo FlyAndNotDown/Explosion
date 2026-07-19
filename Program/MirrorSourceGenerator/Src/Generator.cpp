@@ -8,12 +8,12 @@
 #include <unordered_map>
 #include <ranges>
 
-#include <MirrorTool/Generator.h>
+#include <MirrorSourceGenerator/Generator.h>
 #include <Common/Hash.h>
 #include <Common/String.h>
 #include <Common/IO.h>
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
     static std::string GetFullName(const Node& node)
     {
         std::string outerName = node.outerName;
@@ -435,7 +435,7 @@ namespace MirrorTool {
     }
 }
 
-namespace MirrorTool {
+namespace MirrorSourceGenerator {
     Generator::Generator(std::string inInputFile, std::string inOutputFile, std::vector<std::string> inHeaderDirs, const MetaInfo& inMetaInfo, bool inDynamic)
         : metaInfo(inMetaInfo)
         , inputFile(std::move(inInputFile))

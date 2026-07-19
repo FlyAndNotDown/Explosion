@@ -6,8 +6,7 @@
 
 #include <unordered_map>
 
-#include <Common/Math/Vector.h>
-#include <Common/Math/Matrix.h>
+#include <Common/Math/Adapters.h>
 #include <Runtime/Asset/Asset.h>
 #include <Runtime/Asset/Texture.h>
 #include <Runtime/Meta.h>

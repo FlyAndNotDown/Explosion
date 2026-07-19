@@ -3,6 +3,9 @@ from conan import ConanFile
 class ExplosionConan(ConanFile):
     generators = "CMakeConfigDeps"
     settings = "os", "compiler", "build_type", "arch"
+    default_options = {
+        "imgui/*:use_wchar32": True,
+    }
 
     def requirements(self):
         self.requires("stb/cci.20230920")

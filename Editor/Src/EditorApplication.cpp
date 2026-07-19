@@ -10,11 +10,13 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <Common/Debug.h>
 #include <Common/Time.h>
 #include <Core/Paths.h>
 #include <Editor/EditorApplication.h>
 #include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/Utils/ImGuiCompatibility.h>
+#include <Editor/Widget/TablerIcons.h>
 #include <Runtime/Engine.h>
 
 namespace Editor::Internal {
@@ -80,6 +82,24 @@ namespace Editor::Internal {
         style.ScrollbarRounding = 2.0f;
         style.GrabRounding = 2.0f;
         style.TabRounding = 2.0f;
+    }
+
+    static void LoadIconFonts(ImFontAtlas& inFontAtlas, float inSizePixels)
+    {
+        static ImVector<ImWchar> glyphRanges;
+        if (glyphRanges.empty()) {
+            ImFontGlyphRangesBuilder builder;
+            builder.AddText(Icons::Tabler::allGlyphs);
+            builder.BuildRanges(&glyphRanges);
+        }
+
+        const std::string fontPath = (Core::Paths::EngineResDir() / "Editor" / "Icons" / "Tabler" / "tabler-icons.ttf").String();
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.PixelSnapH = true;
+        config.GlyphMinAdvanceX = inSizePixels;
+        config.GlyphMaxAdvanceX = inSizePixels;
+        Assert(inFontAtlas.AddFontFromFileTTF(fontPath.c_str(), inSizePixels, &config, glyphRanges.Data) != nullptr);
     }
 
     static float CalculatePanelRatio(float inAvailableSize, float inDefaultRatio, float inMinSize, float inMaxSize)
@@ -223,6 +243,7 @@ namespace Editor {
         ImFontConfig defaultFontConfig;
         defaultFontConfig.SizePixels = Internal::defaultFontSize;
         io.FontDefault = io.Fonts->AddFontDefaultVector(&defaultFontConfig);
+        Internal::LoadIconFonts(*io.Fonts, Internal::defaultFontSize);
         Internal::SetDarkStyle();
     }
 

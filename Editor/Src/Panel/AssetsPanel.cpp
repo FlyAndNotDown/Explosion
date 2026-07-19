@@ -14,6 +14,8 @@
 #include <Editor/Panel/AssetsPanel.h>
 #include <Editor/Panel/EditorPanelNames.h>
 #include <Editor/Utils/PlatformUtils.h>
+#include <Editor/Widget/IconWidgets.h>
+#include <Editor/Widget/TablerIcons.h>
 
 namespace Editor::Internal {
     constexpr float assetsFolderTreeWidth = 220.0f;
@@ -65,7 +67,8 @@ namespace Editor {
 
     void AssetsPanel::Render(bool& inOutOpen)
     {
-        if (!ImGui::Begin(PanelNames::assets, &inOutOpen)) {
+        static const std::string label = Widgets::Label(Icons::Tabler::folder, PanelNames::assets, PanelNames::assets);
+        if (!ImGui::Begin(label.c_str(), &inOutOpen)) {
             ImGui::End();
             return;
         }
@@ -89,8 +92,9 @@ namespace Editor {
             const ImVec4 color = statusIsError
                 ? ImVec4(1.0f, 0.35f, 0.32f, 1.0f)
                 : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+            const std::string statusLabel = Widgets::Label(statusIsError ? Icons::Tabler::circleX : Icons::Tabler::infoCircle, statusMessage);
             ImGui::PushStyleColor(ImGuiCol_Text, color);
-            ImGui::TextWrapped("%s", statusMessage.c_str());
+            ImGui::TextWrapped("%s", statusLabel.c_str());
             ImGui::PopStyleColor();
         }
         ImGui::Separator();
@@ -111,42 +115,42 @@ namespace Editor {
     {
         const bool atRoot = currentDirectory == fileSystem.Root();
         ImGui::BeginDisabled(atRoot);
-        if (ImGui::Button("Up")) {
+        if (Widgets::IconButton("Up", Icons::Tabler::arrowUp, "Up (Backspace)")) {
             NavigateTo(currentDirectory.parent_path());
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
-        if (ImGui::Button("New Folder")) {
+        if (Widgets::IconButton("New Folder", Icons::Tabler::folderPlus, "New Folder")) {
             OpenCreateFolderPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Import")) {
+        if (Widgets::IconButton("Import", Icons::Tabler::upload, "Import")) {
             ImportFiles();
         }
         ImGui::SameLine();
 
         const bool hasSelection = !selectedPath.empty();
         ImGui::BeginDisabled(!hasSelection);
-        if (ImGui::Button("Cut")) {
+        if (Widgets::IconButton("Cut", Icons::Tabler::cut, "Cut (Ctrl+X)")) {
             SetClipboard(selectedPath, ClipboardMode::move);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Copy")) {
+        if (Widgets::IconButton("Copy", Icons::Tabler::copy, "Copy (Ctrl+C)")) {
             SetClipboard(selectedPath, ClipboardMode::copy);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Rename")) {
+        if (Widgets::IconButton("Rename", Icons::Tabler::edit, "Rename (F2)")) {
             OpenRenamePopup(selectedPath);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Delete")) {
+        if (Widgets::IconButton("Delete", Icons::Tabler::trash, "Delete")) {
             OpenDeletePopup(selectedPath);
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
 
         ImGui::BeginDisabled(clipboardMode == ClipboardMode::none);
-        if (ImGui::Button("Paste")) {
+        if (Widgets::IconButton("Paste", Icons::Tabler::clipboard, "Paste (Ctrl+V)")) {
             PasteInto(currentDirectory);
         }
         ImGui::EndDisabled();
@@ -154,7 +158,7 @@ namespace Editor {
 
     void AssetsPanel::RenderBreadcrumbs()
     {
-        if (ImGui::Button(PanelNames::assets)) {
+        if (Widgets::IconButton("Asset Root", Icons::Tabler::home, PanelNames::assets)) {
             NavigateTo(fileSystem.Root());
         }
 
@@ -166,7 +170,7 @@ namespace Editor {
             }
             accumulated /= component;
             ImGui::SameLine();
-            ImGui::TextUnformatted(">");
+            ImGui::TextDisabled("%s", Icons::Tabler::chevronRight);
             ImGui::SameLine();
             const std::string id = accumulated.string();
             const std::string label = component.string();
@@ -189,8 +193,9 @@ namespace Editor {
         }
 
         const std::string id = inDirectory.string();
+        const std::string label = Widgets::Label(Icons::Tabler::folder, inLabel);
         ImGui::PushID(id.c_str());
-        const bool open = ImGui::TreeNodeEx(inLabel, flags);
+        const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
             NavigateTo(inDirectory);
         }
@@ -236,12 +241,11 @@ namespace Editor {
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         const std::string pathId = inEntry.path.string();
-        const std::string name = inEntry.directory
-            ? std::format("{}/", inEntry.path.filename().string())
-            : inEntry.path.filename().string();
+        const std::string name = inEntry.path.filename().string();
+        const std::string label = Widgets::Label(inEntry.directory ? Icons::Tabler::folder : Icons::Tabler::file, name);
         ImGui::PushID(pathId.c_str());
         const bool selected = selectedPath == inEntry.path;
-        if (ImGui::Selectable(name.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick)) {
+        if (ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick)) {
             selectedPath = inEntry.path;
             if (inEntry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                 NavigateTo(inEntry.path);
@@ -250,7 +254,7 @@ namespace Editor {
 
         if (ImGui::BeginDragDropSource()) {
             ImGui::SetDragDropPayload(Internal::assetPathPayload, pathId.c_str(), pathId.size() + 1);
-            ImGui::TextUnformatted(name.c_str());
+            ImGui::TextUnformatted(label.c_str());
             ImGui::EndDragDropSource();
         }
         if (inEntry.directory) {
@@ -258,20 +262,25 @@ namespace Editor {
         }
         if (ImGui::BeginPopupContextItem("AssetEntryMenu")) {
             selectedPath = inEntry.path;
-            if (ImGui::MenuItem("Open", nullptr, false, inEntry.directory)) {
+            const std::string openLabel = Widgets::Label(Icons::Tabler::externalLink, "Open");
+            if (ImGui::MenuItem(openLabel.c_str(), nullptr, false, inEntry.directory)) {
                 NavigateTo(inEntry.path);
             }
             ImGui::Separator();
-            if (ImGui::MenuItem("Cut", "Ctrl+X")) {
+            const std::string cutLabel = Widgets::Label(Icons::Tabler::cut, "Cut");
+            if (ImGui::MenuItem(cutLabel.c_str(), "Ctrl+X")) {
                 SetClipboard(inEntry.path, ClipboardMode::move);
             }
-            if (ImGui::MenuItem("Copy", "Ctrl+C")) {
+            const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
+            if (ImGui::MenuItem(copyLabel.c_str(), "Ctrl+C")) {
                 SetClipboard(inEntry.path, ClipboardMode::copy);
             }
-            if (ImGui::MenuItem("Rename", "F2")) {
+            const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
+            if (ImGui::MenuItem(renameLabel.c_str(), "F2")) {
                 OpenRenamePopup(inEntry.path);
             }
-            if (ImGui::MenuItem("Delete", "Delete")) {
+            const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
+            if (ImGui::MenuItem(deleteLabel.c_str(), "Delete")) {
                 OpenDeletePopup(inEntry.path);
             }
             ImGui::EndPopup();
@@ -293,14 +302,17 @@ namespace Editor {
         if (!ImGui::BeginPopupContextWindow("AssetBackgroundMenu", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
             return;
         }
-        if (ImGui::MenuItem("New Folder")) {
+        const std::string newFolderLabel = Widgets::Label(Icons::Tabler::folderPlus, "New Folder");
+        if (ImGui::MenuItem(newFolderLabel.c_str())) {
             OpenCreateFolderPopup();
         }
-        if (ImGui::MenuItem("Import")) {
+        const std::string importLabel = Widgets::Label(Icons::Tabler::upload, "Import");
+        if (ImGui::MenuItem(importLabel.c_str())) {
             ImportFiles();
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Paste", "Ctrl+V", false, clipboardMode != ClipboardMode::none)) {
+        const std::string pasteLabel = Widgets::Label(Icons::Tabler::clipboard, "Paste");
+        if (ImGui::MenuItem(pasteLabel.c_str(), "Ctrl+V", false, clipboardMode != ClipboardMode::none)) {
             PasteInto(currentDirectory);
         }
         ImGui::EndPopup();
@@ -318,7 +330,8 @@ namespace Editor {
             }
             ImGui::SetNextItemWidth(320.0f);
             const bool submit = ImGui::InputText("Name", &createFolderName, ImGuiInputTextFlags_EnterReturnsTrue);
-            if (submit || ImGui::Button("Create")) {
+            const std::string createLabel = Widgets::Label(Icons::Tabler::check, "Create");
+            if (submit || ImGui::Button(createLabel.c_str())) {
                 std::filesystem::path created;
                 std::string error;
                 if (fileSystem.CreateFolder(currentDirectory, createFolderName, created, error)) {
@@ -330,7 +343,8 @@ namespace Editor {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
+            const std::string cancelLabel = Widgets::Label(Icons::Tabler::x, "Cancel");
+            if (ImGui::Button(cancelLabel.c_str())) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
@@ -346,7 +360,8 @@ namespace Editor {
             }
             ImGui::SetNextItemWidth(320.0f);
             const bool submit = ImGui::InputText("Name", &renameName, ImGuiInputTextFlags_EnterReturnsTrue);
-            if (submit || ImGui::Button("Rename")) {
+            const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
+            if (submit || ImGui::Button(renameLabel.c_str())) {
                 std::filesystem::path renamed;
                 std::string error;
                 if (fileSystem.Rename(renamePath, renameName, renamed, error)) {
@@ -361,7 +376,8 @@ namespace Editor {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
+            const std::string cancelLabel = Widgets::Label(Icons::Tabler::x, "Cancel");
+            if (ImGui::Button(cancelLabel.c_str())) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
@@ -373,7 +389,8 @@ namespace Editor {
         }
         if (ImGui::BeginPopupModal("Delete Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::TextWrapped("Delete '%s'? This cannot be undone.", deletePath.filename().string().c_str());
-            if (ImGui::Button("Delete")) {
+            const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
+            if (ImGui::Button(deleteLabel.c_str())) {
                 std::string error;
                 if (fileSystem.Remove(deletePath, error)) {
                     if (clipboardPath == deletePath) {
@@ -388,7 +405,8 @@ namespace Editor {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Cancel")) {
+            const std::string cancelLabel = Widgets::Label(Icons::Tabler::x, "Cancel");
+            if (ImGui::Button(cancelLabel.c_str())) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();

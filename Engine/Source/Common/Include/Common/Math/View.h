@@ -5,8 +5,6 @@
 #pragma once
 
 #include <Common/Math/Transform.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <typename T>
@@ -24,49 +22,11 @@ namespace Common {
         Mat<T, 4, 4> GetViewMatrix() const;
     };
 
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const ViewTransform<T>& lhs, const ViewTransform<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
     using HViewTransform = ViewTransform<HFloat>;
     using FViewTransform = ViewTransform<float>;
     using DViewTransform = ViewTransform<double>;
-}
-
-namespace Common {
-    template <Serializable T>
-    struct Serializer<ViewTransform<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::ViewTransform")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const ViewTransform<T>& value)
-        {
-            return Serializer<Transform<T>>::Serialize(stream, value);
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, ViewTransform<T>& value)
-        {
-            return Serializer<Transform<T>>::Deserialize(stream, value);
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<ViewTransform<T>> {
-        static std::string ToString(const ViewTransform<T>& inValue)
-        {
-            return StringConverter<Transform<T>>::ToString(inValue);
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<ViewTransform<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const ViewTransform<T>& inValue)
-        {
-            JsonSerializer<Transform<T>>::JsonSerialize(outJsonValue, inAllocator, inValue);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, ViewTransform<T>& outValue)
-        {
-            JsonSerializer<Transform<T>>::JsonDeserialize(inJsonValue, outValue);
-        }
-    };
 }
 
 namespace Common {
@@ -95,23 +55,13 @@ namespace Common {
     }
 
     template <typename T>
-    ViewTransform<T>::ViewTransform(const ViewTransform& inOther)
-        : Transform<T>(inOther)
-    {
-    }
+    ViewTransform<T>::ViewTransform(const ViewTransform& inOther) = default;
 
     template <typename T>
-    ViewTransform<T>::ViewTransform(ViewTransform&& inOther) noexcept
-        : Transform<T>(std::move(inOther))
-    {
-    }
+    ViewTransform<T>::ViewTransform(ViewTransform&& inOther) noexcept = default;
 
     template <typename T>
-    ViewTransform<T>& ViewTransform<T>::operator=(const ViewTransform& inOther)
-    {
-        Transform<T>::operator=(inOther);
-        return *this;
-    }
+    ViewTransform<T>& ViewTransform<T>::operator=(const ViewTransform& inOther) = default;
 
     template <typename T>
     bool ViewTransform<T>::operator==(const ViewTransform& inRhs) const
@@ -130,12 +80,21 @@ namespace Common {
         //     x+ -> from left to right
         //     y+ -> from bottom to top
         //     z+ -> from screen outer to inner
-        static Mat<T, 4, 4> axisTransMat = Mat<T, 4, 4>(
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            1, 0, 0, 0,
-            0, 0, 0, 1
-        );
-        return axisTransMat * this->GetTransformMatrixNoScale().Inverse();
+        const Mat<T, 4, 4> rotation = this->GetRotationMatrix();
+        const T tx = this->translation.x;
+        const T ty = this->translation.y;
+        const T tz = this->translation.z;
+        return Mat<T, 4, 4>(
+            rotation.At(0, 1), rotation.At(1, 1), rotation.At(2, 1), -(rotation.At(0, 1) * tx + rotation.At(1, 1) * ty + rotation.At(2, 1) * tz),
+            rotation.At(0, 2), rotation.At(1, 2), rotation.At(2, 2), -(rotation.At(0, 2) * tx + rotation.At(1, 2) * ty + rotation.At(2, 2) * tz),
+            rotation.At(0, 0), rotation.At(1, 0), rotation.At(2, 0), -(rotation.At(0, 0) * tx + rotation.At(1, 0) * ty + rotation.At(2, 0) * tz),
+            0, 0, 0, 1);
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const ViewTransform<T>& lhs, const ViewTransform<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(static_cast<const Transform<T>&>(lhs), static_cast<const Transform<T>&>(rhs), absoluteTolerance, relativeTolerance);
     }
 }

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <Common/Math/Vector.h>
+#include <Common/Math/Adapters.h>
 #include <Runtime/Asset/Asset.h>
 #include <Runtime/Asset/Material.h>
 #include <Runtime/Meta.h>

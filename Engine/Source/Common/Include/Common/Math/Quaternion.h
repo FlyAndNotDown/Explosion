@@ -9,8 +9,6 @@
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
 #include <Common/Math/Matrix.h>
-#include <Common/Serialization.h>
-#include <Common/String.h>
 
 namespace Common {
     template <typename T> struct Angle;
@@ -71,7 +69,7 @@ namespace Common {
 
         Quaternion();
         Quaternion(T inW, T inX, T inY, T inZ);
-        Quaternion(const Vec<T, 3, B>& inAxis, float inAngle);
+        Quaternion(const Vec<T, 3, B>& inAxis, T inAngle);
         Quaternion(const Vec<T, 3, B>& inAxis, const Radian<T>& inRadian);
         Quaternion(const Quaternion& inValue) = default;
         Quaternion(Quaternion&& inValue) noexcept = default;
@@ -92,10 +90,14 @@ namespace Common {
         Quaternion& operator/=(T rhs);
 
         Vec<T, 3, B> ImaginaryPart() const;
+        T ModelSquared() const;
         T Model() const;
+        bool IsNormalized(T tolerance = DefaultTolerance<T>()) const;
         Quaternion Negatived() const;
         Quaternion Conjugated() const;
         Quaternion Normalized() const;
+        bool TryNormalize(T tolerance = DefaultTolerance<T>());
+        void Normalize();
         T Dot(const Quaternion& rhs) const;
         // when axis faced to us, ccw as positive direction
         Vec<T, 3, B> RotateVector(const Vec<T, 3, B>& inVector) const;
@@ -105,6 +107,12 @@ namespace Common {
         template <typename IT>
         Quaternion<IT, B> CastTo() const;
     };
+
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const Angle<T>& lhs, const Angle<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
+    template <typename T> requires FloatingPoint<T> bool AlmostEqual(const Radian<T>& lhs, const Radian<T>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
+
+    template <typename T, MathBackend B> requires FloatingPoint<T> bool AlmostEqual(const Quaternion<T, B>& lhs, const Quaternion<T, B>& rhs, T absoluteTolerance = DefaultTolerance<T>(), T relativeTolerance = DefaultTolerance<T>());
 
     template <typename T, MathBackend B = MathBackend::defaultBackend>
     struct QuatConsts {
@@ -127,159 +135,6 @@ namespace Common {
     using HQuatConsts = QuatConsts<HFloat>;
     using FQuatConsts = QuatConsts<float>;
     using DQuatConsts = QuatConsts<double>;
-}
-
-namespace Common {
-    template <Serializable T>
-    struct Serializer<Angle<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Angle")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Angle<T>& value)
-        {
-            return Serializer<T>::Serialize(stream, value.value);
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Angle<T>& value)
-        {
-            return Serializer<T>::Deserialize(stream, value.value);
-        }
-    };
-
-    template <Serializable T>
-    struct Serializer<Radian<T>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Radian")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Radian<T>& value)
-        {
-            return Serializer<T>::Serialize(stream, value.value);
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Radian<T>& value)
-        {
-            return Serializer<T>::Deserialize(stream, value.value);
-        }
-    };
-
-    template <Serializable T, MathBackend B>
-    struct Serializer<Quaternion<T, B>> {
-        static constexpr size_t typeId
-            = HashUtils::StrCrc32("Common::Quaternion")
-            + Serializer<T>::typeId;
-
-        static size_t Serialize(BinarySerializeStream& stream, const Quaternion<T, B>& value)
-        {
-            size_t serialized = 0;
-            serialized += Serializer<T>::Serialize(stream, value.w);
-            serialized += Serializer<T>::Serialize(stream, value.x);
-            serialized += Serializer<T>::Serialize(stream, value.y);
-            serialized += Serializer<T>::Serialize(stream, value.z);
-            return serialized;
-        }
-
-        static size_t Deserialize(BinaryDeserializeStream& stream, Quaternion<T, B>& value)
-        {
-            size_t deserialized = 0;
-            deserialized += Serializer<T>::Deserialize(stream, value.w);
-            deserialized += Serializer<T>::Deserialize(stream, value.x);
-            deserialized += Serializer<T>::Deserialize(stream, value.y);
-            deserialized += Serializer<T>::Deserialize(stream, value.z);
-            return deserialized;
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<Angle<T>> {
-        static std::string ToString(const Angle<T>& inValue)
-        {
-            return std::format("a{}", StringConverter<T>::ToString(inValue.value));
-        }
-    };
-
-    template <StringConvertible T>
-    struct StringConverter<Radian<T>> {
-        static std::string ToString(const Radian<T>& inValue)
-        {
-            return StringConverter<T>::ToString(inValue.value);
-        }
-    };
-
-    template <StringConvertible T, MathBackend B>
-    struct StringConverter<Quaternion<T, B>> {
-        static std::string ToString(const Quaternion<T, B>& inValue)
-        {
-            return std::format(
-                "({}, {}, {}, {})",
-                StringConverter<T>::ToString(inValue.w),
-                StringConverter<T>::ToString(inValue.x),
-                StringConverter<T>::ToString(inValue.y),
-                StringConverter<T>::ToString(inValue.z));
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<Angle<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Angle<T>& inValue)
-        {
-            JsonSerializer<T>::JsonSerialize(outJsonValue, inAllocator, inValue.value);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Angle<T>& outValue)
-        {
-            JsonSerializer<T>::JsonDeserialize(inJsonValue, outValue.value);
-        }
-    };
-
-    template <JsonSerializable T>
-    struct JsonSerializer<Radian<T>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Radian<T>& inValue)
-        {
-            JsonSerializer<T>::JsonSerialize(outJsonValue, inAllocator, inValue.value);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Radian<T>& outValue)
-        {
-            JsonSerializer<T>::JsonDeserialize(inJsonValue, outValue.value);
-        }
-    };
-
-    template <JsonSerializable T, MathBackend B>
-    struct JsonSerializer<Quaternion<T, B>> {
-        static void JsonSerialize(rapidjson::Value& outJsonValue, rapidjson::Document::AllocatorType& inAllocator, const Quaternion<T, B>& inValue)
-        {
-            rapidjson::Value xJson;
-            JsonSerializer<T>::JsonSerialize(xJson, inAllocator, inValue.w);
-
-            rapidjson::Value yJson;
-            JsonSerializer<T>::JsonSerialize(yJson, inAllocator, inValue.x);
-
-            rapidjson::Value zJson;
-            JsonSerializer<T>::JsonSerialize(zJson, inAllocator, inValue.y);
-
-            rapidjson::Value wJson;
-            JsonSerializer<T>::JsonSerialize(wJson, inAllocator, inValue.z);
-
-            outJsonValue.SetArray();
-            outJsonValue.PushBack(xJson, inAllocator);
-            outJsonValue.PushBack(yJson, inAllocator);
-            outJsonValue.PushBack(zJson, inAllocator);
-            outJsonValue.PushBack(wJson, inAllocator);
-        }
-
-        static void JsonDeserialize(const rapidjson::Value& inJsonValue, Quaternion<T, B>& outValue)
-        {
-            if (!inJsonValue.IsArray() || inJsonValue.Size() != 4) {
-                return;
-            }
-            JsonSerializer<T>::JsonDeserialize(inJsonValue[0], outValue.w);
-            JsonSerializer<T>::JsonDeserialize(inJsonValue[1], outValue.x);
-            JsonSerializer<T>::JsonDeserialize(inJsonValue[2], outValue.y);
-            JsonSerializer<T>::JsonDeserialize(inJsonValue[3], outValue.z);
-        }
-    };
 }
 
 namespace Common::Internal {
@@ -405,35 +260,31 @@ namespace Common {
     Angle<T>::Angle(const Radian<T>& inValue) : Angle(inValue.ToAngle()) {}
 
     template <typename T>
-    Angle<T>::Angle(const Angle& inValue) : Angle(inValue.value) {}
+    Angle<T>::Angle(const Angle& inValue) = default;
 
     template <typename T>
-    Angle<T>::Angle(Angle&& inValue) noexcept : Angle(inValue.value) {}
+    Angle<T>::Angle(Angle&& inValue) noexcept = default;
 
     template <typename T>
-    Angle<T>& Angle<T>::operator=(const Angle& inValue)
-    {
-        this->value = inValue.value;
-        return *this;
-    }
+    Angle<T>& Angle<T>::operator=(const Angle& inValue) = default;
 
     template <typename T>
     Angle<T>& Angle<T>::operator=(const Radian<T>& inValue)
     {
-        this->value = inValue.value;
+        this->value = inValue.ToAngle();
         return *this;
     }
 
     template <typename T>
     bool Angle<T>::operator==(const Angle& inRhs) const
     {
-        return CompareNumber(this->value, inRhs.value);
+        return this->value == inRhs.value;
     }
 
     template <typename T>
     T Angle<T>::ToRadian() const
     {
-        return this->value / 180.0f * pi;
+        return this->value / static_cast<T>(180) * Pi<T>();
     }
 
     template <typename T>
@@ -452,35 +303,31 @@ namespace Common {
     Radian<T>::Radian(const Angle<T>& inValue) : Radian(inValue.ToRadian()) {}
 
     template <typename T>
-    Radian<T>::Radian(const Radian& inValue) : Radian(inValue.value) {}
+    Radian<T>::Radian(const Radian& inValue) = default;
 
     template <typename T>
-    Radian<T>::Radian(Radian&& inValue) noexcept : Radian(inValue.value) {}
+    Radian<T>::Radian(Radian&& inValue) noexcept = default;
 
     template <typename T>
-    Radian<T>& Radian<T>::operator=(const Radian& inValue)
-    {
-        this->value = inValue.value;
-        return *this;
-    }
+    Radian<T>& Radian<T>::operator=(const Radian& inValue) = default;
 
     template <typename T>
     Radian<T>& Radian<T>::operator=(const Angle<T>& inValue)
     {
-        this->value = inValue.value;
+        this->value = inValue.ToRadian();
         return *this;
     }
 
     template <typename T>
     bool Radian<T>::operator==(const Radian& inRhs) const
     {
-        return CompareNumber(this->value, inRhs.value);
+        return this->value == inRhs.value;
     }
 
     template <typename T>
     T Radian<T>::ToAngle() const
     {
-        return this->value * 180.0f / pi;
+        return this->value * static_cast<T>(180) / Pi<T>();
     }
 
     template <typename T, MathBackend B>
@@ -522,12 +369,20 @@ namespace Common {
     }
 
     template <typename T, MathBackend B>
-    Quaternion<T, B>::Quaternion(const Vec<T, 3, B>& inAxis, float inAngle)
+    Quaternion<T, B>::Quaternion(const Vec<T, 3, B>& inAxis, T inAngle)
     {
-        Vec<T, 3, B> axis = inAxis.Normalized();
-        T halfRadian = Angle<T>(inAngle).ToRadian() / 2.0f;
-        T halfRadianSin = std::sin(halfRadian);
-        T halfRadianCos = std::cos(halfRadian);
+        Vec<T, 3, B> axis = inAxis;
+        if (!axis.TryNormalize()) {
+            Assert(false);
+            this->w = 1;
+            this->x = 0;
+            this->y = 0;
+            this->z = 0;
+            return;
+        }
+        const T halfRadian = Angle<T>(inAngle).ToRadian() / static_cast<T>(2);
+        const T halfRadianSin = std::sin(halfRadian);
+        const T halfRadianCos = std::cos(halfRadian);
 
         this->w = halfRadianCos;
         this->x = axis.x * halfRadianSin;
@@ -544,10 +399,10 @@ namespace Common {
     template <typename T, MathBackend B>
     bool Quaternion<T, B>::operator==(const Quaternion& rhs) const
     {
-        return CompareNumber(this->w, rhs.w)
-            && CompareNumber(this->x, rhs.x)
-            && CompareNumber(this->y, rhs.y)
-            && CompareNumber(this->z, rhs.z);
+        return this->w == rhs.w
+            && this->x == rhs.x
+            && this->y == rhs.y
+            && this->z == rhs.z;
     }
 
     template <typename T, MathBackend B>
@@ -630,7 +485,22 @@ namespace Common {
     template <typename T, MathBackend B>
     T Quaternion<T, B>::Model() const
     {
-        return std::sqrt(Internal::QuatOps<T, B>::Dot(*this, *this));
+        return std::sqrt(ModelSquared());
+    }
+
+    template <typename T, MathBackend B>
+    T Quaternion<T, B>::ModelSquared() const
+    {
+        return Internal::QuatOps<T, B>::Dot(*this, *this);
+    }
+
+    template <typename T, MathBackend B>
+    bool Quaternion<T, B>::IsNormalized(T tolerance) const
+    {
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
+        const EvaluationT modelSquared = static_cast<EvaluationT>(ModelSquared());
+        const EvaluationT toleranceValue = std::abs(static_cast<EvaluationT>(tolerance));
+        return std::isfinite(modelSquared) && std::abs(modelSquared - static_cast<EvaluationT>(1)) <= toleranceValue;
     }
 
     template <typename T, MathBackend B>
@@ -658,7 +528,31 @@ namespace Common {
     template <typename T, MathBackend B>
     Quaternion<T, B> Quaternion<T, B>::Normalized() const
     {
-        return this->operator/(Model());
+        Quaternion result(*this);
+        result.Normalize();
+        return result;
+    }
+
+    template <typename T, MathBackend B>
+    bool Quaternion<T, B>::TryNormalize(T tolerance)
+    {
+        const T modelSquared = ModelSquared();
+        const double modelSquaredValue = static_cast<double>(modelSquared);
+        const double toleranceValue = static_cast<double>(tolerance);
+        if (!std::isfinite(modelSquaredValue) || modelSquaredValue <= toleranceValue * toleranceValue) {
+            return false;
+        }
+
+        const T oneOverModel = static_cast<T>(1) / static_cast<T>(std::sqrt(modelSquared));
+        *this = Internal::QuatOps<T, B>::MulScalar(*this, oneOverModel);
+        return true;
+    }
+
+    template <typename T, MathBackend B>
+    void Quaternion<T, B>::Normalize()
+    {
+        const bool normalized = TryNormalize();
+        Assert(normalized);
     }
 
     template <typename T, MathBackend B>
@@ -670,16 +564,16 @@ namespace Common {
     template <typename T, MathBackend B>
     Vec<T, 3, B> Quaternion<T, B>::RotateVector(const Vec<T, 3, B>& inVector) const
     {
-        Quaternion v = Quaternion(0, inVector.x, inVector.y, inVector.z);
-        Quaternion v2 = Conjugated() * v * (*this);
-        return Vec<T, 3, B>(v2.x, v2.y, v2.z);
+        const Vec<T, 3, B> imaginary = ImaginaryPart();
+        const Vec<T, 3, B> twiceCross = inVector.Cross(imaginary) * static_cast<T>(2);
+        return inVector + twiceCross * this->w + twiceCross.Cross(imaginary);
     }
 
     template <typename T, MathBackend B>
     Vec<T, 3, B> Quaternion<T, B>::ToEulerZYX() const
     {
         const T normSquared = Dot(*this);
-        if (CompareNumber(normSquared, T(0.0f))) {
+        if (normSquared == static_cast<T>(0)) {
             return VecConsts<T, 3, B>::zero;
         }
 
@@ -726,5 +620,29 @@ namespace Common {
         result.y = static_cast<IT>(this->y);
         result.z = static_cast<IT>(this->z);
         return result;
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Angle<T>& lhs, const Angle<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.value, rhs.value, absoluteTolerance, relativeTolerance);
+    }
+
+    template <typename T>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Radian<T>& lhs, const Radian<T>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.value, rhs.value, absoluteTolerance, relativeTolerance);
+    }
+
+    template <typename T, MathBackend B>
+    requires FloatingPoint<T>
+    bool AlmostEqual(const Quaternion<T, B>& lhs, const Quaternion<T, B>& rhs, T absoluteTolerance, T relativeTolerance)
+    {
+        return AlmostEqual(lhs.w, rhs.w, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.x, rhs.x, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.y, rhs.y, absoluteTolerance, relativeTolerance)
+            && AlmostEqual(lhs.z, rhs.z, absoluteTolerance, relativeTolerance);
     }
 }
