@@ -2,6 +2,7 @@
 // Created by johnk on 2023/11/28.
 //
 
+#include <cstring>
 #include <ranges>
 
 #include <Render/RenderGraph.h>
@@ -349,7 +350,7 @@ namespace Render {
         if (inCopy) {
             auto& [data] = src.emplace<DataCopy>();
             data.resize(inSize);
-            memcpy(data.data(), inData, inSize);
+            std::memcpy(data.data(), inData, inSize);
         } else {
             src.emplace<DataView>(inData, inSize);
         }
@@ -888,7 +889,7 @@ namespace Render {
                 Assert(srcDataPtr != nullptr && srcDataSize > 0);
                 const auto* src = srcDataPtr + uploadInfo.srcOffset; // NOLINT
                 auto* dst = rhiBuffer->Map(RHI::MapMode::write, uploadInfo.dstOffset, srcDataSize);
-                memcpy(dst, src, srcDataSize);
+                std::memcpy(dst, src, srcDataSize);
                 rhiBuffer->Unmap();
             }));
         }
