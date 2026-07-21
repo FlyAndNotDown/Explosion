@@ -19,6 +19,8 @@
 
 namespace Editor::Internal {
     constexpr float assetsFolderTreeWidth = 220.0f;
+    constexpr float gridCellWidth = 100.0f;
+    constexpr float gridCellHeight = 108.0f;
     constexpr const char* assetPathPayload = "EXPLOSION_ASSET_PATH";
 
     static std::string FormatFileSize(uintmax_t inSize)
@@ -56,6 +58,7 @@ namespace Editor {
         : fileSystem(Core::Paths::GameAssetDir().String())
         , currentDirectory(fileSystem.Root())
         , clipboardMode(ClipboardMode::none)
+        , viewMode(ViewMode::grid)
         , statusIsError(false)
         , requestCreateFolderPopup(false)
         , requestRenamePopup(false)
@@ -154,6 +157,19 @@ namespace Editor {
             PasteInto(currentDirectory);
         }
         ImGui::EndDisabled();
+
+        const float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
+        const float viewModeButtonWidth = ImGui::GetFrameHeight() * 2.0f + itemSpacing;
+        ImGui::SameLine(ImGui::GetContentRegionMax().x - viewModeButtonWidth);
+        ImGui::BeginGroup();
+        if (Widgets::IconButton("Grid View", Icons::Tabler::layoutGrid, "Grid View")) {
+            viewMode = ViewMode::grid;
+        }
+        ImGui::SameLine(0.0f, itemSpacing);
+        if (Widgets::IconButton("List View", Icons::Tabler::layoutList, "List View")) {
+            viewMode = ViewMode::list;
+        }
+        ImGui::EndGroup();
     }
 
     void AssetsPanel::RenderBreadcrumbs()
@@ -218,6 +234,16 @@ namespace Editor {
 
     void AssetsPanel::RenderDirectoryContents()
     {
+        if (viewMode == ViewMode::grid) {
+            RenderDirectoryContentsGrid();
+        } else {
+            RenderDirectoryContentsList();
+        }
+        RenderBackgroundMenu();
+    }
+
+    void AssetsPanel::RenderDirectoryContentsList()
+    {
         if (ImGui::BeginTable("AssetEntries", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 100.0f);
@@ -226,17 +252,44 @@ namespace Editor {
 
             std::string error;
             for (const AssetFileEntry& entry : fileSystem.List(currentDirectory, error)) {
-                RenderEntry(entry);
+                RenderEntryList(entry);
             }
             if (!error.empty()) {
                 ReportResult(error, true);
             }
             ImGui::EndTable();
         }
-        RenderBackgroundMenu();
     }
 
-    void AssetsPanel::RenderEntry(const AssetFileEntry& inEntry)
+    void AssetsPanel::RenderDirectoryContentsGrid()
+    {
+        ImGui::BeginChild("AssetGrid", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders);
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float cellW = Internal::gridCellWidth + style.ItemSpacing.x;
+        const float contentWidth = ImGui::GetContentRegionAvail().x;
+        const int columns = std::max(1, static_cast<int>(contentWidth / cellW));
+
+        if (ImGui::BeginTable("AssetGridTable", columns, ImGuiTableFlags_ScrollY)) {
+            ImGui::TableSetupScrollFreeze(0, 0);
+            std::string error;
+            int columnIndex = 0;
+            for (const AssetFileEntry& entry : fileSystem.List(currentDirectory, error)) {
+                if (columnIndex == 0) {
+                    ImGui::TableNextRow();
+                }
+                ImGui::TableSetColumnIndex(columnIndex);
+                RenderEntryGrid(entry);
+                columnIndex = (columnIndex + 1) % columns;
+            }
+            if (!error.empty()) {
+                ReportResult(error, true);
+            }
+            ImGui::EndTable();
+        }
+        ImGui::EndChild();
+    }
+
+    void AssetsPanel::RenderEntryList(const AssetFileEntry& inEntry)
     {
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
@@ -260,31 +313,7 @@ namespace Editor {
         if (inEntry.directory) {
             HandleDropTarget(inEntry.path);
         }
-        if (ImGui::BeginPopupContextItem("AssetEntryMenu")) {
-            selectedPath = inEntry.path;
-            const std::string openLabel = Widgets::Label(Icons::Tabler::externalLink, "Open");
-            if (ImGui::MenuItem(openLabel.c_str(), nullptr, false, inEntry.directory)) {
-                NavigateTo(inEntry.path);
-            }
-            ImGui::Separator();
-            const std::string cutLabel = Widgets::Label(Icons::Tabler::cut, "Cut");
-            if (ImGui::MenuItem(cutLabel.c_str(), "Ctrl+X")) {
-                SetClipboard(inEntry.path, ClipboardMode::move);
-            }
-            const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
-            if (ImGui::MenuItem(copyLabel.c_str(), "Ctrl+C")) {
-                SetClipboard(inEntry.path, ClipboardMode::copy);
-            }
-            const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
-            if (ImGui::MenuItem(renameLabel.c_str(), "F2")) {
-                OpenRenamePopup(inEntry.path);
-            }
-            const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
-            if (ImGui::MenuItem(deleteLabel.c_str(), "Delete")) {
-                OpenDeletePopup(inEntry.path);
-            }
-            ImGui::EndPopup();
-        }
+        RenderEntryContextMenu(inEntry, "AssetEntryListMenu");
 
         ImGui::TableSetColumnIndex(1);
         ImGui::TextUnformatted(Internal::EntryType(inEntry).c_str());
@@ -295,6 +324,123 @@ namespace Editor {
             ImGui::TextUnformatted(Internal::FormatFileSize(inEntry.size).c_str());
         }
         ImGui::PopID();
+    }
+
+    void AssetsPanel::RenderEntryGrid(const AssetFileEntry& inEntry)
+    {
+        const std::string pathId = inEntry.path.string();
+        const std::string name = inEntry.path.filename().string();
+        const bool selected = selectedPath == inEntry.path;
+        const bool isDirectory = inEntry.directory;
+        const char* icon = isDirectory ? Icons::Tabler::folder : Icons::Tabler::file;
+
+        const float cellW = Internal::gridCellWidth;
+        const float cellH = Internal::gridCellHeight;
+        const ImVec2 cursorStart = ImGui::GetCursorScreenPos();
+
+        ImGui::PushID(pathId.c_str());
+
+        if (ImGui::Selectable("##GridEntry", selected,
+            ImGuiSelectableFlags_AllowDoubleClick,
+            ImVec2(cellW, cellH))) {
+            selectedPath = inEntry.path;
+            if (isDirectory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                NavigateTo(inEntry.path);
+            }
+        }
+
+        if (ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload(Internal::assetPathPayload, pathId.c_str(), pathId.size() + 1);
+            ImGui::TextUnformatted(name.c_str());
+            ImGui::EndDragDropSource();
+        }
+        if (isDirectory) {
+            HandleDropTarget(inEntry.path);
+        }
+        RenderEntryContextMenu(inEntry, "AssetEntryGridMenu");
+
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float lineH = ImGui::GetTextLineHeight();
+
+        ImFont* const font = ImGui::GetFont();
+        const float baseFontSize = ImGui::GetFontSize();
+        const float iconScale = 2.4f;
+        const float iconFontSize = baseFontSize * iconScale;
+
+        const float iconWidth = font->CalcTextSizeA(iconFontSize, FLT_MAX, 0.0f, icon).x;
+        const float iconX = cursorStart.x + (cellW - iconWidth) * 0.5f;
+        const float iconAreaTop = cursorStart.y + style.FramePadding.y;
+        const float iconAreaH = cellH - style.FramePadding.y * 2.0f - lineH * 2.0f - 4.0f;
+        const float iconY = iconAreaTop + (iconAreaH - iconFontSize) * 0.5f;
+
+        ImGui::GetWindowDrawList()->AddText(font, iconFontSize, ImVec2(iconX, iconY),
+            ImGui::GetColorU32(ImGuiCol_Text), icon);
+
+        const float textY = iconAreaTop + iconAreaH + 2.0f;
+        const float maxTextW = cellW - style.FramePadding.x * 2.0f;
+        const ImVec2 nameSize = ImGui::CalcTextSize(name.c_str());
+        const float nameX = cursorStart.x + (cellW - std::min(nameSize.x, maxTextW)) * 0.5f;
+
+        if (nameSize.x > maxTextW) {
+            ImGui::PushClipRect(
+                ImVec2(cursorStart.x + style.FramePadding.x, textY),
+                ImVec2(cursorStart.x + cellW - style.FramePadding.x, textY + lineH * 2.0f),
+                true);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(nameX, textY),
+                ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+            ImGui::PopClipRect();
+        } else {
+            ImGui::GetWindowDrawList()->AddText(ImVec2(nameX, textY),
+                ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+        }
+
+        const std::string typeText = [&]() -> std::string {
+            if (isDirectory) {
+                return "Folder";
+            }
+            std::string ext = inEntry.path.extension().string();
+            if (ext.size() > 1 && ext.front() == '.') {
+                ext.erase(ext.begin());
+            }
+            return ext.empty() ? "File" : ext;
+        }();
+        const ImVec2 typeSize = ImGui::CalcTextSize(typeText.c_str());
+        const float typeX = cursorStart.x + (cellW - typeSize.x) * 0.5f;
+        const float typeY = textY + lineH;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(typeX, typeY),
+            ImGui::GetColorU32(ImGuiCol_TextDisabled), typeText.c_str());
+
+        ImGui::PopID();
+    }
+
+    void AssetsPanel::RenderEntryContextMenu(const AssetFileEntry& inEntry, const char* inPopupId)
+    {
+        if (!ImGui::BeginPopupContextItem(inPopupId)) {
+            return;
+        }
+        selectedPath = inEntry.path;
+        const std::string openLabel = Widgets::Label(Icons::Tabler::externalLink, "Open");
+        if (ImGui::MenuItem(openLabel.c_str(), nullptr, false, inEntry.directory)) {
+            NavigateTo(inEntry.path);
+        }
+        ImGui::Separator();
+        const std::string cutLabel = Widgets::Label(Icons::Tabler::cut, "Cut");
+        if (ImGui::MenuItem(cutLabel.c_str(), "Ctrl+X")) {
+            SetClipboard(inEntry.path, ClipboardMode::move);
+        }
+        const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
+        if (ImGui::MenuItem(copyLabel.c_str(), "Ctrl+C")) {
+            SetClipboard(inEntry.path, ClipboardMode::copy);
+        }
+        const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
+        if (ImGui::MenuItem(renameLabel.c_str(), "F2")) {
+            OpenRenamePopup(inEntry.path);
+        }
+        const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
+        if (ImGui::MenuItem(deleteLabel.c_str(), "Delete")) {
+            OpenDeletePopup(inEntry.path);
+        }
+        ImGui::EndPopup();
     }
 
     void AssetsPanel::RenderBackgroundMenu()
