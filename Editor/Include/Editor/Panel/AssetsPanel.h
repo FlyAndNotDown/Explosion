@@ -24,11 +24,20 @@ namespace Editor {
             move
         };
 
+        enum class ViewMode : uint8_t {
+            list,
+            grid
+        };
+
         void RenderToolbar();
         void RenderBreadcrumbs();
         void RenderDirectoryTree(const std::filesystem::path& inDirectory, const char* inLabel);
         void RenderDirectoryContents();
-        void RenderEntry(const AssetFileEntry& inEntry);
+        void RenderDirectoryContentsList();
+        void RenderDirectoryContentsGrid();
+        void RenderEntryList(const AssetFileEntry& inEntry);
+        void RenderEntryGrid(const AssetFileEntry& inEntry);
+        void RenderEntryContextMenu(const AssetFileEntry& inEntry, const char* inPopupId);
         void RenderBackgroundMenu();
         void RenderModals();
         void HandleKeyboardShortcuts();
@@ -49,6 +58,7 @@ namespace Editor {
         std::filesystem::path renamePath;
         std::filesystem::path deletePath;
         ClipboardMode clipboardMode;
+        ViewMode viewMode;
         std::string createFolderName;
         std::string renameName;
         std::string statusMessage;
