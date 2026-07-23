@@ -545,7 +545,8 @@ namespace Runtime::Internal {
     }
 
     EntityPool::EntityPool()
-        : locations(1)
+        : generationSeed(0)
+        , locations(1)
         , states(1)
     {
     }
@@ -557,66 +558,84 @@ namespace Runtime::Internal {
 
     bool EntityPool::Valid(Entity inEntity) const
     {
-        return inEntity < locations.size() && locations[inEntity].archetype != nullptr;
+        const EntityIndex index = EntityIndexOf(inEntity);
+        return index < locations.size()
+            && states[index].generation == EntityGenerationOf(inEntity)
+            && locations[index].archetype != nullptr;
     }
 
     Entity EntityPool::Allocate()
     {
-        Entity result;
+        EntityIndex resultIndex;
         if (!free.empty()) {
-            result = free.back();
+            resultIndex = free.back();
             free.pop_back();
         } else {
-            Assert(locations.size() < invalidIndex);
-            result = static_cast<Entity>(locations.size());
+            Assert(locations.size() < invalidEntityIndex);
+            resultIndex = static_cast<EntityIndex>(locations.size());
             locations.emplace_back();
-            states.emplace_back();
+            states.emplace_back(StateRecord { .generation = generationSeed });
         }
-        locations[result] = {};
-        states[result].archetype = 0;
-        Assert(allocated.size() < invalidIndex);
-        states[result].allocatedIndex = static_cast<Entity>(allocated.size());
+
+        const Entity result = MakeEntity(resultIndex, states[resultIndex].generation);
+        locations[resultIndex] = {};
+        states[resultIndex].archetype = 0;
+        Assert(allocated.size() < invalidEntityIndex);
+        states[resultIndex].allocatedIndex = static_cast<EntityIndex>(allocated.size());
         allocated.emplace_back(result);
         return result;
     }
 
     void EntityPool::Allocate(Entity inEntity)
     {
-        if (inEntity < locations.size()) {
-            Assert(states[inEntity].allocatedIndex == invalidIndex);
-            const auto iter = std::ranges::find(free, inEntity);
+        const EntityIndex index = EntityIndexOf(inEntity);
+        Assert(index != 0 && index != invalidEntityIndex);
+        if (index < locations.size()) {
+            Assert(states[index].allocatedIndex == invalidEntityIndex);
+            const auto iter = std::ranges::find(free, index);
             Assert(iter != free.end());
             *iter = free.back();
             free.pop_back();
         } else {
-            for (Entity i = static_cast<Entity>(locations.size()); i < inEntity; i++) {
+            const auto oldSize = static_cast<EntityIndex>(locations.size());
+            for (EntityIndex i = oldSize; i < index; i++) {
                 free.emplace_back(i);
             }
-            const size_t newSize = static_cast<size_t>(inEntity) + 1;
+            const size_t newSize = static_cast<size_t>(index) + 1;
             locations.resize(newSize);
             states.resize(newSize);
+            for (EntityIndex i = oldSize; i <= index; i++) {
+                states[i].generation = generationSeed;
+            }
         }
-        locations[inEntity] = {};
-        states[inEntity].archetype = 0;
-        Assert(allocated.size() < invalidIndex);
-        states[inEntity].allocatedIndex = static_cast<Entity>(allocated.size());
+
+        locations[index] = {};
+        states[index].archetype = 0;
+        states[index].generation = EntityGenerationOf(inEntity);
+        generationSeed = std::max(generationSeed, states[index].generation);
+        Assert(allocated.size() < invalidEntityIndex);
+        states[index].allocatedIndex = static_cast<EntityIndex>(allocated.size());
         allocated.emplace_back(inEntity);
     }
 
     void EntityPool::Free(Entity inEntity)
     {
         Assert(Valid(inEntity));
+        const EntityIndex index = EntityIndexOf(inEntity);
         const auto lastEntity = allocated.back();
-        allocated[states[inEntity].allocatedIndex] = lastEntity;
-        states[lastEntity].allocatedIndex = states[inEntity].allocatedIndex;
+        allocated[states[index].allocatedIndex] = lastEntity;
+        states[EntityIndexOf(lastEntity)].allocatedIndex = states[index].allocatedIndex;
         allocated.pop_back();
-        locations[inEntity] = {};
-        states[inEntity] = {};
-        free.emplace_back(inEntity);
+        locations[index] = {};
+        states[index].archetype = 0;
+        states[index].generation = ++generationSeed;
+        states[index].allocatedIndex = invalidEntityIndex;
+        free.emplace_back(index);
     }
 
     void EntityPool::Clear()
     {
+        generationSeed++;
         locations.assign(1, {});
         states.assign(1, {});
         free.clear();
@@ -632,45 +651,50 @@ namespace Runtime::Internal {
 
     void EntityPool::SetLocation(Entity inEntity, Archetype& inArchetype, size_t inElemIndex)
     {
-        Assert(inEntity < states.size() && states[inEntity].allocatedIndex != invalidIndex && inElemIndex < invalidIndex);
-        states[inEntity].archetype = inArchetype.Id();
-        locations[inEntity] = { &inArchetype, static_cast<Entity>(inElemIndex) };
+        const EntityIndex index = EntityIndexOf(inEntity);
+        Assert(index < states.size()
+            && states[index].generation == EntityGenerationOf(inEntity)
+            && states[index].allocatedIndex != invalidEntityIndex
+            && inElemIndex < invalidEntityIndex);
+        states[index].archetype = inArchetype.Id();
+        locations[index] = { &inArchetype, static_cast<EntityIndex>(inElemIndex) };
     }
 
     void EntityPool::SetElemIndex(Entity inEntity, size_t inElemIndex)
     {
-        Assert(Valid(inEntity) && inElemIndex < invalidIndex);
-        locations[inEntity].elemIndex = static_cast<Entity>(inElemIndex);
+        Assert(Valid(inEntity) && inElemIndex < invalidEntityIndex);
+        locations[EntityIndexOf(inEntity)].elemIndex = static_cast<EntityIndex>(inElemIndex);
     }
 
     void EntityPool::SetArchetypePtr(Entity inEntity, Archetype& inArchetype)
     {
-        Assert(Valid(inEntity) && states[inEntity].archetype == inArchetype.Id());
-        locations[inEntity].archetype = &inArchetype;
+        const EntityIndex index = EntityIndexOf(inEntity);
+        Assert(Valid(inEntity) && states[index].archetype == inArchetype.Id());
+        locations[index].archetype = &inArchetype;
     }
 
     ArchetypeId EntityPool::GetArchetype(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return states[inEntity].archetype;
+        return states[EntityIndexOf(inEntity)].archetype;
     }
 
     Archetype* EntityPool::GetArchetypePtr(Entity inEntity)
     {
         Assert(Valid(inEntity));
-        return locations[inEntity].archetype;
+        return locations[EntityIndexOf(inEntity)].archetype;
     }
 
     const Archetype* EntityPool::GetArchetypePtr(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return locations[inEntity].archetype;
+        return locations[EntityIndexOf(inEntity)].archetype;
     }
 
     size_t EntityPool::GetElemIndex(Entity inEntity) const
     {
         Assert(Valid(inEntity));
-        return locations[inEntity].elemIndex;
+        return locations[EntityIndexOf(inEntity)].elemIndex;
     }
 
     EntityPool::ConstIter EntityPool::Begin() const
@@ -1036,14 +1060,6 @@ namespace Runtime {
         return result;
     }
 
-    void ECRegistry::Create(Entity inEntity)
-    {
-        entities.Allocate(inEntity);
-        Internal::Archetype& archetype = archetypes.at(0);
-        const auto elemIndex = archetype.EmplaceElem(inEntity);
-        entities.SetLocation(inEntity, archetype, elemIndex);
-    }
-
     void ECRegistry::Destroy(Entity inEntity)
     {
         const auto location = entities.GetLocation(inEntity);
@@ -1240,7 +1256,10 @@ namespace Runtime {
         Clear();
 
         for (const auto& [entity, entityArchive] : inArchive.entities) {
-            Create(entity);
+            entities.Allocate(entity);
+            Internal::Archetype& archetype = archetypes.at(0);
+            const auto elemIndex = archetype.EmplaceElem(entity);
+            entities.SetLocation(entity, archetype, elemIndex);
             for (const auto& [compClass, compData] : entityArchive.comps) {
                 if (compClass->IsTransient()) {
                     continue;

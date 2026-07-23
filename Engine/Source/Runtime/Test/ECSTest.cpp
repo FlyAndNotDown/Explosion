@@ -68,7 +68,13 @@ TEST(ECSTest, EntityTest)
     const auto entity3 = registry.Create();
     registry.Destroy(entity0);
     const auto entity4 = registry.Create();
-    ASSERT_EQ(entity4, entity0);
+    ASSERT_NE(entity4, entity0);
+    ASSERT_EQ(Runtime::Internal::EntityIndexOf(entity4), Runtime::Internal::EntityIndexOf(entity0));
+    ASSERT_EQ(
+        Runtime::Internal::EntityGenerationOf(entity4),
+        Runtime::Internal::EntityGenerationOf(entity0) + 1);
+    ASSERT_FALSE(registry.Valid(entity0));
+    ASSERT_TRUE(registry.Valid(entity4));
     cur = { entity1, entity2, entity3, entity4 };
 
     registry.Each([&](const auto e) -> void {
@@ -77,7 +83,13 @@ TEST(ECSTest, EntityTest)
 
     registry.Clear();
     ASSERT_EQ(registry.Count(), 0);
-    ASSERT_EQ(registry.Create(), 1);
+    ASSERT_FALSE(registry.Valid(entity1));
+    ASSERT_FALSE(registry.Valid(entity4));
+    const Entity entityAfterClear = registry.Create();
+    ASSERT_EQ(Runtime::Internal::EntityIndexOf(entityAfterClear), 1);
+    ASSERT_NE(entityAfterClear, entity1);
+    ASSERT_NE(entityAfterClear, entity4);
+    ASSERT_TRUE(registry.Valid(entityAfterClear));
 }
 
 TEST(ECSTest, ComponentStaticTest)
@@ -758,11 +770,15 @@ TEST(ECSTest, ECRegistryValueSemanticsTest)
 TEST(ECSTest, ECSRegistrySaveLoadTest)
 {
     ECArchive archive;
+    Entity emptyEntity;
     {
         ECRegistry registry;
         const auto entity0 = registry.Create();
         const auto entity1 = registry.Create();
-        (void) registry.Create();
+        const Entity discardedEntity = registry.Create();
+        registry.Destroy(discardedEntity);
+        emptyEntity = registry.Create();
+        ASSERT_NE(emptyEntity, discardedEntity);
         registry.Emplace<CompA>(entity0, 1);
         registry.Emplace<CompB>(entity1, 2.0f);
         registry.AddTag<TestTag>(entity0);
@@ -784,7 +800,8 @@ TEST(ECSTest, ECSRegistrySaveLoadTest)
         ASSERT_TRUE(registry.HasTag<TestTag>(1u));
         ASSERT_EQ(registry.TagCount(1u), 1);
         ASSERT_EQ(registry.Get<CompB>(2u).value, 2.0f);
-        ASSERT_EQ(registry.CompCount(3u), 0);
+        ASSERT_TRUE(registry.Valid(emptyEntity));
+        ASSERT_EQ(registry.CompCount(emptyEntity), 0);
         ASSERT_EQ(registry.GGet<GCompA>().value, 1);
         ASSERT_EQ(registry.GGet<GCompB>().value, 2.0f);
         ASSERT_EQ(registry.GCompCount(), 2);

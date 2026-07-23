@@ -14,7 +14,7 @@ namespace Render {
     // Notice all operations to scene need be down in render-thread.
     class Scene final {
     public:
-        using EntityId = uint32_t;
+        using EntityId = uint64_t;
         template <typename SP> using SceneProxyContainer = std::unordered_map<EntityId, SP>;
 
         Scene();

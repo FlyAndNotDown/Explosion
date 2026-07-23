@@ -21,7 +21,7 @@
 #include <Runtime/Api.h>
 
 namespace Runtime {
-    using Entity = uint32_t;
+    using Entity = uint64_t;
     static constexpr Entity entityNull = 0;
 
     using CompClass = const Mirror::Class*;
@@ -52,6 +52,15 @@ namespace Runtime {
 namespace Runtime::Internal {
     using ArchetypeId = Mirror::TypeId;
     using ElemPtr = void*;
+    using EntityIndex = uint32_t;
+    using EntityGeneration = uint32_t;
+
+    static constexpr EntityIndex invalidEntityIndex = std::numeric_limits<EntityIndex>::max();
+    static constexpr size_t entityIndexBits = std::numeric_limits<EntityIndex>::digits;
+
+    constexpr Entity MakeEntity(EntityIndex inIndex, EntityGeneration inGeneration);
+    constexpr EntityIndex EntityIndexOf(Entity inEntity);
+    constexpr EntityGeneration EntityGenerationOf(Entity inEntity);
 
     template <typename T> const Mirror::Class* GetClass();
     template <typename T> struct MemberFuncPtrTraits;
@@ -231,21 +240,21 @@ namespace Runtime::Internal {
         ConstIter End() const;
 
     private:
-        static constexpr Entity invalidIndex = std::numeric_limits<Entity>::max();
-
         struct LocationRecord {
             Archetype* archetype = nullptr;
-            Entity elemIndex = 0;
+            EntityIndex elemIndex = 0;
         };
 
         struct StateRecord {
             ArchetypeId archetype = 0;
-            Entity allocatedIndex = invalidIndex;
+            EntityGeneration generation = 0;
+            EntityIndex allocatedIndex = invalidEntityIndex;
         };
 
+        EntityGeneration generationSeed;
         std::vector<LocationRecord> locations;
         std::vector<StateRecord> states;
-        std::vector<Entity> free;
+        std::vector<EntityIndex> free;
         std::vector<Entity> allocated;
     };
 
@@ -602,7 +611,6 @@ namespace Runtime {
 
         // entity
         Entity Create();
-        void Create(Entity inEntity);
         void Destroy(Entity inEntity);
         bool Valid(Entity inEntity) const;
         size_t Count() const;
@@ -841,6 +849,21 @@ namespace Runtime {
 }
 
 namespace Runtime::Internal {
+    constexpr Entity MakeEntity(EntityIndex inIndex, EntityGeneration inGeneration)
+    {
+        return static_cast<Entity>(inIndex) | (static_cast<Entity>(inGeneration) << entityIndexBits);
+    }
+
+    constexpr EntityIndex EntityIndexOf(Entity inEntity)
+    {
+        return static_cast<EntityIndex>(inEntity);
+    }
+
+    constexpr EntityGeneration EntityGenerationOf(Entity inEntity)
+    {
+        return static_cast<EntityGeneration>(inEntity >> entityIndexBits);
+    }
+
     template <typename T>
     const Mirror::Class* GetClass()
     {
@@ -968,15 +991,15 @@ namespace Runtime::Internal {
 
     inline EntityPool::Location EntityPool::GetLocation(Entity inEntity)
     {
-        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
-        const LocationRecord& location = locations[inEntity];
+        Assert(Valid(inEntity));
+        const LocationRecord& location = locations[EntityIndexOf(inEntity)];
         return { location.archetype, location.elemIndex };
     }
 
     inline EntityPool::ConstLocation EntityPool::GetLocation(Entity inEntity) const
     {
-        Assert(inEntity < locations.size() && locations[inEntity].archetype != nullptr);
-        const LocationRecord& location = locations[inEntity];
+        Assert(Valid(inEntity));
+        const LocationRecord& location = locations[EntityIndexOf(inEntity)];
         return { location.archetype, location.elemIndex };
     }
 } // namespace Runtime::Internal
