@@ -135,22 +135,26 @@ namespace Runtime::Internal {
         return clazz->AlignOf();
     }
 
-    ArchetypeLayout::ArchetypeLayout()
-        : id(0)
+    ArchetypeLayout::ArchetypeLayout() = default;
+
+    ArchetypeLayout::ArchetypeLayout(std::vector<CompRtti> inCompRttis, TagStorage inTags)
+        : compRttis(std::move(inCompRttis))
+        , tags(std::move(inTags))
     {
     }
 
-    ArchetypeLayout::ArchetypeLayout(std::vector<CompRtti> inCompRttis, TagStorage inTags)
-        : id(0)
-        , compRttis(std::move(inCompRttis))
-        , tags(std::move(inTags))
+    bool ArchetypeLayout::operator==(const ArchetypeLayout& inRhs) const
     {
-        for (const auto& rtti : compRttis) {
-            id += rtti.Class()->GetTypeInfo()->id;
+        if (compRttis.size() != inRhs.compRttis.size() || tags.Count() != inRhs.tags.Count()) {
+            return false;
         }
-        for (const auto* tag : tags.All()) {
-            id += tag->GetTypeInfo()->id;
-        }
+        const bool sameComps = std::ranges::all_of(compRttis, [&](const CompRtti& rtti) -> bool {
+            return inRhs.ContainsComp(rtti.Class());
+        });
+        const bool sameTags = std::ranges::all_of(tags.All(), [&](TagClass tag) -> bool {
+            return inRhs.ContainsTag(tag);
+        });
+        return sameComps && sameTags;
     }
 
     bool ArchetypeLayout::ContainsComp(CompClass inClass) const
@@ -168,9 +172,22 @@ namespace Runtime::Internal {
         return ContainsComp(inClass) || ContainsTag(inClass);
     }
 
-    ArchetypeId ArchetypeLayout::Id() const
+    size_t ArchetypeLayout::Hash() const
     {
-        return id;
+        size_t result = compRttis.size() * 0x9e3779b185ebca87ull;
+        result ^= tags.Count() * 0xc2b2ae3d27d4eb4full;
+        for (const auto& rtti : compRttis) {
+            result += std::hash<CompClass> {}(rtti.Class()) * 0x165667b19e3779f9ull;
+        }
+        for (const auto* tag : tags.All()) {
+            result += std::hash<TagClass> {}(tag) * 0x85ebca77c2b2ae63ull;
+        }
+        return result;
+    }
+
+    size_t ArchetypeLayoutHash::operator()(const ArchetypeLayout& inLayout) const
+    {
+        return inLayout.Hash();
     }
 
     const std::vector<CompRtti>& ArchetypeLayout::CompRttis() const
@@ -211,8 +228,13 @@ namespace Runtime::Internal {
         return ArchetypeLayout(std::move(result), tags);
     }
 
-    Archetype::Archetype(ArchetypeLayout inLayout)
-        : id(inLayout.Id())
+    Archetype::Archetype()
+        : Archetype(0, {})
+    {
+    }
+
+    Archetype::Archetype(ArchetypeId inId, ArchetypeLayout inLayout)
+        : id(inId)
         , count(0)
         , capacity(0)
         , rttiVec(inLayout.CompRttis())
@@ -994,8 +1016,12 @@ namespace Runtime {
     }
 
     ECRegistry::ECRegistry()
+        : nextArchetypeId(1)
+        , archetypeVersion(0)
     {
-        archetypes.emplace(0, Internal::Archetype());
+        Internal::ArchetypeLayout emptyLayout;
+        archetypeLookup.emplace(emptyLayout, 0);
+        archetypes.emplace(0, Internal::Archetype(0, std::move(emptyLayout)));
     }
 
     ECRegistry::~ECRegistry()
@@ -1007,6 +1033,9 @@ namespace Runtime {
         : entities(inOther.entities)
         , globalComps(inOther.globalComps)
         , archetypes(inOther.archetypes)
+        , archetypeLookup(inOther.archetypeLookup)
+        , nextArchetypeId(inOther.nextArchetypeId)
+        , archetypeVersion(inOther.archetypeVersion)
         , dataCompClasses(inOther.dataCompClasses)
         , tagClasses(inOther.tagClasses)
     {
@@ -1017,6 +1046,9 @@ namespace Runtime {
         : entities(std::move(inOther.entities))
         , globalComps(std::move(inOther.globalComps))
         , archetypes(std::move(inOther.archetypes))
+        , archetypeLookup(std::move(inOther.archetypeLookup))
+        , nextArchetypeId(inOther.nextArchetypeId)
+        , archetypeVersion(inOther.archetypeVersion)
         , dataCompClasses(std::move(inOther.dataCompClasses))
         , tagClasses(std::move(inOther.tagClasses))
     {
@@ -1031,6 +1063,9 @@ namespace Runtime {
         entities = inOther.entities;
         globalComps = inOther.globalComps;
         archetypes = inOther.archetypes;
+        archetypeLookup = inOther.archetypeLookup;
+        nextArchetypeId = inOther.nextArchetypeId;
+        archetypeVersion++;
         dataCompClasses = inOther.dataCompClasses;
         tagClasses = inOther.tagClasses;
         RebindEntityArchetypes();
@@ -1045,6 +1080,9 @@ namespace Runtime {
         entities = std::move(inOther.entities);
         globalComps = std::move(inOther.globalComps);
         archetypes = std::move(inOther.archetypes);
+        archetypeLookup = std::move(inOther.archetypeLookup);
+        nextArchetypeId = inOther.nextArchetypeId;
+        archetypeVersion++;
         dataCompClasses = std::move(inOther.dataCompClasses);
         tagClasses = std::move(inOther.tagClasses);
         RebindEntityArchetypes();
@@ -1091,9 +1129,14 @@ namespace Runtime {
         entities.Clear();
         globalComps.clear();
         archetypes.clear();
+        archetypeLookup.clear();
+        nextArchetypeId = 1;
+        archetypeVersion++;
         dataCompClasses.clear();
         tagClasses.clear();
-        archetypes.emplace(0, Internal::Archetype());
+        Internal::ArchetypeLayout emptyLayout;
+        archetypeLookup.emplace(emptyLayout, 0);
+        archetypes.emplace(0, Internal::Archetype(0, std::move(emptyLayout)));
     }
 
     void ECRegistry::Each(const EntityTraverseFunc& inFunc) const
@@ -1317,6 +1360,21 @@ namespace Runtime {
         }
     }
 
+    Internal::Archetype& ECRegistry::FindOrCreateArchetype(Internal::ArchetypeLayout inLayout)
+    {
+        const auto lookupIter = archetypeLookup.find(inLayout);
+        if (lookupIter != archetypeLookup.end()) {
+            return archetypes.at(lookupIter->second);
+        }
+
+        const Internal::ArchetypeId id = nextArchetypeId++;
+        archetypeLookup.emplace(inLayout, id);
+        auto [iter, inserted] = archetypes.emplace(id, Internal::Archetype(id, std::move(inLayout)));
+        Assert(inserted);
+        archetypeVersion++;
+        return iter->second;
+    }
+
     void ECRegistry::RegisterDataCompClass(CompClass inClass)
     {
         Assert(!tagClasses.contains(inClass));
@@ -1369,11 +1427,7 @@ namespace Runtime {
     {
         Internal::Archetype& archetype = *inLocation.archetype;
         Assert(archetype.FindAddTransition(inClass) == nullptr);
-        const Internal::ArchetypeId newArchetypeId = inLayout.Id();
-        if (!archetypes.contains(newArchetypeId)) {
-            archetypes.emplace(newArchetypeId, Internal::Archetype(std::move(inLayout)));
-        }
-        Internal::Archetype& newArchetype = archetypes.at(newArchetypeId);
+        Internal::Archetype& newArchetype = FindOrCreateArchetype(std::move(inLayout));
         const auto& transition = archetype.CacheAddTransition(inClass, newArchetype);
         if (newArchetype.FindRemoveTransition(inClass) == nullptr) {
             newArchetype.CacheRemoveTransition(inClass, archetype);
@@ -1401,11 +1455,7 @@ namespace Runtime {
         if (transition == nullptr) {
             Assert(archetype.Contains(inClass));
             Internal::ArchetypeLayout newLayout = archetype.GetLayout().Without(inClass);
-            const Internal::ArchetypeId newArchetypeId = newLayout.Id();
-            if (!archetypes.contains(newArchetypeId)) {
-                archetypes.emplace(newArchetypeId, Internal::Archetype(std::move(newLayout)));
-            }
-            Internal::Archetype& newArchetype = archetypes.at(newArchetypeId);
+            Internal::Archetype& newArchetype = FindOrCreateArchetype(std::move(newLayout));
             transition = &archetype.CacheRemoveTransition(inClass, newArchetype);
             if (newArchetype.FindAddTransition(inClass) == nullptr) {
                 newArchetype.CacheAddTransition(inClass, archetype);

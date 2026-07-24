@@ -112,10 +112,11 @@ namespace Runtime::Internal {
         ArchetypeLayout();
         ArchetypeLayout(std::vector<CompRtti> inCompRttis, TagStorage inTags);
 
+        bool operator==(const ArchetypeLayout& inRhs) const;
         bool ContainsComp(CompClass inClass) const;
         bool ContainsTag(TagClass inClass) const;
         bool Contains(CompClass inClass) const;
-        ArchetypeId Id() const;
+        size_t Hash() const;
         const std::vector<CompRtti>& CompRttis() const;
         const TagStorage& Tags() const;
         ArchetypeLayout WithComp(const CompRtti& inRtti) const;
@@ -123,9 +124,12 @@ namespace Runtime::Internal {
         ArchetypeLayout Without(CompClass inClass) const;
 
     private:
-        ArchetypeId id;
         std::vector<CompRtti> compRttis;
         TagStorage tags;
+    };
+
+    struct RUNTIME_API ArchetypeLayoutHash {
+        size_t operator()(const ArchetypeLayout& inLayout) const;
     };
 
     class RUNTIME_API Archetype {
@@ -141,7 +145,8 @@ namespace Runtime::Internal {
             std::vector<CompMapping> compMappings;
         };
 
-        explicit Archetype(ArchetypeLayout inLayout = {});
+        Archetype();
+        Archetype(ArchetypeId inId, ArchetypeLayout inLayout);
         ~Archetype();
 
         Archetype(const Archetype& inOther);
@@ -384,12 +389,14 @@ namespace Runtime {
         template <size_t... I> auto MakeResult(Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
         template <size_t... I> auto MakeResult(const Internal::Archetype& inArchetype, size_t inElemIndex, const CompColumns& inCompColumns, std::index_sequence<I...>) const;
         void Materialize() const;
-        void Evaluate(R& inRegistry);
+        void Refresh() const;
+        void Evaluate(R& inRegistry) const;
 
         R* registry;
-        std::vector<QueryEntry> query;
+        mutable std::vector<QueryEntry> query;
         mutable ResultVector result;
         mutable bool materialized;
+        mutable uint64_t archetypeVersion;
     };
 
     template <typename R, typename I, typename E, typename... C> using View = BasicView<R, I, E, C...>;
@@ -445,14 +452,17 @@ namespace Runtime {
         template <typename F, typename ArgTuple, typename A, size_t... I> void InvokeTraverseFuncInternal(F&& inFunc, A& inArchetype, size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, const std::array<size_t, sizeof...(I)>& inCompSlots, std::index_sequence<I...>) const;
         template <typename C> decltype(auto) GetCompRef(size_t inElemIndex, const std::vector<CompColumnPtr>& inCompColumns, size_t inCompSlot) const;
         void MaterializeEntities() const;
-        void Evaluate(R& inRegistry, const RuntimeFilter& inFilter);
+        void Refresh() const;
+        void Evaluate(R& inRegistry) const;
 
         R* registry;
+        RuntimeFilter filter;
         std::vector<CompClass> includes;
         std::unordered_map<CompClass, size_t> slotMap;
-        std::vector<QueryEntry> query;
+        mutable std::vector<QueryEntry> query;
         mutable ResultEntitiesVector resultEntities;
         mutable bool materialized;
+        mutable uint64_t archetypeVersion;
     };
 
     using RuntimeView = BasicRuntimeView<ECRegistry>;
@@ -725,12 +735,16 @@ namespace Runtime {
         Internal::EntityPool::Location MoveEntityForAdd(CompClass inClass, Entity inEntity, const Internal::EntityPool::Location& inLocation, Internal::ArchetypeLayout inLayout);
         Internal::EntityPool::Location MoveEntityThroughTransition(Entity inEntity, const Internal::EntityPool::Location& inLocation, const Internal::Archetype::Transition& inTransition);
         void MoveEntityForRemove(CompClass inClass, Entity inEntity);
+        Internal::Archetype& FindOrCreateArchetype(Internal::ArchetypeLayout inLayout);
         void EraseArchetypeElem(Internal::Archetype& inArchetype, size_t inElemIndex);
         void RebindEntityArchetypes();
 
         Internal::EntityPool entities;
         std::unordered_map<GCompClass, Mirror::Any> globalComps;
         std::unordered_map<Internal::ArchetypeId, Internal::Archetype> archetypes;
+        std::unordered_map<Internal::ArchetypeLayout, Internal::ArchetypeId, Internal::ArchetypeLayoutHash> archetypeLookup;
+        Internal::ArchetypeId nextArchetypeId;
+        uint64_t archetypeVersion;
         std::unordered_set<CompClass> dataCompClasses;
         std::unordered_set<TagClass> tagClasses;
         // transients, not copy or move
@@ -1060,8 +1074,9 @@ namespace Runtime {
     BasicView<R, Contains<T...>, Exclude<E...>, C...>::BasicView(R& inRegistry)
         : registry(&inRegistry)
         , materialized(false)
+        , archetypeVersion(std::numeric_limits<uint64_t>::max())
     {
-        Evaluate(inRegistry);
+        Refresh();
     }
 
     template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
@@ -1069,6 +1084,7 @@ namespace Runtime {
     void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Each(F&& inFunc) const
     {
         using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
+        Refresh();
 
         for (const auto& entry : query) {
             auto& archetype = registry->archetypes.at(entry.archetype);
@@ -1096,6 +1112,7 @@ namespace Runtime {
     template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
     size_t BasicView<R, Contains<T...>, Exclude<E...>, C...>::Count() const
     {
+        Refresh();
         size_t resultCount = 0;
         for (const auto& entry : query) {
             resultCount += registry->archetypes.at(entry.archetype).Count();
@@ -1157,6 +1174,7 @@ namespace Runtime {
     template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
     void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Materialize() const
     {
+        Refresh();
         if (materialized) {
             return;
         }
@@ -1174,7 +1192,21 @@ namespace Runtime {
     }
 
     template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
-    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Evaluate(R& inRegistry)
+    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Refresh() const
+    {
+        if (archetypeVersion == registry->archetypeVersion) {
+            return;
+        }
+
+        query.clear();
+        result.clear();
+        materialized = false;
+        Evaluate(*registry);
+        archetypeVersion = registry->archetypeVersion;
+    }
+
+    template <ECRegistryOrConst R, typename... T, typename... E, typename... C>
+    void BasicView<R, Contains<T...>, Exclude<E...>, C...>::Evaluate(R& inRegistry) const
     {
         static_assert((std::is_empty_v<T> && ...), "Tags<> accepts only empty tag types");
         static_assert(((sizeof(T) == 1 && alignof(T) == 1) && ...), "tag components must have the one-byte empty layout");
@@ -1214,9 +1246,16 @@ namespace Runtime {
     template <ECRegistryOrConst R>
     BasicRuntimeView<R>::BasicRuntimeView(R& inRegistry, const RuntimeFilter& inFilter)
         : registry(&inRegistry)
+        , filter(inFilter)
         , materialized(false)
+        , archetypeVersion(std::numeric_limits<uint64_t>::max())
     {
-        Evaluate(inRegistry, inFilter);
+        includes.assign(filter.includes.begin(), filter.includes.end());
+        slotMap.reserve(includes.size());
+        for (size_t i = 0; i < includes.size(); i++) {
+            slotMap.emplace(includes[i], i);
+        }
+        Refresh();
     }
 
     template <ECRegistryOrConst R>
@@ -1224,6 +1263,7 @@ namespace Runtime {
     void BasicRuntimeView<R>::Each(F&& inFunc) const
     {
         using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
+        Refresh();
         const auto compSlots = BuildCompSlots<typename Traits::ArgsTupleType>(std::make_index_sequence<Traits::ArgSize - 1> {});
         std::vector<CompColumnPtr> compColumns;
         compColumns.reserve(includes.size());
@@ -1244,6 +1284,7 @@ namespace Runtime {
     template <ECRegistryOrConst R>
     size_t BasicRuntimeView<R>::Count() const
     {
+        Refresh();
         size_t resultCount = 0;
         for (const auto& entry : query) {
             resultCount += registry->archetypes.at(entry.archetype).Count();
@@ -1309,6 +1350,7 @@ namespace Runtime {
     template <ECRegistryOrConst R>
     void BasicRuntimeView<R>::MaterializeEntities() const
     {
+        Refresh();
         if (materialized) {
             return;
         }
@@ -1325,17 +1367,25 @@ namespace Runtime {
     }
 
     template <ECRegistryOrConst R>
-    void BasicRuntimeView<R>::Evaluate(R& inRegistry, const RuntimeFilter& inFilter)
+    void BasicRuntimeView<R>::Refresh() const
     {
-        includes.assign(inFilter.includes.begin(), inFilter.includes.end());
-        const std::vector tagIncludes(inFilter.tagIncludes.begin(), inFilter.tagIncludes.end());
-        const std::vector excludes(inFilter.excludes.begin(), inFilter.excludes.end());
-        const std::vector tagExcludes(inFilter.tagExcludes.begin(), inFilter.tagExcludes.end());
-
-        slotMap.reserve(includes.size());
-        for (auto i = 0; i < includes.size(); i++) {
-            slotMap.emplace(includes[i], i);
+        if (archetypeVersion == registry->archetypeVersion) {
+            return;
         }
+
+        query.clear();
+        resultEntities.clear();
+        materialized = false;
+        Evaluate(*registry);
+        archetypeVersion = registry->archetypeVersion;
+    }
+
+    template <ECRegistryOrConst R>
+    void BasicRuntimeView<R>::Evaluate(R& inRegistry) const
+    {
+        const std::vector tagIncludes(filter.tagIncludes.begin(), filter.tagIncludes.end());
+        const std::vector excludes(filter.excludes.begin(), filter.excludes.end());
+        const std::vector tagExcludes(filter.tagExcludes.begin(), filter.tagExcludes.end());
 
         for (auto& archetype : inRegistry.archetypes | std::views::values) {
             const bool containsComps = std::ranges::all_of(includes, [&](CompClass clazz) -> bool { return archetype.ContainsComp(clazz); });

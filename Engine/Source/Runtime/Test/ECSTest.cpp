@@ -261,25 +261,62 @@ TEST(ECSTest, TagDynamicTest)
 TEST(ECSTest, ViewArchetypeGrowthTest)
 {
     ECRegistry registry;
-    const auto firstEntity = registry.Create();
-    registry.Emplace<CompA>(firstEntity, 0);
     const auto staticView = registry.View<CompA>();
     const auto runtimeView = registry.RuntimeView(RuntimeFilter().Include<CompA>());
 
+    const auto firstEntity = registry.Create();
+    registry.Emplace<CompA>(firstEntity, 10);
+
+    Entity lastEntity = entityNull;
     for (int32_t value = 1; value <= 64; value++) {
-        const auto entity = registry.Create();
-        registry.Emplace<CompA>(entity, value);
+        lastEntity = registry.Create();
+        registry.Emplace<CompA>(lastEntity, value);
     }
 
     int32_t staticSum = 0;
     staticView.Each([&](Entity, const CompA& comp) -> void { staticSum += comp.value; });
     ASSERT_EQ(staticView.Count(), 65);
-    ASSERT_EQ(staticSum, 2080);
+    ASSERT_EQ(staticSum, 2090);
 
     int32_t runtimeSum = 0;
     runtimeView.Each([&](Entity, const CompA& comp) -> void { runtimeSum += comp.value; });
     ASSERT_EQ(runtimeView.Count(), 65);
-    ASSERT_EQ(runtimeSum, 2080);
+    ASSERT_EQ(runtimeSum, 2090);
+
+    registry.Emplace<CompB>(lastEntity, 1.0f);
+
+    staticSum = 0;
+    staticView.Each([&](Entity, const CompA& comp) -> void { staticSum += comp.value; });
+    ASSERT_EQ(staticView.Count(), 65);
+    ASSERT_EQ(staticSum, 2090);
+
+    runtimeSum = 0;
+    runtimeView.Each([&](Entity, const CompA& comp) -> void { runtimeSum += comp.value; });
+    ASSERT_EQ(runtimeView.Count(), 65);
+    ASSERT_EQ(runtimeSum, 2090);
+}
+
+TEST(ECSTest, ArchetypeLayoutIdentityTest)
+{
+    const auto compA = Runtime::Internal::CompRtti::Create<CompA>();
+    const auto compB = Runtime::Internal::CompRtti::Create<CompB>();
+    const auto* testTag = &Mirror::Class::Get<TestTag>();
+
+    const Runtime::Internal::ArchetypeLayout layoutAB({ compA, compB }, {});
+    const Runtime::Internal::ArchetypeLayout layoutBA({ compB, compA }, {});
+    const Runtime::Internal::ArchetypeLayout layoutAWithTag({ compA }, Runtime::Internal::TagStorage({ testTag }));
+
+    ASSERT_EQ(layoutAB, layoutBA);
+    ASSERT_EQ(layoutAB.Hash(), layoutBA.Hash());
+    ASSERT_NE(layoutAB, layoutAWithTag);
+
+    std::unordered_map<Runtime::Internal::ArchetypeLayout, uint32_t, Runtime::Internal::ArchetypeLayoutHash> layouts;
+    layouts.emplace(layoutAB, 1);
+    layouts.emplace(layoutBA, 2);
+    layouts.emplace(layoutAWithTag, 3);
+    ASSERT_EQ(layouts.size(), 2);
+    ASSERT_EQ(layouts.at(layoutAB), 1);
+    ASSERT_EQ(layouts.at(layoutAWithTag), 3);
 }
 
 TEST(ECSTest, ComponentLifetimeTest)
