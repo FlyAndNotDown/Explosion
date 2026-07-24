@@ -66,6 +66,19 @@ namespace Runtime::ECSBenchmark {
             values[i] = inSeed + i;
         }
     }
+
+    EmptySystem::EmptySystem(ECRegistry& inRegistry, const SystemSetupContext& inContext)
+        : System(inRegistry, inContext)
+        , tickCount(0)
+    {
+    }
+
+    EmptySystem::~EmptySystem() = default;
+
+    void EmptySystem::Tick(float inDeltaTimeSeconds)
+    {
+        tickCount++;
+    }
 }
 
 namespace Runtime::ECSBenchmark::Internal {
@@ -521,6 +534,39 @@ namespace Runtime::ECSBenchmark::Internal {
     }
 
     template <typename Backend>
+    static void DynamicViewIterate(benchmark::State& state)
+    {
+        const auto entityCount = state.range(0);
+        typename Backend::Registry registry;
+        const auto entities = CreateEntities<Backend>(registry, entityCount);
+        AddMotionComponents<Backend>(registry, entities, false);
+        auto view = Backend::MakeDynamicMotionView(registry);
+
+        for (auto _ : state) {
+            float sum = 0.0f;
+            Backend::EachDynamicMotion(registry, view, [&](const Position& position, const Velocity& velocity) -> void {
+                sum += position.x * velocity.x + position.y * velocity.y + position.z * velocity.z;
+            });
+            benchmark::DoNotOptimize(sum);
+        }
+
+        SetEntitiesProcessed(state, entityCount);
+    }
+
+    static void SystemTick(benchmark::State& state)
+    {
+        ECRegistry registry;
+        SystemGraph graph;
+        graph.AddGroup("Main", SystemExecuteStrategy::sequential).EmplaceSystem<EmptySystem>();
+        const SystemSetupContext setupContext;
+        SystemGraphExecutor executor(registry, graph, setupContext);
+
+        for (auto _ : state) {
+            executor.Tick(1.0f / 60.0f);
+        }
+    }
+
+    template <typename Backend>
     static void RegisterBenchmarkCase(std::string_view inCaseName, void (*inFunction)(benchmark::State&))
     {
         std::string name = "Runtime::ECSBenchmark::";
@@ -545,6 +591,7 @@ namespace Runtime::ECSBenchmark::Internal {
         RegisterBenchmarkCase<Backend>("ViewIterate", &ViewIterate<Backend>);
         RegisterBenchmarkCase<Backend>("ViewIterateWideArchetype", &ViewIterateWideArchetype<Backend>);
         RegisterBenchmarkCase<Backend>("ViewConstructAndIterate", &ViewConstructAndIterate<Backend>);
+        RegisterBenchmarkCase<Backend>("DynamicViewIterate", &DynamicViewIterate<Backend>);
         RegisterBenchmarkCase<Backend>("DynamicViewConstructAndIterate", &DynamicViewConstructAndIterate<Backend>);
     }
 
@@ -552,6 +599,7 @@ namespace Runtime::ECSBenchmark::Internal {
         RegisterBackendBenchmarks<ExplosionBackend>();
         RegisterBackendBenchmarks<EnTTBackend>();
         RegisterBackendBenchmarks<FlecsBackend>();
+        benchmark::RegisterBenchmark("Runtime::ECSBenchmark::SystemTick/Explosion", &SystemTick);
         return true;
     }();
 }

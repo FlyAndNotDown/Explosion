@@ -49,6 +49,11 @@ namespace Runtime {
     };
 }
 
+namespace tf {
+    class Executor;
+    class Taskflow;
+}
+
 namespace Runtime::Internal {
     using ArchetypeId = Mirror::TypeId;
     using ElemPtr = void*;
@@ -84,7 +89,7 @@ namespace Runtime::Internal {
     class RUNTIME_API CompRtti {
     public:
         explicit CompRtti(CompClass inClass);
-        template <typename C> static CompRtti Create();
+        template <typename C> static const CompRtti& Get();
         Mirror::Any CopyConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
         Mirror::Any MoveConstruct(ElemPtr inElem, const Mirror::Any& inOther) const;
         void CopyConstructFrom(ElemPtr inDstElem, ElemPtr inSrcElem) const;
@@ -157,7 +162,6 @@ namespace Runtime::Internal {
         bool ContainsComp(CompClass inClass) const;
         bool ContainsTag(TagClass inClass) const;
         bool Contains(CompClass inClazz) const;
-        bool NotContainsAny(const std::vector<CompClass>& inClasses) const;
         size_t EmplaceElem(Entity inEntity);
         size_t EmplaceElem(Entity inEntity, Archetype& inSrcArchetype, size_t inSrcElemIndex, const std::vector<CompMapping>& inCompMappings);
         Mirror::Any EmplaceComp(size_t inElemIndex, CompClass inCompClass, const Mirror::Any& inCompRef);
@@ -459,6 +463,7 @@ namespace Runtime {
         RuntimeFilter filter;
         std::vector<CompClass> includes;
         std::unordered_map<CompClass, size_t> slotMap;
+        mutable std::vector<CompColumnPtr> compColumns;
         mutable std::vector<QueryEntry> query;
         mutable ResultEntitiesVector resultEntities;
         mutable bool materialized;
@@ -812,6 +817,7 @@ namespace Runtime {
     class SystemPipeline {
     public:
         explicit SystemPipeline(const SystemGraph& inGraph);
+        ~SystemPipeline();
 
     private:
         struct SystemContext {
@@ -827,9 +833,13 @@ namespace Runtime {
         friend class SystemGraphExecutor;
         using ActionFunc = std::function<void(SystemContext&)>;
 
+        void BuildTaskFlow();
         void ParallelPerformAction(const ActionFunc& inActionFunc);
 
         std::vector<SystemGroupContext> systemGraph;
+        Common::UniquePtr<tf::Executor> executor;
+        Common::UniquePtr<tf::Taskflow> taskFlow;
+        const ActionFunc* actionFunc;
     };
 
     enum class PlayType : uint8_t {
@@ -896,23 +906,26 @@ namespace Runtime::Internal {
     }
 
     template <typename C>
-    CompRtti CompRtti::Create()
+    const CompRtti& CompRtti::Get()
     {
-        CompRtti result(GetClass<C>());
-        result.copyConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
-            std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
-        };
-        result.moveConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
-            if constexpr (std::is_move_constructible_v<C>) {
-                std::construct_at(static_cast<C*>(dst), std::move(*static_cast<C*>(src)));
-            } else {
+        static const CompRtti result = []() -> CompRtti {
+            CompRtti rtti(GetClass<C>());
+            rtti.copyConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
                 std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
-            }
-        };
-        result.destruct = [](ElemPtr elem) -> void {
-            std::destroy_at(static_cast<C*>(elem));
-        };
-        result.triviallyRelocatable = std::is_trivially_copyable_v<C>;
+            };
+            rtti.moveConstructFrom = [](ElemPtr dst, ElemPtr src) -> void {
+                if constexpr (std::is_move_constructible_v<C>) {
+                    std::construct_at(static_cast<C*>(dst), std::move(*static_cast<C*>(src)));
+                } else {
+                    std::construct_at(static_cast<C*>(dst), *static_cast<const C*>(src));
+                }
+            };
+            rtti.destruct = [](ElemPtr elem) -> void {
+                std::destroy_at(static_cast<C*>(elem));
+            };
+            rtti.triviallyRelocatable = std::is_trivially_copyable_v<C>;
+            return rtti;
+        }();
         return result;
     }
 
@@ -1211,28 +1224,15 @@ namespace Runtime {
         static_assert((std::is_empty_v<T> && ...), "Tags<> accepts only empty tag types");
         static_assert(((sizeof(T) == 1 && alignof(T) == 1) && ...), "tag components must have the one-byte empty layout");
 
-        std::vector<CompClass> includeCompIds;
-        includeCompIds.reserve(sizeof...(C));
-        (void) std::initializer_list<int> { ([&]() -> void {
-            includeCompIds.emplace_back(Internal::GetClass<std::decay_t<C>>());
-        }(), 0)... };
-
-        std::vector<TagClass> includeTagIds;
-        includeTagIds.reserve(sizeof...(T));
-        (void) std::initializer_list<int> { ([&]() -> void {
-            includeTagIds.emplace_back(Internal::GetClass<T>());
-        }(), 0)... };
-
-        std::vector<CompClass> excludeCompIds;
-        excludeCompIds.reserve(sizeof...(E));
-        (void) std::initializer_list<int> { ([&]() -> void {
-            excludeCompIds.emplace_back(Internal::GetClass<E>());
-        }(), 0)... };
+        const std::array<CompClass, sizeof...(C)> includeCompIds { Internal::GetClass<std::decay_t<C>>()... };
+        const std::array<TagClass, sizeof...(T)> includeTagIds { Internal::GetClass<T>()... };
+        const std::array<CompClass, sizeof...(E)> excludeCompIds { Internal::GetClass<E>()... };
 
         for (auto& archetype : inRegistry.archetypes | std::views::values) {
             const bool containsComps = std::ranges::all_of(includeCompIds, [&](CompClass clazz) -> bool { return archetype.ContainsComp(clazz); });
             const bool containsTags = std::ranges::all_of(includeTagIds, [&](TagClass clazz) -> bool { return archetype.ContainsTag(clazz); });
-            if (!containsComps || !containsTags || !archetype.NotContainsAny(excludeCompIds)) {
+            const bool excludesComps = std::ranges::none_of(excludeCompIds, [&](CompClass clazz) -> bool { return archetype.Contains(clazz); });
+            if (!containsComps || !containsTags || !excludesComps) {
                 continue;
             }
 
@@ -1255,6 +1255,7 @@ namespace Runtime {
         for (size_t i = 0; i < includes.size(); i++) {
             slotMap.emplace(includes[i], i);
         }
+        compColumns.reserve(includes.size());
         Refresh();
     }
 
@@ -1265,8 +1266,6 @@ namespace Runtime {
         using Traits = Internal::MemberFuncPtrTraits<decltype(&F::operator())>;
         Refresh();
         const auto compSlots = BuildCompSlots<typename Traits::ArgsTupleType>(std::make_index_sequence<Traits::ArgSize - 1> {});
-        std::vector<CompColumnPtr> compColumns;
-        compColumns.reserve(includes.size());
 
         for (const auto& entry : query) {
             auto& archetype = registry->archetypes.at(entry.archetype);
@@ -1570,7 +1569,7 @@ namespace Runtime {
     template <typename C, typename ... Args>
     C& ECRegistry::Emplace(Entity inEntity, Args&&... inArgs)
     {
-        const Internal::CompRtti rtti = Internal::CompRtti::Create<C>();
+        const Internal::CompRtti& rtti = Internal::CompRtti::Get<C>();
         const auto location = MoveEntityForAdd(rtti, inEntity);
         C& result = location.archetype->template EmplaceComp<C>(location.elemIndex, std::forward<Args>(inArgs)...);
         if (!compEvents.empty()) {

@@ -298,8 +298,8 @@ TEST(ECSTest, ViewArchetypeGrowthTest)
 
 TEST(ECSTest, ArchetypeLayoutIdentityTest)
 {
-    const auto compA = Runtime::Internal::CompRtti::Create<CompA>();
-    const auto compB = Runtime::Internal::CompRtti::Create<CompB>();
+    const auto compA = Runtime::Internal::CompRtti::Get<CompA>();
+    const auto compB = Runtime::Internal::CompRtti::Get<CompB>();
     const auto* testTag = &Mirror::Class::Get<TestTag>();
 
     const Runtime::Internal::ArchetypeLayout layoutAB({ compA, compB }, {});

@@ -344,16 +344,6 @@ namespace Runtime::Internal {
         return ContainsComp(inClazz) || ContainsTag(inClazz);
     }
 
-    bool Archetype::NotContainsAny(const std::vector<CompClass>& inClasses) const
-    {
-        for (const auto& clazz : inClasses) {
-            if (Contains(clazz)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     size_t Archetype::EmplaceElem(Entity inEntity)
     {
         AllocateNewElemBack();
@@ -1405,21 +1395,21 @@ namespace Runtime {
     Internal::EntityPool::Location ECRegistry::MoveEntityForAdd(const Internal::CompRtti& inRtti, Entity inEntity)
     {
         const CompClass inClass = inRtti.Class();
-        RegisterDataCompClass(inClass);
         const auto location = entities.GetLocation(inEntity);
         if (const auto* transition = location.archetype->FindAddTransition(inClass)) {
             return MoveEntityThroughTransition(inEntity, location, *transition);
         }
+        RegisterDataCompClass(inClass);
         return MoveEntityForAdd(inClass, inEntity, location, location.archetype->GetLayout().WithComp(inRtti));
     }
 
     Internal::EntityPool::Location ECRegistry::MoveEntityForAddTag(TagClass inClass, Entity inEntity)
     {
-        RegisterTagClass(inClass);
         const auto location = entities.GetLocation(inEntity);
         if (const auto* transition = location.archetype->FindAddTransition(inClass)) {
             return MoveEntityThroughTransition(inEntity, location, *transition);
         }
+        RegisterTagClass(inClass);
         return MoveEntityForAdd(inClass, inEntity, location, location.archetype->GetLayout().WithTag(inClass));
     }
 
@@ -1797,6 +1787,9 @@ namespace Runtime {
     }
 
     SystemPipeline::SystemPipeline(const SystemGraph& inGraph)
+        : executor(Common::MakeUnique<tf::Executor>())
+        , taskFlow(Common::MakeUnique<tf::Taskflow>())
+        , actionFunc(nullptr)
     {
         const auto& systemGroups = inGraph.GetGroups();
         systemGraph.reserve(systemGroups.size());
@@ -1811,20 +1804,23 @@ namespace Runtime {
                 systemContexts.emplace_back(factory, nullptr);
             }
         }
+        BuildTaskFlow();
     }
 
-    void SystemPipeline::ParallelPerformAction(const ActionFunc& inActionFunc)
+    SystemPipeline::~SystemPipeline() = default;
+
+    void SystemPipeline::BuildTaskFlow()
     {
-        tf::Taskflow taskFlow;
-        auto lastBarrier = taskFlow.emplace([]() -> void { Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker); });
+        auto lastBarrier = taskFlow->emplace([]() -> void { Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker); });
 
         for (auto& groupContext : systemGraph) {
             if (groupContext.strategy == SystemExecuteStrategy::sequential) {
                 tf::Task lastTask = lastBarrier;
                 for (auto& systemContext : groupContext.systems) {
-                    auto task = taskFlow.emplace([&]() -> void {
+                    SystemContext* context = &systemContext;
+                    auto task = taskFlow->emplace([this, context]() -> void {
                         Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker);
-                        inActionFunc(systemContext);
+                        (*actionFunc)(*context);
                     });
                     task.succeed(lastTask);
                     lastTask = task;
@@ -1835,14 +1831,15 @@ namespace Runtime {
                 tasks.reserve(groupContext.systems.size());
 
                 for (auto& systemContext : groupContext.systems) {
-                    tasks.emplace_back(taskFlow.emplace([&]() -> void {
+                    SystemContext* context = &systemContext;
+                    tasks.emplace_back(taskFlow->emplace([this, context]() -> void {
                         Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker);
-                        inActionFunc(systemContext);
+                        (*actionFunc)(*context);
                     }));
                     tasks.back().succeed(lastBarrier);
                 }
 
-                auto barrier = taskFlow.emplace([]() -> void { Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker); });
+                auto barrier = taskFlow->emplace([]() -> void { Core::ScopedThreadTag threadTag(Core::ThreadTag::gameWorker); });
                 for (const auto& task : tasks) {
                     barrier.succeed(task);
                 }
@@ -1851,11 +1848,15 @@ namespace Runtime {
                 QuickFail();
             }
         }
+    }
 
-        tf::Executor executor;
+    void SystemPipeline::ParallelPerformAction(const ActionFunc& inActionFunc)
+    {
+        actionFunc = &inActionFunc;
         executor
-            .run(taskFlow)
+            ->run(*taskFlow)
             .wait();
+        actionFunc = nullptr;
     }
 
     SystemSetupContext::SystemSetupContext()

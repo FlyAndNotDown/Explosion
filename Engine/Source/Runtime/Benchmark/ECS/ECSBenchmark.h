@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Runtime/Meta.h>
+#include <Runtime/ECS.h>
 
 namespace Runtime::ECSBenchmark {
     struct EClass(comp) Position final {
@@ -50,5 +50,18 @@ namespace Runtime::ECSBenchmark {
         explicit Payload(uint64_t inSeed);
 
         std::array<uint64_t, 16> values;
+    };
+
+    class EClass() EmptySystem final : public System {
+    public:
+        EPolyDerivedClassBody(EmptySystem)
+
+        explicit EmptySystem(ECRegistry& inRegistry, const SystemSetupContext& inContext);
+        ~EmptySystem() override;
+
+        void Tick(float inDeltaTimeSeconds) override;
+
+    private:
+        uint64_t tickCount;
     };
 }
