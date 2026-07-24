@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <mutex>
 #include <new>
 #include <utility>
 
@@ -24,6 +25,23 @@ namespace Runtime {
 }
 
 namespace Runtime::Internal {
+    CompTypeSlot GetCompTypeSlotDyn(CompClass inClass)
+    {
+        static std::mutex mutex;
+        static std::unordered_map<CompClass, CompTypeSlot> slots;
+
+        std::lock_guard lock(mutex);
+        const auto iter = slots.find(inClass);
+        if (iter != slots.end()) {
+            return iter->second;
+        }
+
+        Assert(slots.size() < invalidCompTypeSlot);
+        const auto slot = static_cast<CompTypeSlot>(slots.size());
+        slots.emplace(inClass, slot);
+        return slot;
+    }
+
     static bool IsGlobalCompClass(GCompClass inClass)
     {
         return inClass->GetMetaBoolOr(MetaPresets::globalComp, false);
@@ -247,6 +265,11 @@ namespace Runtime::Internal {
             auto& rtti = rttiVec[i];
             const auto clazz = rtti.Class();
             rttiMap.emplace(clazz, i);
+            const CompTypeSlot slot = GetCompTypeSlotDyn(clazz);
+            if (rttiSlotMap.size() <= slot) {
+                rttiSlotMap.resize(static_cast<size_t>(slot) + 1, invalidCompTypeSlot);
+            }
+            rttiSlotMap[slot] = i;
             compStrides[i] = rtti.MemorySize();
 
         }
@@ -265,6 +288,7 @@ namespace Runtime::Internal {
         , rttiVec(inOther.rttiVec)
         , tags(inOther.tags)
         , rttiMap(inOther.rttiMap)
+        , rttiSlotMap(inOther.rttiSlotMap)
         , compMemory(rttiVec.size(), nullptr)
         , compStrides(inOther.compStrides)
         , elemMap(inOther.elemMap)
@@ -293,6 +317,7 @@ namespace Runtime::Internal {
         , rttiVec(std::move(inOther.rttiVec))
         , tags(std::move(inOther.tags))
         , rttiMap(std::move(inOther.rttiMap))
+        , rttiSlotMap(std::move(inOther.rttiSlotMap))
         , compMemory(std::move(inOther.compMemory))
         , compStrides(std::move(inOther.compStrides))
         , elemMap(std::move(inOther.elemMap))
@@ -321,6 +346,7 @@ namespace Runtime::Internal {
         rttiVec = std::move(inOther.rttiVec);
         tags = std::move(inOther.tags);
         rttiMap = std::move(inOther.rttiMap);
+        rttiSlotMap = std::move(inOther.rttiSlotMap);
         compMemory = std::move(inOther.compMemory);
         compStrides = std::move(inOther.compStrides);
         elemMap = std::move(inOther.elemMap);
@@ -794,31 +820,31 @@ namespace Runtime {
 
     RuntimeFilter& RuntimeFilter::IncludeDyn(CompClass inClass)
     {
-        Assert(!includes.contains(inClass));
-        includes.emplace(inClass);
+        Assert(std::ranges::find(includes, inClass) == includes.end());
+        includes.emplace_back(inClass);
         return *this;
     }
 
     RuntimeFilter& RuntimeFilter::ExcludeDyn(CompClass inClass)
     {
-        Assert(!excludes.contains(inClass));
-        excludes.emplace(inClass);
+        Assert(std::ranges::find(excludes, inClass) == excludes.end());
+        excludes.emplace_back(inClass);
         return *this;
     }
 
     RuntimeFilter& RuntimeFilter::IncludeTagDyn(TagClass inClass)
     {
         Assert(inClass->SizeOf() == 1 && inClass->AlignOf() == 1);
-        Assert(!tagIncludes.contains(inClass));
-        tagIncludes.emplace(inClass);
+        Assert(std::ranges::find(tagIncludes, inClass) == tagIncludes.end());
+        tagIncludes.emplace_back(inClass);
         return *this;
     }
 
     RuntimeFilter& RuntimeFilter::ExcludeTagDyn(TagClass inClass)
     {
         Assert(inClass->SizeOf() == 1 && inClass->AlignOf() == 1);
-        Assert(!tagExcludes.contains(inClass));
-        tagExcludes.emplace(inClass);
+        Assert(std::ranges::find(tagExcludes, inClass) == tagExcludes.end());
+        tagExcludes.emplace_back(inClass);
         return *this;
     }
 
@@ -1008,6 +1034,7 @@ namespace Runtime {
     ECRegistry::ECRegistry()
         : nextArchetypeId(1)
         , archetypeVersion(0)
+        , structureVersion(0)
     {
         Internal::ArchetypeLayout emptyLayout;
         archetypeLookup.emplace(emptyLayout, 0);
@@ -1026,6 +1053,7 @@ namespace Runtime {
         , archetypeLookup(inOther.archetypeLookup)
         , nextArchetypeId(inOther.nextArchetypeId)
         , archetypeVersion(inOther.archetypeVersion)
+        , structureVersion(inOther.structureVersion)
         , dataCompClasses(inOther.dataCompClasses)
         , tagClasses(inOther.tagClasses)
     {
@@ -1039,6 +1067,7 @@ namespace Runtime {
         , archetypeLookup(std::move(inOther.archetypeLookup))
         , nextArchetypeId(inOther.nextArchetypeId)
         , archetypeVersion(inOther.archetypeVersion)
+        , structureVersion(inOther.structureVersion)
         , dataCompClasses(std::move(inOther.dataCompClasses))
         , tagClasses(std::move(inOther.tagClasses))
     {
@@ -1056,6 +1085,7 @@ namespace Runtime {
         archetypeLookup = inOther.archetypeLookup;
         nextArchetypeId = inOther.nextArchetypeId;
         archetypeVersion++;
+        structureVersion++;
         dataCompClasses = inOther.dataCompClasses;
         tagClasses = inOther.tagClasses;
         RebindEntityArchetypes();
@@ -1073,6 +1103,7 @@ namespace Runtime {
         archetypeLookup = std::move(inOther.archetypeLookup);
         nextArchetypeId = inOther.nextArchetypeId;
         archetypeVersion++;
+        structureVersion++;
         dataCompClasses = std::move(inOther.dataCompClasses);
         tagClasses = std::move(inOther.tagClasses);
         RebindEntityArchetypes();
@@ -1085,6 +1116,7 @@ namespace Runtime {
         Internal::Archetype& archetype = archetypes.at(0);
         const auto elemIndex = archetype.EmplaceElem(result);
         entities.SetLocation(result, archetype, elemIndex);
+        structureVersion++;
         return result;
     }
 
@@ -1102,6 +1134,7 @@ namespace Runtime {
         }
         EraseArchetypeElem(archetype, location.elemIndex);
         entities.Free(inEntity);
+        structureVersion++;
     }
 
     bool ECRegistry::Valid(Entity inEntity) const
@@ -1122,6 +1155,7 @@ namespace Runtime {
         archetypeLookup.clear();
         nextArchetypeId = 1;
         archetypeVersion++;
+        structureVersion++;
         dataCompClasses.clear();
         tagClasses.clear();
         Internal::ArchetypeLayout emptyLayout;
@@ -1433,6 +1467,7 @@ namespace Runtime {
         const auto newElemIndex = newArchetype.EmplaceElem(inEntity, archetype, inLocation.elemIndex, inTransition.compMappings);
         entities.SetLocation(inEntity, newArchetype, newElemIndex);
         EraseArchetypeElem(archetype, inLocation.elemIndex);
+        structureVersion++;
         return { &newArchetype, newElemIndex };
     }
 

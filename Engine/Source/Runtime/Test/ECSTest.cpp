@@ -296,6 +296,38 @@ TEST(ECSTest, ViewArchetypeGrowthTest)
     ASSERT_EQ(runtimeSum, 2090);
 }
 
+TEST(ECSTest, ViewLazyIterationAndMaterializationTest)
+{
+    ECRegistry registry;
+    const auto firstEntity = registry.Create();
+    registry.Emplace<CompA>(firstEntity, 1);
+
+    const auto staticView = registry.View<CompA>();
+    const auto runtimeView = registry.RuntimeView(RuntimeFilter().Include<CompA>());
+    static_assert(std::forward_iterator<decltype(staticView.Begin())>);
+    static_assert(std::forward_iterator<decltype(runtimeView.Begin())>);
+    ASSERT_EQ(staticView.All().size(), 1);
+
+    const auto secondEntity = registry.Create();
+    registry.Emplace<CompA>(secondEntity, 2);
+    ASSERT_EQ(staticView.All().size(), 2);
+
+    registry.Emplace<CompB>(firstEntity, 3.0f);
+    registry.Emplace<CompB>(secondEntity, 4.0f);
+
+    std::unordered_set<Entity> staticEntities;
+    for (const auto& [entity, comp] : staticView) {
+        staticEntities.emplace(entity);
+    }
+    ASSERT_EQ(staticEntities, (std::unordered_set<Entity> { firstEntity, secondEntity }));
+
+    std::unordered_set<Entity> runtimeEntities;
+    for (const auto entity : runtimeView) {
+        runtimeEntities.emplace(entity);
+    }
+    ASSERT_EQ(runtimeEntities, staticEntities);
+}
+
 TEST(ECSTest, ArchetypeLayoutIdentityTest)
 {
     const auto compA = Runtime::Internal::CompRtti::Get<CompA>();
