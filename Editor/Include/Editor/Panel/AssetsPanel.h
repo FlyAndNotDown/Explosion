@@ -29,6 +29,7 @@ namespace Editor {
         void RenderDirectoryTree(const std::filesystem::path& inDirectory, const char* inLabel);
         void RenderDirectoryContents();
         void RenderEntry(const AssetFileEntry& inEntry);
+        void RenderEntryContextMenu(const AssetFileEntry& inEntry, const char* inPopupId);
         void RenderBackgroundMenu();
         void RenderModals();
         void HandleKeyboardShortcuts();

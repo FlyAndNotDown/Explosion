@@ -2,7 +2,6 @@
 // Created by johnk on 2026/7/18.
 //
 
-#include <algorithm>
 #include <format>
 #include <system_error>
 
@@ -89,11 +88,12 @@ namespace Editor {
         RenderToolbar();
         RenderBreadcrumbs();
         if (!statusMessage.empty()) {
-            const ImVec4 color = statusIsError
-                ? ImVec4(1.0f, 0.35f, 0.32f, 1.0f)
-                : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
             const std::string statusLabel = Widgets::Label(statusIsError ? Icons::Tabler::circleX : Icons::Tabler::infoCircle, statusMessage);
-            ImGui::PushStyleColor(ImGuiCol_Text, color);
+            if (statusIsError) {
+                Widgets::PushErrorTextColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            }
             ImGui::TextWrapped("%s", statusLabel.c_str());
             ImGui::PopStyleColor();
         }
@@ -260,31 +260,7 @@ namespace Editor {
         if (inEntry.directory) {
             HandleDropTarget(inEntry.path);
         }
-        if (ImGui::BeginPopupContextItem("AssetEntryMenu")) {
-            selectedPath = inEntry.path;
-            const std::string openLabel = Widgets::Label(Icons::Tabler::externalLink, "Open");
-            if (ImGui::MenuItem(openLabel.c_str(), nullptr, false, inEntry.directory)) {
-                NavigateTo(inEntry.path);
-            }
-            ImGui::Separator();
-            const std::string cutLabel = Widgets::Label(Icons::Tabler::cut, "Cut");
-            if (ImGui::MenuItem(cutLabel.c_str(), "Ctrl+X")) {
-                SetClipboard(inEntry.path, ClipboardMode::move);
-            }
-            const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
-            if (ImGui::MenuItem(copyLabel.c_str(), "Ctrl+C")) {
-                SetClipboard(inEntry.path, ClipboardMode::copy);
-            }
-            const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
-            if (ImGui::MenuItem(renameLabel.c_str(), "F2")) {
-                OpenRenamePopup(inEntry.path);
-            }
-            const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
-            if (ImGui::MenuItem(deleteLabel.c_str(), "Delete")) {
-                OpenDeletePopup(inEntry.path);
-            }
-            ImGui::EndPopup();
-        }
+        RenderEntryContextMenu(inEntry, "AssetEntryMenu");
 
         ImGui::TableSetColumnIndex(1);
         ImGui::TextUnformatted(Internal::EntryType(inEntry).c_str());
@@ -295,6 +271,36 @@ namespace Editor {
             ImGui::TextUnformatted(Internal::FormatFileSize(inEntry.size).c_str());
         }
         ImGui::PopID();
+    }
+
+    void AssetsPanel::RenderEntryContextMenu(const AssetFileEntry& inEntry, const char* inPopupId)
+    {
+        if (!ImGui::BeginPopupContextItem(inPopupId)) {
+            return;
+        }
+        selectedPath = inEntry.path;
+        const std::string openLabel = Widgets::Label(Icons::Tabler::externalLink, "Open");
+        if (ImGui::MenuItem(openLabel.c_str(), nullptr, false, inEntry.directory)) {
+            NavigateTo(inEntry.path);
+        }
+        ImGui::Separator();
+        const std::string cutLabel = Widgets::Label(Icons::Tabler::cut, "Cut");
+        if (ImGui::MenuItem(cutLabel.c_str(), "Ctrl+X")) {
+            SetClipboard(inEntry.path, ClipboardMode::move);
+        }
+        const std::string copyLabel = Widgets::Label(Icons::Tabler::copy, "Copy");
+        if (ImGui::MenuItem(copyLabel.c_str(), "Ctrl+C")) {
+            SetClipboard(inEntry.path, ClipboardMode::copy);
+        }
+        const std::string renameLabel = Widgets::Label(Icons::Tabler::edit, "Rename");
+        if (ImGui::MenuItem(renameLabel.c_str(), "F2")) {
+            OpenRenamePopup(inEntry.path);
+        }
+        const std::string deleteLabel = Widgets::Label(Icons::Tabler::trash, "Delete");
+        if (ImGui::MenuItem(deleteLabel.c_str(), "Delete")) {
+            OpenDeletePopup(inEntry.path);
+        }
+        ImGui::EndPopup();
     }
 
     void AssetsPanel::RenderBackgroundMenu()

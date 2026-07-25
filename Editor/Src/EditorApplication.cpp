@@ -15,6 +15,7 @@
 #include <Core/Paths.h>
 #include <Editor/EditorApplication.h>
 #include <Editor/Panel/EditorPanelNames.h>
+#include <Editor/Theme/Theme.h>
 #include <Editor/Utils/ImGuiCompatibility.h>
 #include <Editor/Widget/TablerIcons.h>
 #include <Runtime/Engine.h>
@@ -69,19 +70,6 @@ namespace Editor::Internal {
     static uint32_t GetInitialWindowHeight(const EditorApplicationDesc& inDesc)
     {
         return inDesc.mode == EditorApplicationMode::projectHub ? projectHubWindowHeight : defaultWindowHeight;
-    }
-
-    static void SetDarkStyle()
-    {
-        ImGui::StyleColorsDark();
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.WindowRounding = 0.0f;
-        style.ChildRounding = 2.0f;
-        style.FrameRounding = 2.0f;
-        style.PopupRounding = 2.0f;
-        style.ScrollbarRounding = 2.0f;
-        style.GrabRounding = 2.0f;
-        style.TabRounding = 2.0f;
     }
 
     static void LoadIconFonts(ImFontAtlas& inFontAtlas, float inSizePixels)
@@ -244,7 +232,7 @@ namespace Editor {
         defaultFontConfig.SizePixels = Internal::defaultFontSize;
         io.FontDefault = io.Fonts->AddFontDefaultVector(&defaultFontConfig);
         Internal::LoadIconFonts(*io.Fonts, Internal::defaultFontSize);
-        Internal::SetDarkStyle();
+        ThemeSwitcher::ApplyCurrentTheme();
     }
 
     void EditorApplication::ShutdownImGui()
