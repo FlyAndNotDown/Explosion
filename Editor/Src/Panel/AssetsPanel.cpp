@@ -92,11 +92,12 @@ namespace Editor {
         RenderToolbar();
         RenderBreadcrumbs();
         if (!statusMessage.empty()) {
-            const ImVec4 color = statusIsError
-                ? ImVec4(1.0f, 0.35f, 0.32f, 1.0f)
-                : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
             const std::string statusLabel = Widgets::Label(statusIsError ? Icons::Tabler::circleX : Icons::Tabler::infoCircle, statusMessage);
-            ImGui::PushStyleColor(ImGuiCol_Text, color);
+            if (statusIsError) {
+                Widgets::PushErrorTextColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            }
             ImGui::TextWrapped("%s", statusLabel.c_str());
             ImGui::PopStyleColor();
         }

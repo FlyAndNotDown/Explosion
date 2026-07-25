@@ -316,16 +316,16 @@ namespace Editor {
         ImGui::Separator();
         ImGui::BeginChild("LogEntries", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_HorizontalScrollbar);
         for (const auto& entry : entries) {
-            ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
             const char* levelIcon = Icons::Tabler::infoCircle;
             if (entry.level == Core::LogLevel::warning) {
-                color = ImVec4(1.0f, 0.78f, 0.25f, 1.0f);
+                Widgets::PushWarningTextColor();
                 levelIcon = Icons::Tabler::alertTriangle;
             } else if (entry.level == Core::LogLevel::error) {
-                color = ImVec4(1.0f, 0.35f, 0.32f, 1.0f);
+                Widgets::PushErrorTextColor();
                 levelIcon = Icons::Tabler::circleX;
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text));
             }
-            ImGui::PushStyleColor(ImGuiCol_Text, color);
             ImGui::TextUnformatted(std::format("{} [{}][{}][{}] {}", levelIcon, entry.time, Internal::LevelString(entry.level), entry.tag, entry.content).c_str());
             ImGui::PopStyleColor();
         }
