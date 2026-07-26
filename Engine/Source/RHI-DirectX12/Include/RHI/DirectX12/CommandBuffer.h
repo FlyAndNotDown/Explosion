@@ -57,7 +57,7 @@ namespace RHI::DirectX12 {
     class DX12CommandBuffer final : public CommandBuffer {
     public:
         NonCopyable(DX12CommandBuffer)
-        explicit DX12CommandBuffer(DX12Device& inDevice);
+        DX12CommandBuffer(DX12Device& inDevice, QueueType inQueueType);
         ~DX12CommandBuffer() override;
 
         Common::UniquePtr<CommandRecorder> Begin() override;
@@ -67,8 +67,8 @@ namespace RHI::DirectX12 {
         RuntimeDescriptorCompact* GetRuntimeDescriptorHeaps() const;
 
     private:
-        void CreateNativeCommandAllocator(DX12Device& inDevice);
-        void CreateNativeCommandList(DX12Device& inDevice);
+        void CreateNativeCommandAllocator(DX12Device& inDevice, D3D12_COMMAND_LIST_TYPE inNativeType);
+        void CreateNativeCommandList(DX12Device& inDevice, D3D12_COMMAND_LIST_TYPE inNativeType);
 
         DX12Device& device;
         ComPtr<ID3D12CommandAllocator> nativeCommandAllocator;

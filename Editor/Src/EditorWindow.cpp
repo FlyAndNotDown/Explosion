@@ -69,7 +69,7 @@ namespace Editor {
         : Runtime::Window(*Runtime::EngineHolder::Get().GetRenderModule().GetDevice())
         , window(nullptr)
         , uiFrameFence(GetDevice().CreateFence(true))
-        , uiCommandBuffer(GetDevice().CreateCommandBuffer())
+        , uiCommandBuffer(GetDevice().CreateCommandBuffer(RHI::QueueType::graphics))
         , imguiVertexBufferCapacity(0)
         , imguiIndexBufferCapacity(0)
         , framebufferWidth(inDesc.width)
@@ -447,7 +447,7 @@ namespace Editor {
         }
         stagingBuffer->Unmap();
 
-        const auto commandBuffer = device.CreateCommandBuffer();
+        const auto commandBuffer = device.CreateCommandBuffer(RHI::QueueType::graphics);
         const auto commandRecorder = commandBuffer->Begin();
         {
             const auto copyRecorder = commandRecorder->BeginCopyPass();

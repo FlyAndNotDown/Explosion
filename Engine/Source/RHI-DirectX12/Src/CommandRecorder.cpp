@@ -441,9 +441,12 @@ namespace RHI::DirectX12 {
         Assert(SUCCEEDED(nativeCmdAllocator->Reset()));
         Assert(SUCCEEDED(nativeCmdList->Reset(nativeCmdAllocator, nullptr)));
 
-        inCmdBuffer.GetRuntimeDescriptorHeaps()->ResetUsed();
-        const auto activeHeap = inCmdBuffer.GetRuntimeDescriptorHeaps()->GetNative();
-        nativeCmdList->SetDescriptorHeaps(activeHeap.size(), activeHeap.data());
+        if (auto* runtimeDescriptorHeaps = inCmdBuffer.GetRuntimeDescriptorHeaps();
+            runtimeDescriptorHeaps != nullptr) {
+            runtimeDescriptorHeaps->ResetUsed();
+            const auto activeHeap = runtimeDescriptorHeaps->GetNative();
+            nativeCmdList->SetDescriptorHeaps(activeHeap.size(), activeHeap.data());
+        }
     }
 
     DX12CommandRecorder::~DX12CommandRecorder() = default;

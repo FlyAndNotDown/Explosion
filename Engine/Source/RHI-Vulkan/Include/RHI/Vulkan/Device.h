@@ -38,7 +38,7 @@ namespace RHI::Vulkan {
         Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& inCreateInfo) override;
-        Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
+        Common::UniquePtr<CommandBuffer> CreateCommandBuffer(QueueType inQueueType) override;
         Common::UniquePtr<Fence> CreateFence(bool initAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;

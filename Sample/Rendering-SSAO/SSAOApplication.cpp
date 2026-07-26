@@ -868,7 +868,7 @@ private:
                 .SetInitialState(TextureState::undefined));
 
         // Copy data
-        auto copyCmdBuffer = device->CreateCommandBuffer();
+        auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
         const UniquePtr<CommandRecorder> commandRecorder = copyCmdBuffer->Begin();
         {
             const UniquePtr<CopyPassCommandRecorder> copyRecorder = commandRecorder->BeginCopyPass();
@@ -931,7 +931,7 @@ private:
                     stagingBuffer->Unmap();
                 }
 
-                auto copyCmdBuffer = device->CreateCommandBuffer();
+                auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
                 const UniquePtr<CommandRecorder> commandRecorder = copyCmdBuffer->Begin();
                 {
                     const UniquePtr<CopyPassCommandRecorder> copyRecorder = commandRecorder->BeginCopyPass();

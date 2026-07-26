@@ -284,7 +284,7 @@ namespace Runtime {
             }
             stagingBuffer->Unmap();
 
-            const Common::UniquePtr<RHI::CommandBuffer> cmdBuffer = device->CreateCommandBuffer();
+            const Common::UniquePtr<RHI::CommandBuffer> cmdBuffer = device->CreateCommandBuffer(RHI::QueueType::transfer);
             const auto recoder = cmdBuffer->Begin();
             {
                 const auto passRecoder = recoder->BeginCopyPass();

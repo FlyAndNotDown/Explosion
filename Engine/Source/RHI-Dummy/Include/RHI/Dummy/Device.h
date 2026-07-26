@@ -31,7 +31,7 @@ namespace RHI::Dummy {
         Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& createInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& createInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& createInfo) override;
-        Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
+        Common::UniquePtr<CommandBuffer> CreateCommandBuffer(QueueType queueType) override;
         Common::UniquePtr<Fence> CreateFence(bool bInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) override;

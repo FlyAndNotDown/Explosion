@@ -101,9 +101,10 @@ namespace RHI::Dummy {
         return { new DummyRasterPipeline(createInfo) };
     }
 
-    Common::UniquePtr<CommandBuffer> DummyDevice::CreateCommandBuffer()
+    Common::UniquePtr<CommandBuffer> DummyDevice::CreateCommandBuffer(const QueueType queueType)
     {
-        return { new DummyCommandBuffer() };
+        Assert(queueType == QueueType::graphics);
+        return { new DummyCommandBuffer(queueType) };
     }
 
     Common::UniquePtr<Fence> DummyDevice::CreateFence(const bool bInitAsSignaled)

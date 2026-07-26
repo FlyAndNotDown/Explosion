@@ -6,7 +6,10 @@
 #include <RHI/Dummy/CommandRecorder.h>
 
 namespace RHI::Dummy {
-    DummyCommandBuffer::DummyCommandBuffer() = default;
+    DummyCommandBuffer::DummyCommandBuffer(const QueueType inQueueType)
+        : CommandBuffer(inQueueType)
+    {
+    }
 
     Common::UniquePtr<CommandRecorder> DummyCommandBuffer::Begin()
     {

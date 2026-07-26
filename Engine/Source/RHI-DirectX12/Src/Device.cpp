@@ -240,9 +240,10 @@ namespace RHI::DirectX12 {
         return { new DX12RasterPipeline(*this, inCreateInfo) };
     }
 
-    Common::UniquePtr<CommandBuffer> DX12Device::CreateCommandBuffer()
+    Common::UniquePtr<CommandBuffer> DX12Device::CreateCommandBuffer(const QueueType inQueueType)
     {
-        return { new DX12CommandBuffer(*this) };
+        Assert(queues.contains(inQueueType));
+        return { new DX12CommandBuffer(*this, inQueueType) };
     }
 
     Common::UniquePtr<Fence> DX12Device::CreateFence(const bool inInitAsSignaled)
@@ -362,7 +363,7 @@ namespace RHI::DirectX12 {
             for (auto& j : tempQueues) {
                 ComPtr<ID3D12CommandQueue> commandQueue;
                 Assert(SUCCEEDED(nativeDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue))));
-                j = Common::MakeUnique<DX12Queue>(std::move(commandQueue));
+                j = Common::MakeUnique<DX12Queue>(iter.first, std::move(commandQueue));
             }
 
             queues[iter.first] = std::move(tempQueues);

@@ -12,15 +12,16 @@
 #include <RHI/Vulkan/Gpu.h>
 
 namespace RHI::Vulkan {
-    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const VkQueue inNativeQueue)
-        : device(inDevice)
+    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const VkQueue inNativeQueue)
+        : Queue(inType)
+        , device(inDevice)
         , nativeQueue(inNativeQueue)
     {
     }
 
     VulkanQueue::~VulkanQueue() = default;
 
-    void VulkanQueue::Submit(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
+    void VulkanQueue::SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
     {
         const auto* commandBuffer = static_cast<VulkanCommandBuffer*>(inCmdBuffer);
         const auto* vkFence = static_cast<VulkanFence*>(inSubmitInfo.signalFence);

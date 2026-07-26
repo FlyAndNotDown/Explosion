@@ -15,9 +15,13 @@ namespace RHI {
         NonCopyable(CommandBuffer)
         virtual ~CommandBuffer();
 
+        QueueType GetQueueType() const;
         virtual Common::UniquePtr<CommandRecorder> Begin() = 0;
 
     protected:
-        CommandBuffer();
+        explicit CommandBuffer(QueueType inQueueType);
+
+    private:
+        QueueType queueType;
     };
 }

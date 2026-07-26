@@ -82,12 +82,16 @@ namespace RHI::DirectX12 {
         }
     }
 
-    DX12CommandBuffer::DX12CommandBuffer(DX12Device& inDevice)
-        : device(inDevice)
+    DX12CommandBuffer::DX12CommandBuffer(DX12Device& inDevice, const QueueType inQueueType)
+        : CommandBuffer(inQueueType)
+        , device(inDevice)
     {
-        CreateNativeCommandAllocator(inDevice);
-        CreateNativeCommandList(inDevice);
-        runtimeDescriptorHeaps = Common::MakeUnique<RuntimeDescriptorCompact>(inDevice);
+        const auto nativeType = EnumCast<QueueType, D3D12_COMMAND_LIST_TYPE>(inQueueType);
+        CreateNativeCommandAllocator(inDevice, nativeType);
+        CreateNativeCommandList(inDevice, nativeType);
+        if (inQueueType != QueueType::transfer) {
+            runtimeDescriptorHeaps = Common::MakeUnique<RuntimeDescriptorCompact>(inDevice);
+        }
     }
 
     DX12CommandBuffer::~DX12CommandBuffer() = default;
@@ -112,14 +116,14 @@ namespace RHI::DirectX12 {
         return runtimeDescriptorHeaps.Get();
     }
 
-    void DX12CommandBuffer::CreateNativeCommandAllocator(DX12Device& inDevice)
+    void DX12CommandBuffer::CreateNativeCommandAllocator(DX12Device& inDevice, const D3D12_COMMAND_LIST_TYPE inNativeType)
     {
-        Assert(SUCCEEDED(inDevice.GetNative()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&nativeCommandAllocator))));
+        Assert(SUCCEEDED(inDevice.GetNative()->CreateCommandAllocator(inNativeType, IID_PPV_ARGS(&nativeCommandAllocator))));
     }
 
-    void DX12CommandBuffer::CreateNativeCommandList(DX12Device& inDevice)
+    void DX12CommandBuffer::CreateNativeCommandList(DX12Device& inDevice, const D3D12_COMMAND_LIST_TYPE inNativeType)
     {
-        Assert(SUCCEEDED(inDevice.GetNative()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, nativeCommandAllocator.Get(), nullptr, IID_PPV_ARGS(&nativeGraphicsCommandList))));
+        Assert(SUCCEEDED(inDevice.GetNative()->CreateCommandList(0, inNativeType, nativeCommandAllocator.Get(), nullptr, IID_PPV_ARGS(&nativeGraphicsCommandList))));
         Assert(SUCCEEDED(nativeGraphicsCommandList->Close()));
     }
 }

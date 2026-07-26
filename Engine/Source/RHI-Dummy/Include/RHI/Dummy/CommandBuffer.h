@@ -10,7 +10,7 @@ namespace RHI::Dummy {
     class DummyCommandBuffer final : public CommandBuffer {
     public:
         NonCopyable(DummyCommandBuffer)
-        DummyCommandBuffer();
+        explicit DummyCommandBuffer(QueueType inQueueType);
 
         Common::UniquePtr<CommandRecorder> Begin() override;
     };

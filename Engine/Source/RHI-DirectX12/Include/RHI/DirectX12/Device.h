@@ -88,7 +88,7 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& inCreateInfo) override;
         Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& inCreateInfo) override;
         Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& inCreateInfo) override;
-        Common::UniquePtr<CommandBuffer> CreateCommandBuffer() override;
+        Common::UniquePtr<CommandBuffer> CreateCommandBuffer(QueueType inQueueType) override;
         Common::UniquePtr<Fence> CreateFence(bool inInitAsSignaled) override;
         Common::UniquePtr<Semaphore> CreateSemaphore() override;
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;

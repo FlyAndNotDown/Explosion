@@ -131,9 +131,10 @@ namespace RHI::Vulkan {
         return { new VulkanRasterPipeline(*this, inCreateInfo) };
     }
 
-    Common::UniquePtr<CommandBuffer> VulkanDevice::CreateCommandBuffer()
+    Common::UniquePtr<CommandBuffer> VulkanDevice::CreateCommandBuffer(const QueueType inQueueType)
     {
-        return { new VulkanCommandBuffer(*this, nativeCmdPools[QueueType::graphics]) };
+        Assert(nativeCmdPools.contains(inQueueType));
+        return { new VulkanCommandBuffer(*this, inQueueType, nativeCmdPools.at(inQueueType)) };
     }
 
     Common::UniquePtr<Fence> VulkanDevice::CreateFence(const bool initAsSignaled)
@@ -296,7 +297,7 @@ namespace RHI::Vulkan {
             for (auto i = 0; i < tempQueues.size(); i++) {
                 VkQueue queue;
                 vkGetDeviceQueue(nativeDevice, queueFamilyIndex, i, &queue);
-                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queue);
+                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queue);
             }
             queues[queueType] = std::move(tempQueues);
 

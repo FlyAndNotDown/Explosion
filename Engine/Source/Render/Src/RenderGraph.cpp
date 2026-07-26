@@ -600,7 +600,8 @@ namespace Render {
             semaphoreMap.reserve(queueNumInAsyncTimeline);
 
             for (const auto& [queueType, passes] : queuePasses) {
-                commandBufferMap.emplace(queueType, device.CreateCommandBuffer());
+                const auto [rhiQueueType, rhiQueueIndex] = Internal::GetRHIQueueTypeAndIndex(queueType);
+                commandBufferMap.emplace(queueType, device.CreateCommandBuffer(rhiQueueType));
                 semaphoreMap.emplace(queueType, isLastAsyncTimeline ? nullptr : device.CreateSemaphore());
 
                 auto& commandBufferToRecord = commandBufferMap.at(queueType);
@@ -626,7 +627,6 @@ namespace Render {
                     commandRecorder->End();
                 }
 
-                auto [rhiQueueType, rhiQueueIndex] = Internal::GetRHIQueueTypeAndIndex(queueType);
                 auto submitInfo = RHI::QueueSubmitInfo()
                     .SetWaitSemaphores(semaphoresToWait);
                 if (isLastAsyncTimeline) {

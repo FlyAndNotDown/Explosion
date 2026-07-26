@@ -90,7 +90,7 @@ namespace RHI::Vulkan {
             Assert(queue);
 
             const auto fence = device.CreateFence(false);
-            const auto commandBuffer = device.CreateCommandBuffer();
+            const auto commandBuffer = device.CreateCommandBuffer(QueueType::graphics);
             const auto commandRecorder = commandBuffer->Begin();
             commandRecorder->ResourceBarrier(Barrier::Transition(this, BufferState::undefined, inCreateInfo.initialState));
             commandRecorder->End();

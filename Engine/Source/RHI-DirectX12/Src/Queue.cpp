@@ -10,11 +10,15 @@
 #include <RHI/DirectX12/Synchronous.h>
 
 namespace RHI::DirectX12 {
-    DX12Queue::DX12Queue(ComPtr<ID3D12CommandQueue>&& inNativeCmdQueue) : Queue(), nativeCmdQueue(inNativeCmdQueue) {}
+    DX12Queue::DX12Queue(const QueueType inType, ComPtr<ID3D12CommandQueue>&& inNativeCmdQueue)
+        : Queue(inType)
+        , nativeCmdQueue(std::move(inNativeCmdQueue))
+    {
+    }
 
     DX12Queue::~DX12Queue() = default;
 
-    void DX12Queue::Submit(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
+    void DX12Queue::SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
     {
         const auto* commandBuffer = static_cast<DX12CommandBuffer*>(inCmdBuffer);
         Assert(commandBuffer);

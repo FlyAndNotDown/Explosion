@@ -82,7 +82,7 @@ namespace RHI {
         virtual Common::UniquePtr<PipelineCache> CreatePipelineCache(const PipelineCacheCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<ComputePipeline> CreateComputePipeline(const ComputePipelineCreateInfo& createInfo) = 0;
         virtual Common::UniquePtr<RasterPipeline> CreateRasterPipeline(const RasterPipelineCreateInfo& createInfo) = 0;
-        virtual Common::UniquePtr<CommandBuffer> CreateCommandBuffer() = 0;
+        virtual Common::UniquePtr<CommandBuffer> CreateCommandBuffer(QueueType queueType) = 0;
         virtual Common::UniquePtr<Fence> CreateFence(bool bInitAsSignaled) = 0;
         virtual Common::UniquePtr<Semaphore> CreateSemaphore() = 0;
         virtual Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) = 0;

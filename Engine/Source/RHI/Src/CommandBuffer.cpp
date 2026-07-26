@@ -5,7 +5,15 @@
 #include <RHI/CommandBuffer.h>
 
 namespace RHI {
-    CommandBuffer::CommandBuffer() = default;
+    CommandBuffer::CommandBuffer(const QueueType inQueueType)
+        : queueType(inQueueType)
+    {
+    }
 
     CommandBuffer::~CommandBuffer() = default;
+
+    QueueType CommandBuffer::GetQueueType() const
+    {
+        return queueType;
+    }
 }
