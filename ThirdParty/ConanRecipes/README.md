@@ -9,7 +9,7 @@ Here is a simple example:
 
 ```shell
 cd ThirdParty/ConanRecipes
-conan create qt/conanfile.py --version="6.10.1-exp"
+conan create clipp/conanfile.py --version="1.2.3-exp"
 ```
 
 For explosion engine developers, those commands may help to debug conan recipes:
@@ -17,13 +17,13 @@ For explosion engine developers, those commands may help to debug conan recipes:
 ```shell
 cd ThirdParty/ConanRecipes
 # source stage
-conan source qt/conanfile.py --version="6.10.1-exp"
+conan source clipp/conanfile.py --version="1.2.3-exp"
 # build stage
-conan build qt/conanfile.py --version="6.10.1-exp"
+conan build clipp/conanfile.py --version="1.2.3-exp"
 # export stage
-conan export-pkg qt/conanfile.py --version="6.10.1-exp"
+conan export-pkg clipp/conanfile.py --version="1.2.3-exp"
 # test stage
-conan test qt/test_package qt/6.10.1-exp
+conan test clipp/test_package clipp/1.2.3-exp
 ```
 
 To build every recipe at once, use the `build_recipes.py` helper. It walks each
