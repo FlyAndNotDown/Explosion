@@ -25,8 +25,8 @@ namespace Render::Internal {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::rwStorageTexture) {
                 outWrites.emplace(std::get<RGTextureViewRef>(view)->GetResource());
-            } else if (type == RHI::BindingType::sampler){
-                return;
+            } else if (type == RHI::BindingType::sampler) {
+                continue;
             } else {
                 Unimplement();
             }
@@ -563,6 +563,7 @@ namespace Render {
     {
         CompilePassReadWrites();
         PerformCull();
+        PerformSyncCheck();
         ComputeResourcesInitialState();
     }
 
@@ -706,6 +707,9 @@ namespace Render {
     {
         auto collectQueueReadWrites = [this](const std::vector<RGPassRef>& passes, std::unordered_set<RGResourceRef>& outReads, std::unordered_set<RGResourceRef>& outWrites) -> void {
             for (auto* pass : passes) {
+                if (culledPasses.contains(pass)) {
+                    continue;
+                }
                 Common::SetUtils::GetUnionInplace(outReads, passReadsMap.at(pass));
                 Common::SetUtils::GetUnionInplace(outWrites, passWritesMap.at(pass));
             }
