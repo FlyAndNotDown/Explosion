@@ -263,7 +263,7 @@ protected:
                     .AddColorAttachment(RGColorAttachment(gBufferPosRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
                     .AddColorAttachment(RGColorAttachment(gBufferNormalRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
                     .AddColorAttachment(RGColorAttachment(gBufferAlbedoRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
-                    .SetDepthStencilAttachment(RGDepthStencilAttachment(gBufferDepthView, true, LoadOp::clear, StoreOp::store, 0.0f)),
+                    .SetDepthStencilAttachment(RGDepthStencilAttachment(gBufferDepthView, false, LoadOp::clear, StoreOp::store, 0.0f)),
                 gGroups,
                 [gBufferPipeline, vBufferView, iBufferView, gGroups, this](const RGBuilder& rg, RasterPassCommandRecorder& recorder) -> void {
                     recorder.SetPipeline(gBufferPipeline->GetRHI());

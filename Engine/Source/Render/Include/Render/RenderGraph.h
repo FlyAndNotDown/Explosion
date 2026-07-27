@@ -384,6 +384,7 @@ namespace Render {
         void ExecuteInternal(const RGExecuteInfo& inExecuteInfo);
 
         void CompilePassReadWrites();
+        void CompileResourceUseCounts();
         void PerformSyncCheck() const;
         void PerformCull();
         // TODO resource states check inside pass (e.g. read/write a resource within a pass)
@@ -398,7 +399,7 @@ namespace Render {
         void DevirtualizeResources(const std::unordered_set<RGResourceRef>& inResources);
         void DevirtualizeBindGroupsAndViews(const std::vector<RGBindGroupRef>& inBindGroups);
         void DevirtualizeAttachmentViews(const RGRasterPassDesc& inDesc);
-        void FinalizePassResources(const std::unordered_set<RGResourceRef>& inResources);
+        void FinalizePassResources(RGPassRef inPass);
         void FinalizePassBindGroups(const std::vector<RGBindGroupRef>& inBindGroups);
         void TransitionResourcesForCopyPassDesc(RHI::CommonCommandRecorder& inRecoder, const RGCopyPassDesc& inDesc);
         void TransitionResourcesForRasterPassDesc(RHI::CommonCommandRecorder& inRecoder, const RGRasterPassDesc& inDesc);
@@ -417,7 +418,7 @@ namespace Render {
         std::unordered_map<RGBufferRef, std::vector<RGBufferUploadInfo>> bufferUploads;
 
         // execute context
-        std::unordered_map<RGResourceRef, uint32_t> resourceReadCounts;
+        std::unordered_map<RGResourceRef, uint32_t> resourceUseCounts;
         std::unordered_map<RGPassRef, std::unordered_set<RGResourceRef>> passReadsMap;
         std::unordered_map<RGPassRef, std::unordered_set<RGResourceRef>> passWritesMap;
         std::unordered_set<RGResourceRef> culledResources;

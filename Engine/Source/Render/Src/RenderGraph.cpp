@@ -31,13 +31,17 @@ namespace Render::Internal {
             } else if (type == RHI::BindingType::storageBuffer) {
                 outReads.emplace(std::get<RGBufferViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::rwStorageBuffer) {
-                outWrites.emplace(std::get<RGBufferViewRef>(view)->GetResource());
+                auto* resource = std::get<RGBufferViewRef>(view)->GetResource();
+                outReads.emplace(resource);
+                outWrites.emplace(resource);
             } else if (type == RHI::BindingType::texture) {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::storageTexture) {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::rwStorageTexture) {
-                outWrites.emplace(std::get<RGTextureViewRef>(view)->GetResource());
+                auto* resource = std::get<RGTextureViewRef>(view)->GetResource();
+                outReads.emplace(resource);
+                outWrites.emplace(resource);
             } else if (type == RHI::BindingType::sampler) {
                 continue;
             } else {
@@ -587,6 +591,7 @@ namespace Render {
     {
         CompilePassReadWrites();
         PerformCull();
+        CompileResourceUseCounts();
         PerformSyncCheck();
         ComputeResourcesInitialState();
     }
@@ -707,22 +712,54 @@ namespace Render {
 
                 const auto& [colorAttachments, depthStencilAttachment] = rasterPass->passDesc;
                 if (depthStencilAttachment.has_value()) {
-                    passWrites.emplace(depthStencilAttachment.value().view->GetResource());
+                    const auto& attachment = depthStencilAttachment.value();
+                    const auto aspect = attachment.view->GetDesc().aspect;
+                    const bool hasDepth = aspect == RHI::TextureAspect::depth || aspect == RHI::TextureAspect::depthStencil;
+                    const bool hasStencil = aspect == RHI::TextureAspect::stencil || aspect == RHI::TextureAspect::depthStencil;
+                    auto* resource = attachment.view->GetResource();
+
+                    if ((hasDepth && (attachment.depthReadOnly || attachment.depthLoadOp == RHI::LoadOp::load))
+                        || (hasStencil && (attachment.stencilReadOnly || attachment.stencilLoadOp == RHI::LoadOp::load))) {
+                        passReads.emplace(resource);
+                    }
+                    if ((hasDepth && !attachment.depthReadOnly) || (hasStencil && !attachment.stencilReadOnly)) {
+                        passWrites.emplace(resource);
+                    }
                 }
                 for (const auto& colorAttachment : colorAttachments) {
-                    passWrites.emplace(colorAttachment.view->GetResource());
+                    auto* resource = colorAttachment.view->GetResource();
+                    if (colorAttachment.loadOp == RHI::LoadOp::load) {
+                        passReads.emplace(resource);
+                    }
+                    passWrites.emplace(resource);
                 }
             } else {
                 Unimplement();
             }
         }
+    }
 
+    void RGBuilder::CompileResourceUseCounts()
+    {
         for (const auto& resource : resources) {
-            resourceReadCounts[resource.Get()] = resource->forceUsed || resource->imported ? 1 : 0;
+            auto* resourceRef = resource.Get();
+            resourceUseCounts[resourceRef] = resourceRef->forceUsed || resourceRef->imported ? 1 : 0;
         }
+
         for (const auto& pass : passes) {
-            for (auto* read : passReadsMap.at(pass.Get())) {
-                resourceReadCounts[read]++;
+            auto* passRef = pass.Get();
+            if (culledPasses.contains(passRef)) {
+                continue;
+            }
+
+            const auto& reads = passReadsMap.at(passRef);
+            for (auto* resource : reads) {
+                resourceUseCounts.at(resource)++;
+            }
+            for (auto* resource : passWritesMap.at(passRef)) {
+                if (!reads.contains(resource)) {
+                    resourceUseCounts.at(resource)++;
+                }
             }
         }
     }
@@ -770,37 +807,53 @@ namespace Render {
 
     void RGBuilder::PerformCull()
     {
-        // initial cull
+        std::unordered_set<RGResourceRef> requiredResources;
         for (const auto& resource : resources) {
-            if (auto* resourceRef = resource.Get();
-                resourceReadCounts.at(resourceRef) == 0) {
-                culledResources.emplace(resourceRef);
+            auto* resourceRef = resource.Get();
+            culledResources.emplace(resourceRef);
+            if (resourceRef->forceUsed || resourceRef->imported) {
+                requiredResources.emplace(resourceRef);
             }
         }
 
-        // iterative cull
         for (auto riter = passes.rbegin(); riter != passes.rend(); ++riter) {
-            const auto& pass = riter->Get();
+            auto* pass = riter->Get();
             const auto& passWrites = passWritesMap.at(pass);
 
-            bool allWritesCulled = true;
+            bool hasRequiredWrite = false;
             for (auto* write : passWrites) {
-                if (!culledResources.contains(write)) {
-                    allWritesCulled = false;
+                if (requiredResources.contains(write)) {
+                    hasRequiredWrite = true;
                     break;
                 }
             }
 
-            if (!allWritesCulled) {
+            if (!hasRequiredWrite) {
+                culledPasses.emplace(pass);
                 continue;
             }
-            culledPasses.emplace(pass);
-            for (const auto& passReads = passReadsMap.at(pass);
-                auto* read : passReads) {
-                if (auto& readCount = resourceReadCounts.at(read);
-                    --readCount == 0) {
-                    culledResources.emplace(read);
-                }
+
+            for (auto* read : passReadsMap.at(pass)) {
+                requiredResources.emplace(read);
+            }
+        }
+
+        for (const auto& resource : resources) {
+            auto* resourceRef = resource.Get();
+            if (resourceRef->forceUsed || resourceRef->imported) {
+                culledResources.erase(resourceRef);
+            }
+        }
+        for (const auto& pass : passes) {
+            auto* passRef = pass.Get();
+            if (culledPasses.contains(passRef)) {
+                continue;
+            }
+            for (auto* read : passReadsMap.at(passRef)) {
+                culledResources.erase(read);
+            }
+            for (auto* write : passWritesMap.at(passRef)) {
+                culledResources.erase(write);
             }
         }
     }
@@ -841,7 +894,7 @@ namespace Render {
                 inCopyPass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inCopyPass));
+        FinalizePassResources(inCopyPass);
     }
 
     void RGBuilder::ExecuteComputePass(RHI::CommandRecorder& inRecoder, RGComputePass* inComputePass)
@@ -863,7 +916,7 @@ namespace Render {
                 inComputePass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inComputePass));
+        FinalizePassResources(inComputePass);
         FinalizePassBindGroups(inComputePass->bindGroups);
     }
 
@@ -888,7 +941,7 @@ namespace Render {
                 inRasterPass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inRasterPass));
+        FinalizePassResources(inRasterPass);
         FinalizePassBindGroups(inRasterPass->bindGroups);
     }
 
@@ -1029,11 +1082,11 @@ namespace Render {
         }
     }
 
-    void RGBuilder::FinalizePassResources(const std::unordered_set<RGResourceRef>& inResources)
+    void RGBuilder::FinalizePassResources(RGPassRef inPass)
     {
-        for (auto* resource : inResources) {
-            if (auto& readCount = resourceReadCounts.at(resource);
-                --readCount == 0) {
+        const auto finalizeResource = [this](RGResourceRef resource) -> void {
+            if (auto& useCount = resourceUseCounts.at(resource);
+                --useCount == 0) {
                 if (resource->type == RGResType::buffer) {
                     ResourceViewCache::Get(device).Invalidate(std::get<PooledBufferRef>(devirtualizedResources.at(resource))->GetRHI());
                 } else if (resource->type == RGResType::texture) {
@@ -1042,6 +1095,16 @@ namespace Render {
                     Unimplement();
                 }
                 devirtualizedResources.erase(resource);
+            }
+        };
+
+        const auto& reads = passReadsMap.at(inPass);
+        for (auto* resource : reads) {
+            finalizeResource(resource);
+        }
+        for (auto* resource : passWritesMap.at(inPass)) {
+            if (!reads.contains(resource)) {
+                finalizeResource(resource);
             }
         }
     }

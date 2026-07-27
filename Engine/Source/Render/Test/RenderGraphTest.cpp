@@ -60,4 +60,123 @@ namespace Render {
         ASSERT_EQ(std::memcmp(uploadedData, expected.data(), expected.size()), 0);
         builder.GetRHI(buffer)->Unmap();
     }
+
+    TEST_F(RenderGraphTest, KeepsAllResourcesRequiredByLivePass)
+    {
+        RGBuilder builder(*device);
+        auto* retainedBuffer = builder.CreateBuffer(RGBufferDesc(4, RHI::BufferUsageBits::copyDst, RHI::BufferState::copyDst));
+        auto* siblingBuffer = builder.CreateBuffer(RGBufferDesc(4, RHI::BufferUsageBits::copyDst, RHI::BufferState::copyDst));
+        retainedBuffer->MaskAsUsed();
+
+        bool executed = false;
+        RGCopyPassDesc passDesc;
+        passDesc.copyDsts = { retainedBuffer, siblingBuffer };
+        builder.AddCopyPass(
+            "KeepAllResources",
+            passDesc,
+            [&executed, siblingBuffer](const RGBuilder& rg, RHI::CopyPassCommandRecorder&) -> void {
+                ASSERT_NE(rg.GetRHI(siblingBuffer), nullptr);
+                executed = true;
+            });
+
+        builder.Execute({});
+
+        ASSERT_TRUE(executed);
+    }
+
+    TEST_F(RenderGraphTest, DoesNotKeepPassAliveThroughItsOwnLoad)
+    {
+        RGBuilder builder(*device);
+        auto* texture = builder.CreateTexture(
+            RGTextureDesc()
+                .SetDimension(RHI::TextureDimension::t2D)
+                .SetWidth(4)
+                .SetHeight(4)
+                .SetDepthOrArraySize(1)
+                .SetFormat(RHI::PixelFormat::rgba8Unorm)
+                .SetUsages(RHI::TextureUsageBits::renderAttachment)
+                .SetMipLevels(1)
+                .SetSamples(1)
+                .SetInitialState(RHI::TextureState::renderTarget));
+        auto* view = builder.CreateTextureView(
+            texture,
+            RGTextureViewDesc(RHI::TextureViewType::colorAttachment, RHI::TextureViewDimension::tv2D));
+
+        bool executed = false;
+        builder.AddRasterPass(
+            "DeadLoad",
+            RGRasterPassDesc().AddColorAttachment(RGColorAttachment(view, RHI::LoadOp::load, RHI::StoreOp::store)),
+            {},
+            [&executed](const RGBuilder&, RHI::RasterPassCommandRecorder&) -> void {
+                executed = true;
+            });
+
+        builder.Execute({});
+
+        ASSERT_FALSE(executed);
+        ASSERT_EQ(TexturePool::Get(*device).Size(), 0);
+    }
+
+    TEST_F(RenderGraphTest, InfersReadOnlyDepthDependency)
+    {
+        RGBuilder builder(*device);
+        auto* depthTexture = builder.CreateTexture(
+            RGTextureDesc()
+                .SetDimension(RHI::TextureDimension::t2D)
+                .SetWidth(4)
+                .SetHeight(4)
+                .SetDepthOrArraySize(1)
+                .SetFormat(RHI::PixelFormat::d32Float)
+                .SetUsages(RHI::TextureUsageBits::copyDst | RHI::TextureUsageBits::depthStencilAttachment)
+                .SetMipLevels(1)
+                .SetSamples(1)
+                .SetInitialState(RHI::TextureState::copyDst));
+        auto* depthView = builder.CreateTextureView(
+            depthTexture,
+            RGTextureViewDesc(
+                RHI::TextureViewType::depthStencil,
+                RHI::TextureViewDimension::tv2D,
+                RHI::TextureAspect::depth));
+        auto* colorTexture = builder.CreateTexture(
+            RGTextureDesc()
+                .SetDimension(RHI::TextureDimension::t2D)
+                .SetWidth(4)
+                .SetHeight(4)
+                .SetDepthOrArraySize(1)
+                .SetFormat(RHI::PixelFormat::rgba8Unorm)
+                .SetUsages(RHI::TextureUsageBits::renderAttachment)
+                .SetMipLevels(1)
+                .SetSamples(1)
+                .SetInitialState(RHI::TextureState::renderTarget));
+        auto* colorView = builder.CreateTextureView(
+            colorTexture,
+            RGTextureViewDesc(RHI::TextureViewType::colorAttachment, RHI::TextureViewDimension::tv2D));
+        colorTexture->MaskAsUsed();
+
+        bool producerExecuted = false;
+        RGCopyPassDesc producerDesc;
+        producerDesc.copyDsts = { depthTexture };
+        builder.AddCopyPass(
+            "DepthProducer",
+            producerDesc,
+            [&producerExecuted](const RGBuilder&, RHI::CopyPassCommandRecorder&) -> void {
+                producerExecuted = true;
+            });
+
+        bool consumerExecuted = false;
+        builder.AddRasterPass(
+            "DepthConsumer",
+            RGRasterPassDesc()
+                .AddColorAttachment(RGColorAttachment(colorView, RHI::LoadOp::clear, RHI::StoreOp::store))
+                .SetDepthStencilAttachment(RGDepthStencilAttachment(depthView, true, RHI::LoadOp::load, RHI::StoreOp::discard)),
+            {},
+            [&consumerExecuted](const RGBuilder&, RHI::RasterPassCommandRecorder&) -> void {
+                consumerExecuted = true;
+            });
+
+        builder.Execute({});
+
+        ASSERT_TRUE(producerExecuted);
+        ASSERT_TRUE(consumerExecuted);
+    }
 }
