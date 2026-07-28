@@ -125,44 +125,6 @@ BENCHMARK(Mat4InverseUncheckedThroughput<MathBackend::scalar>);
 BENCHMARK(Mat4InverseUncheckedThroughput<MathBackend::simd>);
 
 template <MathBackend B>
-static void Mat3MulThroughput(benchmark::State& state)
-{
-    const auto a = MakeRandomMat3s<B>(batchSize);
-    const auto b = MakeRandomMat3s<B>(batchSize);
-    std::vector<Mat<float, 3, 3, B>> output(batchSize);
-    for (auto _ : state) {
-        MATH_BENCHMARK_NO_AUTO_VECTORIZE
-        for (int i = 0; i < batchSize; i++) {
-            output[i] = a[i] * b[i];
-        }
-        benchmark::DoNotOptimize(output.data());
-        benchmark::ClobberMemory();
-    }
-    state.SetItemsProcessed(state.iterations() * batchSize);
-}
-BENCHMARK(Mat3MulThroughput<MathBackend::scalar>);
-BENCHMARK(Mat3MulThroughput<MathBackend::simd>);
-
-template <MathBackend B>
-static void Mat3MulVecThroughput(benchmark::State& state)
-{
-    const auto matrices = MakeRandomMat3s<B>(batchSize);
-    const auto vectors = MakeRandomVec3s<B>(batchSize);
-    std::vector<Vec<float, 3, B>> output(batchSize);
-    for (auto _ : state) {
-        MATH_BENCHMARK_NO_AUTO_VECTORIZE
-        for (int i = 0; i < batchSize; i++) {
-            output[i] = matrices[i] * vectors[i];
-        }
-        benchmark::DoNotOptimize(output.data());
-        benchmark::ClobberMemory();
-    }
-    state.SetItemsProcessed(state.iterations() * batchSize);
-}
-BENCHMARK(Mat3MulVecThroughput<MathBackend::scalar>);
-BENCHMARK(Mat3MulVecThroughput<MathBackend::simd>);
-
-template <MathBackend B>
 static void VecNormalizeThroughput(benchmark::State& state)
 {
     const auto input = MakeRandomVecs<B>(batchSize);

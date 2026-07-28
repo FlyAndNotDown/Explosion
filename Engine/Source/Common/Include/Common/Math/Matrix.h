@@ -793,86 +793,6 @@ namespace Common::Internal {
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
     };
 
-    // Row-major 3x3 float matrix, backed by a tight float[9] (no padding, so the layout stays GPU/serialization
-    // friendly). The first eight elements are covered by two safe 128-bit loads (data[0..3], data[4..7]) with data[8]
-    // handled by a scalar tail; matrix-product rows and the transpose use Load3/Store3 to avoid over-running the
-    // float[9] on the last row. The 4th lane is always discarded on store, so the garbage it may carry is harmless.
-    template <>
-    struct MatOps<float, 3, 3, MathBackend::simd> {
-        using M = Mat<float, 3, 3, MathBackend::simd>;
-        using V = Vec<float, 3, MathBackend::simd>;
-
-        // MapBinary/MapScalar<9> cover data[0..7] with two safe 128-bit loads (the second, at index 4, reads data[4..7])
-        // and finish data[8] in the scalar tail, so the float[9] is never over-run.
-        static M Add(const M& a, const M& b) { M r; Simd::MapBinary<9>(r.data, a.data, b.data, Simd::AddOp {}); return r; }
-        static M Sub(const M& a, const M& b) { M r; Simd::MapBinary<9>(r.data, a.data, b.data, Simd::SubOp {}); return r; }
-
-        static M AddScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::AddOp {}); return r; }
-        static M SubScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::SubOp {}); return r; }
-        static M MulScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::MulOp {}); return r; }
-        static M DivScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::DivOp {}); return r; }
-
-        // C_row_i = A[i][0]*B_row0 + A[i][1]*B_row1 + A[i][2]*B_row2. B_row0/B_row1 come from safe full loads (their 4th
-        // lane is the next row's first element, unused); B_row2 uses Load3 to stay in bounds.
-        static M Mul(const M& a, const M& b)
-        {
-            const Simd::F32x4 bRow0 = Simd::LoadU(&b.data[0]);
-            const Simd::F32x4 bRow1 = Simd::LoadU(&b.data[3]);
-            const Simd::F32x4 bRow2 = Simd::Load3(&b.data[6]);
-
-            M result;
-            for (auto i = 0; i < 3; i++) {
-                const Simd::F32x4 row = Simd::Add(
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 3 + 0]), bRow0),
-                        Simd::Mul(Simd::Set1(a.data[i * 3 + 1]), bRow1)),
-                    Simd::Mul(Simd::Set1(a.data[i * 3 + 2]), bRow2));
-                Simd::Store3(&result.data[i * 3], row);
-            }
-            return result;
-        }
-
-        // result[i] = dot(row_i, v). v is loaded with Load3 so its 4th lane is 0, which zeroes the unused 4th lane the
-        // full row loads carry, leaving the 4-wide horizontal sum equal to the 3-component dot.
-        static V MulVec(const M& m, const V& v)
-        {
-            const Simd::F32x4 vv = Simd::Load3(v.data);
-            V result;
-            result.data[0] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[0]), vv));
-            result.data[1] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[3]), vv));
-            result.data[2] = Simd::Sum(Simd::Mul(Simd::Load3(&m.data[6]), vv));
-            return result;
-        }
-
-        // 3x3 transpose via the 4x4 primitive with a zero 4th row: the garbage in the loaded rows' 4th lanes only lands
-        // in the discarded 4th output row, so the three Store3'd rows are the exact transpose.
-        static M Transpose(const M& m)
-        {
-            Simd::F32x4 r0 = Simd::LoadU(&m.data[0]);
-            Simd::F32x4 r1 = Simd::LoadU(&m.data[3]);
-            Simd::F32x4 r2 = Simd::Load3(&m.data[6]);
-            Simd::F32x4 r3 = Simd::Set1(0.0f);
-            Simd::Transpose4(r0, r1, r2, r3);
-
-            M result;
-            Simd::Store3(&result.data[0], r0);
-            Simd::Store3(&result.data[3], r1);
-            Simd::Store3(&result.data[6], r2);
-            return result;
-        }
-
-        static bool TryInverse(const M& m, M& outResult, float tolerance)
-        {
-            const float determinant = MatDeterminantScalar(m);
-            if (!MatDeterminantIsInvertible(m, determinant, tolerance)) {
-                return false;
-            }
-            outResult = MatInverseScalar(m, determinant);
-            return true;
-        }
-        static M InverseUnchecked(const M& m) { return MatInverseScalar(m, MatDeterminantScalar(m)); }
-        static float Determinant(const M& m) { return MatDeterminantScalar(m); }
-    };
 }
 
 namespace Common {
@@ -1069,8 +989,6 @@ namespace Common {
     {
         if constexpr (B == MathBackend::simd && std::is_same_v<T, float> && R == 4 && C == 4 && IC == 4) {
             return Internal::MatOps<float, 4, 4, MathBackend::simd>::Mul(*this, rhs);
-        } else if constexpr (B == MathBackend::simd && std::is_same_v<T, float> && R == 3 && C == 3 && IC == 3) {
-            return Internal::MatOps<float, 3, 3, MathBackend::simd>::Mul(*this, rhs);
         } else {
             // Row-linear-combination order (ikj): each result row is sum_k A[i][k] * B_row_k. Unlike the textbook
             // Row(i).Dot(Col(j)) form it builds no temporary vectors and does not gather B's columns with a stride. The

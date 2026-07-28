@@ -159,20 +159,6 @@ namespace Common::Simd {
     }
 #endif
 
-    // Safe partial load/store for tight 3-float storage (a Vec3, or one row of a Mat3). Load3 reads exactly three
-    // floats and zeroes the 4th lane, so it never over-reads the float[3] / float[9] backing; the zeroed lane also lets
-    // a 4-wide dot reduce to the 3-component dot. Store3 writes exactly three floats and leaves the 4th element alone.
-    inline F32x4 Load3(const float* p) { return Set(p[0], p[1], p[2], 0.0f); }
-
-    inline void Store3(float* p, F32x4 v)
-    {
-        alignas(16) float tmp[4];
-        StoreU(tmp, v);
-        p[0] = tmp[0];
-        p[1] = tmp[1];
-        p[2] = tmp[2];
-    }
-
     // Element-wise binary ops as functors so a single Map* template can drive every Vec/Mat/Quaternion kernel. Each
     // carries both a 4-wide register overload (the SIMD body) and a scalar overload (the <4 tail), so the same functor
     // covers the full chunks and the remainder without the caller spelling out two lambdas.

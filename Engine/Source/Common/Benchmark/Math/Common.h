@@ -33,17 +33,6 @@ namespace Common::MathBenchmark {
     }
 
     template <MathBackend B>
-    static std::vector<Vec<float, 3, B>> MakeRandomVec3s(const size_t count)
-    {
-        const auto raw = MakeRandomFloats(count * 3);
-        std::vector<Vec<float, 3, B>> result(count);
-        for (size_t i = 0; i < count; i++) {
-            result[i] = Vec<float, 3, B>(raw[i * 3 + 0], raw[i * 3 + 1], raw[i * 3 + 2]);
-        }
-        return result;
-    }
-
-    template <MathBackend B>
     static std::vector<Mat<float, 4, 4, B>> MakeRandomMats(const size_t count)
     {
         const auto raw = MakeRandomFloats(count * 16);
@@ -55,21 +44,6 @@ namespace Common::MathBenchmark {
                 p[4], p[5], p[6], p[7],
                 p[8], p[9], p[10], p[11],
                 p[12], p[13], p[14], p[15]);
-        }
-        return result;
-    }
-
-    template <MathBackend B>
-    static std::vector<Mat<float, 3, 3, B>> MakeRandomMat3s(const size_t count)
-    {
-        const auto raw = MakeRandomFloats(count * 9);
-        std::vector<Mat<float, 3, 3, B>> result(count);
-        for (size_t i = 0; i < count; i++) {
-            const float* p = &raw[i * 9];
-            result[i] = Mat<float, 3, 3, B>(
-                p[0], p[1], p[2],
-                p[3], p[4], p[5],
-                p[6], p[7], p[8]);
         }
         return result;
     }

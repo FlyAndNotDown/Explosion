@@ -16,14 +16,6 @@ namespace {
             2.0f, 3.0f, 4.0f, 1.0f);
     }
 
-    template <MathBackend B>
-    Mat<float, 3, 3, B> MakeStableMat3()
-    {
-        return Mat<float, 3, 3, B>(
-            0.0f, -1.0f, 0.0f,
-            1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f);
-    }
 }
 
 // Each iteration consumes the previous iteration's result. This prevents cross-object vectorization and measures the
@@ -110,36 +102,6 @@ static void Mat4InverseUncheckedLatency(benchmark::State& state)
 }
 BENCHMARK(Mat4InverseUncheckedLatency<MathBackend::scalar>);
 BENCHMARK(Mat4InverseUncheckedLatency<MathBackend::simd>);
-
-template <MathBackend B>
-static void Mat3MulLatency(benchmark::State& state)
-{
-    auto value = MakeStableMat3<B>();
-    auto rhs = MakeStableMat3<B>();
-    benchmark::DoNotOptimize(value);
-    benchmark::DoNotOptimize(rhs);
-    for (auto _ : state) {
-        value = value * rhs;
-    }
-    benchmark::DoNotOptimize(value);
-}
-BENCHMARK(Mat3MulLatency<MathBackend::scalar>);
-BENCHMARK(Mat3MulLatency<MathBackend::simd>);
-
-template <MathBackend B>
-static void Mat3MulVecLatency(benchmark::State& state)
-{
-    auto matrix = MakeStableMat3<B>();
-    auto value = MakeRandomVec3s<B>(1)[0];
-    benchmark::DoNotOptimize(matrix);
-    benchmark::DoNotOptimize(value);
-    for (auto _ : state) {
-        value = matrix * value;
-    }
-    benchmark::DoNotOptimize(value);
-}
-BENCHMARK(Mat3MulVecLatency<MathBackend::scalar>);
-BENCHMARK(Mat3MulVecLatency<MathBackend::simd>);
 
 template <MathBackend B>
 static void VecNormalizeLatency(benchmark::State& state)
