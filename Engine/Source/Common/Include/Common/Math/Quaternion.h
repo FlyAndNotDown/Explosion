@@ -214,25 +214,23 @@ namespace Common::Internal {
         static Q DivScalar(const Q& a, float b) { Q r; Simd::MapScalar<4>(&r.x, &a.x, b, Simd::DivOp {}); return r; }
 
         // Hamilton product, with both quaternions loaded as (x, y, z, w). Each row of the product is one component of
-        // a broadcast against a sign-flipped permutation of b, summed across the four components of a:
+        // a lane multiply against a sign-flipped permutation of b, summed as two independent pairs:
         //   result = aw*(bx,by,bz,bw) + ax*(bw,-bz,by,-bx) + ay*(bz,bw,-bx,-by) + az*(-by,bx,bw,-bz)
-        // The accumulation order matches the scalar reference above, so both backends produce identical results.
         static Q Mul(const Q& a, const Q& b)
         {
             const Simd::F32x4 av = Simd::LoadU(&a.x);
             const Simd::F32x4 bv = Simd::LoadU(&b.x);
 
-            const Simd::F32x4 sign0 = Simd::Set(1.0f, -1.0f, 1.0f, -1.0f);
-            const Simd::F32x4 sign1 = Simd::Set(1.0f, 1.0f, -1.0f, -1.0f);
-            const Simd::F32x4 sign2 = Simd::Set(-1.0f, 1.0f, 1.0f, -1.0f);
+            const Simd::F32x4 term1 = Simd::FlipSigns<false, true, false, true>(Simd::Shuffle<3, 2, 1, 0>(bv));
+            const Simd::F32x4 term2 = Simd::FlipSigns<false, false, true, true>(Simd::Shuffle<2, 3, 0, 1>(bv));
+            const Simd::F32x4 term3 = Simd::FlipSigns<true, false, false, true>(Simd::Shuffle<1, 0, 3, 2>(bv));
 
-            Simd::F32x4 acc = Simd::Mul(Simd::Splat<3>(av), bv);
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<0>(av), Simd::Mul(Simd::Shuffle<3, 2, 1, 0>(bv), sign0)));
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<1>(av), Simd::Mul(Simd::Shuffle<2, 3, 0, 1>(bv), sign1)));
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<2>(av), Simd::Mul(Simd::Shuffle<1, 0, 3, 2>(bv), sign2)));
+            const Simd::F32x4 pair01 = Simd::MulAddLane<0>(Simd::MulLane<3>(bv, av), term1, av);
+            const Simd::F32x4 pair23 = Simd::MulAddLane<2>(Simd::MulLane<1>(term2, av), term3, av);
+            const Simd::F32x4 resultValue = Simd::Add(pair01, pair23);
 
             Q result;
-            Simd::StoreU(&result.x, acc);
+            Simd::StoreU(&result.x, resultValue);
             return result;
         }
 

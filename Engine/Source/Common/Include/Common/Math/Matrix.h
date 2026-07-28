@@ -671,13 +671,10 @@ namespace Common::Internal {
 
             M result;
             for (auto i = 0; i < 4; i++) {
-                const Simd::F32x4 row = Simd::Add(
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 0]), bRow0),
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 1]), bRow1)),
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 2]), bRow2),
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 3]), bRow3)));
+                const Simd::F32x4 aRow = Simd::LoadU(&a.data[i * 4]);
+                const Simd::F32x4 pair01 = Simd::MulAddLane<1>(Simd::MulLane<0>(bRow0, aRow), bRow1, aRow);
+                const Simd::F32x4 pair23 = Simd::MulAddLane<3>(Simd::MulLane<2>(bRow2, aRow), bRow3, aRow);
+                const Simd::F32x4 row = Simd::Add(pair01, pair23);
                 Simd::StoreU(&result.data[i * 4], row);
             }
             return result;
@@ -689,11 +686,13 @@ namespace Common::Internal {
         static V MulVec(const M& m, const V& v)
         {
             const Simd::F32x4 vv = Simd::LoadU(v.data);
+            const Simd::F32x4 row0 = Simd::Mul(Simd::LoadU(&m.data[0]), vv);
+            const Simd::F32x4 row1 = Simd::Mul(Simd::LoadU(&m.data[4]), vv);
+            const Simd::F32x4 row2 = Simd::Mul(Simd::LoadU(&m.data[8]), vv);
+            const Simd::F32x4 row3 = Simd::Mul(Simd::LoadU(&m.data[12]), vv);
+
             V result;
-            result.data[0] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[0]), vv));
-            result.data[1] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[4]), vv));
-            result.data[2] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[8]), vv));
-            result.data[3] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[12]), vv));
+            Simd::StoreU(result.data, Simd::Sum4(row0, row1, row2, row3));
             return result;
         }
 
@@ -739,9 +738,8 @@ namespace Common::Internal {
             const Simd::F32x4 r3 = Simd::LoadU(&m.data[12]);
 
             const auto makeFac = [](const Simd::F32x4 p, const Simd::F32x4 q) {
-                return Simd::Sub(
-                    Simd::Mul(Simd::Shuffle<2, 2, 1, 1>(p), Simd::Shuffle<3, 3, 3, 2>(q)),
-                    Simd::Mul(Simd::Shuffle<3, 3, 3, 2>(p), Simd::Shuffle<2, 2, 1, 1>(q)));
+                const Simd::F32x4 lhs = Simd::Mul(Simd::Shuffle<2, 2, 1, 1>(p), Simd::Shuffle<3, 3, 3, 2>(q));
+                return Simd::MulSub(lhs, Simd::Shuffle<3, 3, 3, 2>(p), Simd::Shuffle<2, 2, 1, 1>(q));
             };
 
             const Simd::F32x4 fac0 = makeFac(r2, r3);
@@ -756,18 +754,17 @@ namespace Common::Internal {
             const Simd::F32x4 vec2 = Simd::Shuffle<1, 0, 0, 0>(r2);
             const Simd::F32x4 vec3 = Simd::Shuffle<1, 0, 0, 0>(r3);
 
-            const Simd::F32x4 inv0 = Simd::Add(Simd::Sub(Simd::Mul(vec1, fac0), Simd::Mul(vec2, fac1)), Simd::Mul(vec3, fac2));
-            const Simd::F32x4 inv1 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac0), Simd::Mul(vec2, fac3)), Simd::Mul(vec3, fac4));
-            const Simd::F32x4 inv2 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac1), Simd::Mul(vec1, fac3)), Simd::Mul(vec3, fac5));
-            const Simd::F32x4 inv3 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac2), Simd::Mul(vec1, fac4)), Simd::Mul(vec2, fac5));
+            const auto makeInv = [](const Simd::F32x4 a, const Simd::F32x4 b, const Simd::F32x4 c, const Simd::F32x4 facA, const Simd::F32x4 facB, const Simd::F32x4 facC) { return Simd::MulAdd(Simd::MulSub(Simd::Mul(a, facA), b, facB), c, facC); };
 
-            const Simd::F32x4 signA = Simd::Set(1.0f, -1.0f, 1.0f, -1.0f);
-            const Simd::F32x4 signB = Simd::Set(-1.0f, 1.0f, -1.0f, 1.0f);
+            const Simd::F32x4 inv0 = makeInv(vec1, vec2, vec3, fac0, fac1, fac2);
+            const Simd::F32x4 inv1 = makeInv(vec0, vec2, vec3, fac0, fac3, fac4);
+            const Simd::F32x4 inv2 = makeInv(vec0, vec1, vec3, fac1, fac3, fac5);
+            const Simd::F32x4 inv3 = makeInv(vec0, vec1, vec2, fac2, fac4, fac5);
 
-            Simd::F32x4 col0 = Simd::Mul(inv0, signA);
-            Simd::F32x4 col1 = Simd::Mul(inv1, signB);
-            Simd::F32x4 col2 = Simd::Mul(inv2, signA);
-            Simd::F32x4 col3 = Simd::Mul(inv3, signB);
+            Simd::F32x4 col0 = Simd::FlipSigns<false, true, false, true>(inv0);
+            Simd::F32x4 col1 = Simd::FlipSigns<true, false, true, false>(inv1);
+            Simd::F32x4 col2 = Simd::FlipSigns<false, true, false, true>(inv2);
+            Simd::F32x4 col3 = Simd::FlipSigns<true, false, true, false>(inv3);
 
             // det = row0 . (column 0 of the cofactor matrix). That column is the col0 register as-is, so compute the
             // determinant before Transpose4 turns col0 into the cofactor matrix's first row.

@@ -48,6 +48,8 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return { a.lanes[0] + b.lanes[0], a.lanes[1] + b.lanes[1], a.lanes[2] + b.lanes[2], a.lanes[3] + b.lanes[3] }; }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return { a.lanes[0] - b.lanes[0], a.lanes[1] - b.lanes[1], a.lanes[2] - b.lanes[2], a.lanes[3] - b.lanes[3] }; }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return { a.lanes[0] * b.lanes[0], a.lanes[1] * b.lanes[1], a.lanes[2] * b.lanes[2], a.lanes[3] * b.lanes[3] }; }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return Add(acc, Mul(a, b)); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return Sub(acc, Mul(a, b)); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return { a.lanes[0] / b.lanes[0], a.lanes[1] / b.lanes[1], a.lanes[2] / b.lanes[2], a.lanes[3] / b.lanes[3] }; }
     inline F32x4 Abs(F32x4 v) { return { std::abs(v.lanes[0]), std::abs(v.lanes[1]), std::abs(v.lanes[2]), std::abs(v.lanes[3]) }; }
     inline F32x4 Max(F32x4 a, F32x4 b) { return { std::max(a.lanes[0], b.lanes[0]), std::max(a.lanes[1], b.lanes[1]), std::max(a.lanes[2], b.lanes[2]), std::max(a.lanes[3], b.lanes[3]) }; }
@@ -60,6 +62,15 @@ namespace Common::Simd {
 
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v) { return { v.lanes[I0], v.lanes[I1], v.lanes[I2], v.lanes[I3] }; }
+
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return Mul(a, Splat<L>(lanes)); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return MulAdd(acc, a, Splat<L>(lanes)); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v) { return { X ? -v.lanes[0] : v.lanes[0], Y ? -v.lanes[1] : v.lanes[1], Z ? -v.lanes[2] : v.lanes[2], W ? -v.lanes[3] : v.lanes[3] }; }
 
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -78,6 +89,8 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return _mm_add_ps(a, b); }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return _mm_sub_ps(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return _mm_mul_ps(a, b); }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return Add(acc, Mul(a, b)); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return Sub(acc, Mul(a, b)); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return _mm_div_ps(a, b); }
     inline F32x4 Abs(F32x4 v) { return _mm_andnot_ps(_mm_set1_ps(-0.0f), v); }
     inline F32x4 Max(F32x4 a, F32x4 b) { return _mm_max_ps(a, b); }
@@ -105,6 +118,15 @@ namespace Common::Simd {
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v) { return _mm_shuffle_ps(v, v, _MM_SHUFFLE(I3, I2, I1, I0)); }
 
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return Mul(a, Splat<L>(lanes)); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return MulAdd(acc, a, Splat<L>(lanes)); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v) { return _mm_xor_ps(v, _mm_set_ps(W ? -0.0f : 0.0f, Z ? -0.0f : 0.0f, Y ? -0.0f : 0.0f, X ? -0.0f : 0.0f)); }
+
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -119,6 +141,8 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return vaddq_f32(a, b); }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return vsubq_f32(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return vmulq_f32(a, b); }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return vfmaq_f32(acc, a, b); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return vfmsq_f32(acc, a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return vdivq_f32(a, b); }
     inline F32x4 Abs(F32x4 v) { return vabsq_f32(v); }
     inline F32x4 Max(F32x4 a, F32x4 b) { return vmaxq_f32(a, b); }
@@ -147,6 +171,19 @@ namespace Common::Simd {
         return vreinterpretq_f32_u8(vqtbl1q_u8(vreinterpretq_u8_f32(v), vld1q_u8(indices)));
     }
 
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return vmulq_laneq_f32(a, lanes, L); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return vfmaq_laneq_f32(acc, a, lanes, L); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v)
+    {
+        const F32x4 signs = Set(X ? -0.0f : 0.0f, Y ? -0.0f : 0.0f, Z ? -0.0f : 0.0f, W ? -0.0f : 0.0f);
+        return vreinterpretq_f32_u32(veorq_u32(vreinterpretq_u32_f32(v), vreinterpretq_u32_f32(signs)));
+    }
+
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -158,6 +195,20 @@ namespace Common::Simd {
         r3 = vcombine_f32(vget_high_f32(t01.val[1]), vget_high_f32(t23.val[1]));
     }
 #endif
+
+    // Horizontally sum four registers and return their sums as the four lanes of one register. Combining all four
+    // reductions lets each backend share shuffle/add work that four independent Sum calls would repeat.
+    inline F32x4 Sum4(F32x4 r0, F32x4 r1, F32x4 r2, F32x4 r3)
+    {
+#if defined(MIRROR_TOOL_PARSING)
+        return Set(Sum(r0), Sum(r1), Sum(r2), Sum(r3));
+#elif ARCH_X86
+        Transpose4(r0, r1, r2, r3);
+        return Add(Add(r0, r1), Add(r2, r3));
+#elif ARCH_ARM
+        return vpaddq_f32(vpaddq_f32(r0, r1), vpaddq_f32(r2, r3));
+#endif
+    }
 
     // Element-wise binary ops as functors so a single Map* template can drive every Vec/Mat/Quaternion kernel. Each
     // carries both a 4-wide register overload (the SIMD body) and a scalar overload (the <4 tail), so the same functor

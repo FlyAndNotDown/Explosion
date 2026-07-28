@@ -63,6 +63,25 @@ BENCHMARK(MatMulLatency<MathBackend::scalar>);
 BENCHMARK(MatMulLatency<MathBackend::simd>);
 
 template <MathBackend B>
+static void MatVecMulLatency(benchmark::State& state)
+{
+    Mat<float, 4, 4, B> matrix(
+        0.0f, -1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f);
+    auto value = MakeRandomVecs<B>(1)[0];
+    benchmark::DoNotOptimize(matrix);
+    benchmark::DoNotOptimize(value);
+    for (auto _ : state) {
+        value = matrix * value;
+    }
+    benchmark::DoNotOptimize(value);
+}
+BENCHMARK(MatVecMulLatency<MathBackend::scalar>);
+BENCHMARK(MatVecMulLatency<MathBackend::simd>);
+
+template <MathBackend B>
 static void QuatMulLatency(benchmark::State& state)
 {
     Quaternion<float, B> value(1.0f, 0.0f, 0.0f, 0.0f);

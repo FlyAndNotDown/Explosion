@@ -6,6 +6,7 @@
 
 #include <limits>
 #include <numbers>
+#include <random>
 
 #include <Common/Math/Vector.h>
 #include <Common/Math/Matrix.h>
@@ -1715,4 +1716,80 @@ TEST(MathTest, QuaternionBackendConsistencyTest)
     ASSERT_FLOAT_EQ(addS.z, addI.z);
     ASSERT_FLOAT_EQ(as.Dot(bs), ai.Dot(bi));
     ASSERT_FLOAT_EQ(as.Model(), ai.Model());
+}
+
+TEST(MathTest, RandomizedBackendConsistencyTest)
+{
+    using MatScalar = Mat<float, 4, 4, MathBackend::scalar>;
+    using MatSimd = Mat<float, 4, 4, MathBackend::simd>;
+    using VecScalar = Vec<float, 4, MathBackend::scalar>;
+    using VecSimd = Vec<float, 4, MathBackend::simd>;
+    using QuatScalar = Quaternion<float, MathBackend::scalar>;
+    using QuatSimd = Quaternion<float, MathBackend::simd>;
+
+    constexpr float tolerance = 2.0e-5f;
+    std::mt19937 rng(0x51d4u);
+    std::uniform_real_distribution<float> dist(-2.0f, 2.0f);
+
+    for (auto sample = 0; sample < 256; sample++) {
+        SCOPED_TRACE(sample);
+
+        MatScalar matrixAScalar;
+        MatScalar matrixBScalar;
+        MatSimd matrixASimd;
+        MatSimd matrixBSimd;
+        for (auto i = 0; i < 16; i++) {
+            const float a = dist(rng);
+            const float b = dist(rng);
+            matrixAScalar[i] = a;
+            matrixASimd[i] = a;
+            matrixBScalar[i] = b;
+            matrixBSimd[i] = b;
+        }
+        for (auto i = 0; i < 4; i++) {
+            matrixAScalar.At(i, i) += 9.0f;
+            matrixASimd.At(i, i) += 9.0f;
+        }
+
+        VecScalar vectorScalar;
+        VecSimd vectorSimd;
+        for (auto i = 0; i < 4; i++) {
+            const float value = dist(rng);
+            vectorScalar[i] = value;
+            vectorSimd[i] = value;
+        }
+
+        const MatScalar mulScalar = matrixAScalar * matrixBScalar;
+        const MatSimd mulSimd = matrixASimd * matrixBSimd;
+        const MatScalar inverseScalar = matrixAScalar.Inverse();
+        const MatSimd inverseSimd = matrixASimd.Inverse();
+        const VecScalar mulVecScalar = matrixAScalar * vectorScalar;
+        const VecSimd mulVecSimd = matrixASimd * vectorSimd;
+        for (auto i = 0; i < 16; i++) {
+            ASSERT_NEAR(mulScalar[i], mulSimd[i], tolerance);
+            ASSERT_NEAR(inverseScalar[i], inverseSimd[i], tolerance);
+        }
+        for (auto i = 0; i < 4; i++) {
+            ASSERT_NEAR(mulVecScalar[i], mulVecSimd[i], tolerance);
+        }
+
+        const float ax = dist(rng);
+        const float ay = dist(rng);
+        const float az = dist(rng);
+        const float aw = dist(rng);
+        const float bx = dist(rng);
+        const float by = dist(rng);
+        const float bz = dist(rng);
+        const float bw = dist(rng);
+        const QuatScalar quatScalarA(ax, ay, az, aw);
+        const QuatScalar quatScalarB(bx, by, bz, bw);
+        const QuatSimd quatSimdA(ax, ay, az, aw);
+        const QuatSimd quatSimdB(bx, by, bz, bw);
+        const QuatScalar quatMulScalar = quatScalarA * quatScalarB;
+        const QuatSimd quatMulSimd = quatSimdA * quatSimdB;
+        ASSERT_NEAR(quatMulScalar.x, quatMulSimd.x, tolerance);
+        ASSERT_NEAR(quatMulScalar.y, quatMulSimd.y, tolerance);
+        ASSERT_NEAR(quatMulScalar.z, quatMulSimd.z, tolerance);
+        ASSERT_NEAR(quatMulScalar.w, quatMulSimd.w, tolerance);
+    }
 }

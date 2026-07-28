@@ -70,6 +70,25 @@ BENCHMARK(MatMulThroughput<MathBackend::scalar>);
 BENCHMARK(MatMulThroughput<MathBackend::simd>);
 
 template <MathBackend B>
+static void MatVecMulThroughput(benchmark::State& state)
+{
+    const auto matrices = MakeRandomMats<B>(batchSize);
+    const auto vectors = MakeRandomVecs<B>(batchSize);
+    std::vector<Vec<float, 4, B>> output(batchSize);
+    for (auto _ : state) {
+        MATH_BENCHMARK_NO_AUTO_VECTORIZE
+        for (int i = 0; i < batchSize; i++) {
+            output[i] = matrices[i] * vectors[i];
+        }
+        benchmark::DoNotOptimize(output.data());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * batchSize);
+}
+BENCHMARK(MatVecMulThroughput<MathBackend::scalar>);
+BENCHMARK(MatVecMulThroughput<MathBackend::simd>);
+
+template <MathBackend B>
 static void QuatMulThroughput(benchmark::State& state)
 {
     const auto a = MakeRandomQuats<B>(batchSize);
