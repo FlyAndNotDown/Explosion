@@ -1758,6 +1758,13 @@ TEST(MathTest, RandomizedBackendConsistencyTest)
             vectorScalar[i] = value;
             vectorSimd[i] = value;
         }
+        ASSERT_NEAR(vectorScalar.Dot(vectorScalar), vectorSimd.Dot(vectorSimd), tolerance);
+        ASSERT_NEAR(vectorScalar.ModelSquared(), vectorSimd.ModelSquared(), tolerance);
+        const VecScalar normalizedScalar = vectorScalar.Normalized();
+        const VecSimd normalizedSimd = vectorSimd.Normalized();
+        for (auto i = 0; i < 4; i++) {
+            ASSERT_NEAR(normalizedScalar[i], normalizedSimd[i], tolerance);
+        }
 
         const MatScalar mulScalar = matrixAScalar * matrixBScalar;
         const MatSimd mulSimd = matrixASimd * matrixBSimd;

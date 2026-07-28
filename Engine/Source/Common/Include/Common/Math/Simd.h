@@ -54,6 +54,9 @@ namespace Common::Simd {
     inline F32x4 Abs(F32x4 v) { return { std::abs(v.lanes[0]), std::abs(v.lanes[1]), std::abs(v.lanes[2]), std::abs(v.lanes[3]) }; }
     inline F32x4 Max(F32x4 a, F32x4 b) { return { std::max(a.lanes[0], b.lanes[0]), std::max(a.lanes[1], b.lanes[1]), std::max(a.lanes[2], b.lanes[2]), std::max(a.lanes[3], b.lanes[3]) }; }
     inline float Sum(F32x4 v) { return v.lanes[0] + v.lanes[1] + v.lanes[2] + v.lanes[3]; }
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+    inline float Dot(const float* a, const float* b) { return Dot(LoadU(a), LoadU(b)); }
+    inline float LengthSquared(F32x4 v) { return Dot(v, v); }
     inline float MaxValue(F32x4 v) { return std::max(std::max(v.lanes[0], v.lanes[1]), std::max(v.lanes[2], v.lanes[3])); }
     inline F32x4 Set(float x, float y, float z, float w) { return { x, y, z, w }; }
 
@@ -104,6 +107,10 @@ namespace Common::Simd {
         return _mm_cvtss_f32(sums);
     }
 
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+    inline float Dot(const float* a, const float* b) { return Dot(LoadU(a), LoadU(b)); }
+    inline float LengthSquared(F32x4 v) { return Dot(v, v); }
+
     inline float MaxValue(F32x4 v)
     {
         const F32x4 pairMax = _mm_max_ps(v, _mm_movehl_ps(v, v));
@@ -147,6 +154,25 @@ namespace Common::Simd {
     inline F32x4 Abs(F32x4 v) { return vabsq_f32(v); }
     inline F32x4 Max(F32x4 a, F32x4 b) { return vmaxq_f32(a, b); }
     inline float Sum(F32x4 v) { return vaddvq_f32(v); }
+
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+
+    // Returning a scalar makes NEON horizontal reduction latency dominant, so a directly addressable Vec4 is faster
+    // as a scalar accumulation. LengthSquared keeps all lanes dependent and benefits from two parallel half-width paths.
+    inline float Dot(const float* a, const float* b)
+    {
+        const float low = a[0] * b[0] + a[1] * b[1];
+        const float high = a[2] * b[2] + a[3] * b[3];
+        return low + high;
+    }
+
+    inline float LengthSquared(F32x4 v)
+    {
+        const float32x2_t lowSquares = vmul_f32(vget_low_f32(v), vget_low_f32(v));
+        const float32x2_t highSquares = vmul_f32(vget_high_f32(v), vget_high_f32(v));
+        return vpadds_f32(vadd_f32(lowSquares, highSquares));
+    }
+
     inline float MaxValue(F32x4 v) { return vmaxvq_f32(v); }
 
     inline F32x4 Set(float x, float y, float z, float w)
