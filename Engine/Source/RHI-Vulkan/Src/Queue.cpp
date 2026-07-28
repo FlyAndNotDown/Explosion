@@ -12,10 +12,11 @@
 #include <RHI/Vulkan/Gpu.h>
 
 namespace RHI::Vulkan {
-    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const VkQueue inNativeQueue)
+    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex)
         : Queue(inType)
         , device(inDevice)
         , nativeQueue(inNativeQueue)
+        , nativeQueueMutex(std::move(inNativeQueueMutex))
     {
     }
 
@@ -58,6 +59,7 @@ namespace RHI::Vulkan {
         vkSubmitInfo.pCommandBuffers = &cmdBuffer;
 
         const VkFence nativeFence = vkFence == nullptr ? VK_NULL_HANDLE : vkFence->GetNative();
+        const std::scoped_lock lock(*nativeQueueMutex);
         Assert(vkQueueSubmit(nativeQueue, 1, &vkSubmitInfo, nativeFence) == VK_SUCCESS);
     }
 
@@ -70,6 +72,7 @@ namespace RHI::Vulkan {
         vkSubmitInfo.commandBufferCount = 0;
         vkSubmitInfo.pCommandBuffers = nullptr;
 
+        const std::scoped_lock lock(*nativeQueueMutex);
         Assert(vkQueueSubmit(nativeQueue, 1, &vkSubmitInfo, vkFence->GetNative()) == VK_SUCCESS);
     }
 
@@ -83,5 +86,11 @@ namespace RHI::Vulkan {
     VkQueue VulkanQueue::GetNative() const
     {
         return nativeQueue;
+    }
+
+    VkResult VulkanQueue::Present(const VkPresentInfoKHR& inPresentInfo) const
+    {
+        const std::scoped_lock lock(*nativeQueueMutex);
+        return vkQueuePresentKHR(nativeQueue, &inPresentInfo);
     }
 }

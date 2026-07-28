@@ -4,6 +4,9 @@
 
 #pragma once
 
+#include <memory>
+#include <mutex>
+
 #include <vulkan/vulkan.h>
 
 #include <RHI/Queue.h>
@@ -15,18 +18,20 @@ namespace RHI::Vulkan {
     class VulkanQueue final : public Queue {
     public:
         NonCopyable(VulkanQueue)
-        VulkanQueue(VulkanDevice& inDevice, QueueType inType, VkQueue inNativeQueue);
+        VulkanQueue(VulkanDevice& inDevice, QueueType inType, VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex);
         ~VulkanQueue() override;
 
         void Flush(Fence* inFenceToSignal) override;
         float GetTimestampPeriod() override;
 
         VkQueue GetNative() const;
+        VkResult Present(const VkPresentInfoKHR& inPresentInfo) const;
 
     private:
         void SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo) override;
 
         VulkanDevice& device;
         VkQueue nativeQueue;
+        std::shared_ptr<std::mutex> nativeQueueMutex;
     };
 }

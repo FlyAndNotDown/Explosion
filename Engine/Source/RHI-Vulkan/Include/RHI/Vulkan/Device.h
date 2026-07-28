@@ -48,13 +48,18 @@ namespace RHI::Vulkan {
 
         VkDevice GetNative() const;
         VmaAllocator& GetNativeAllocator();
+        const std::vector<uint32_t>& GetActiveQueueFamilyIndices() const;
 
 #if BUILD_CONFIG_DEBUG
         void SetObjectName(VkObjectType inObjectType, uint64_t inObjectHandle, const char* inObjectName) const;
 #endif
 
     private:
-        static std::optional<uint32_t> FindQueueFamilyIndex(const std::vector<VkQueueFamilyProperties>& inProperties, std::vector<uint32_t>& inUsedQueueFamily, QueueType inQueueType);
+        struct QueueFamilyMapping {
+            uint32_t familyIndex;
+            std::vector<uint32_t> queueIndices;
+        };
+
         void CreateNativeDevice(const DeviceCreateInfo& inCreateInfo);
         void GetQueues();
         void CreateNativeVmaAllocator();
@@ -62,7 +67,8 @@ namespace RHI::Vulkan {
         VulkanGpu& gpu;
         VkDevice nativeDevice;
         VmaAllocator nativeAllocator;
-        std::unordered_map<QueueType, std::pair<uint32_t, uint32_t>> queueFamilyMappings;
+        std::vector<uint32_t> activeQueueFamilyIndices;
+        std::unordered_map<QueueType, QueueFamilyMapping> queueFamilyMappings;
         std::unordered_map<QueueType, std::vector<Common::UniquePtr<VulkanQueue>>> queues;
         std::unordered_map<QueueType, VkCommandPool> nativeCmdPools;
     };

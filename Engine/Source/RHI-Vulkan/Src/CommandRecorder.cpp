@@ -181,6 +181,8 @@ namespace RHI::Vulkan {
             bufferBarrier.offset = 0;
             bufferBarrier.srcAccessMask = GetBufferMemoryBarrierAccessFlags(bufferBarrierInfo.before);
             bufferBarrier.dstAccessMask = GetBufferMemoryBarrierAccessFlags(bufferBarrierInfo.after);
+            bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
             vkCmdPipelineBarrier(
                 commandBuffer.GetNative(),
@@ -200,6 +202,8 @@ namespace RHI::Vulkan {
             imageBarrier.srcAccessMask = GetTextureMemoryBarrierAccessFlags(textureBarrierInfo.before);
             imageBarrier.newLayout = GetTextureLayout(textureBarrierInfo.after);
             imageBarrier.dstAccessMask = GetTextureMemoryBarrierAccessFlags(textureBarrierInfo.after);
+            imageBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            imageBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             imageBarrier.subresourceRange = nativeTexture->GetNativeSubResourceFullRange();
 
             vkCmdPipelineBarrier(
