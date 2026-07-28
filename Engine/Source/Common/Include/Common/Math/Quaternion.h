@@ -5,6 +5,8 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
+#include <type_traits>
 
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
@@ -576,13 +578,19 @@ namespace Common {
         }
 
         const T sinY = std::clamp(T(2.0f) * (this->w * this->y - this->z * this->x) / normSquared, T(-1.0f), T(1.0f));
-        const Radian<T> radianX(static_cast<T>(std::atan2(
-            T(2.0f) * (this->w * this->x + this->y * this->z),
-            normSquared - T(2.0f) * (this->x * this->x + this->y * this->y))));
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
+        const bool atGimbalLock = std::abs(static_cast<EvaluationT>(sinY)) >= static_cast<EvaluationT>(1) - std::numeric_limits<EvaluationT>::epsilon();
+        const Radian<T> radianX(atGimbalLock
+            ? static_cast<T>(T(2.0f) * std::atan2(this->x, this->w))
+            : static_cast<T>(std::atan2(
+                  T(2.0f) * (this->w * this->x + this->y * this->z),
+                  normSquared - T(2.0f) * (this->x * this->x + this->y * this->y))));
         const Radian<T> radianY(static_cast<T>(std::asin(sinY)));
-        const Radian<T> radianZ(static_cast<T>(std::atan2(
-            T(2.0f) * (this->w * this->z + this->x * this->y),
-            normSquared - T(2.0f) * (this->y * this->y + this->z * this->z))));
+        const Radian<T> radianZ(atGimbalLock
+            ? T(0.0f)
+            : static_cast<T>(std::atan2(
+                  T(2.0f) * (this->w * this->z + this->x * this->y),
+                  normSquared - T(2.0f) * (this->y * this->y + this->z * this->z))));
         return Vec<T, 3, B>(radianX.ToAngle(), radianY.ToAngle(), radianZ.ToAngle());
     }
 

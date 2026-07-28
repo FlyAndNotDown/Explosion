@@ -4,6 +4,8 @@
 
 #include <Test/Test.h>
 
+#include <array>
+#include <bit>
 #include <limits>
 #include <numbers>
 #include <random>
@@ -44,6 +46,9 @@ TEST(MathTest, CompareNumberTest)
     ASSERT_DOUBLE_EQ(Pi<double>(), std::numbers::pi_v<double>);
     ASSERT_TRUE(CompareNumber(5, 5));
     ASSERT_FALSE(CompareNumber(5, 6));
+    ASSERT_FALSE(CompareNumber(1.0f, std::numeric_limits<float>::infinity()));
+    ASSERT_FALSE(CompareNumber(std::numeric_limits<float>::infinity(), 1.0f));
+    ASSERT_FALSE(CompareNumber(-std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()));
 }
 
 // ==================================== Half ====================================
@@ -150,6 +155,29 @@ TEST(MathTest, HFloatBitPatternRoundTripTest) // NOLINT
             ASSERT_EQ(HFloat(asFloat).value, value.value);
         }
     }
+}
+
+TEST(MathTest, HFloatFloatConversionRoundingTest) // NOLINT
+{
+    const float nanWithTruncatedPayload = std::bit_cast<float>(0x7f800001u);
+    const HFloat nan(nanWithTruncatedPayload);
+    ASSERT_EQ(nan.value, 0x7c01u);
+    ASSERT_TRUE(std::isnan(nan.AsFloat()));
+
+    const float minimumSubnormal = std::ldexp(1.0f, -24);
+    const float halfwayFromZero = std::ldexp(1.0f, -25);
+    ASSERT_EQ(HFloat(halfwayFromZero).value, 0u);
+    ASSERT_EQ(HFloat(std::nextafter(halfwayFromZero, 1.0f)).value, 1u);
+
+    const float halfwayToEvenSubnormal = minimumSubnormal * 1.5f;
+    ASSERT_EQ(HFloat(halfwayToEvenSubnormal).value, 2u);
+
+    const float halfwayToMinimumNormal = minimumSubnormal * 1023.5f;
+    ASSERT_EQ(HFloat(halfwayToMinimumNormal).value, 0x0400u);
+
+    ASSERT_EQ(HFloat(65519.0f).value, 0x7bffu);
+    ASSERT_EQ(HFloat(65520.0f).value, 0x7c00u);
+    ASSERT_EQ(HFloat(-65520.0f).value, 0xfc00u);
 }
 
 // ==================================== Vector ====================================
@@ -425,12 +453,16 @@ TEST(MathTest, VecNormalizeTest)
     FVec3 infinite(std::numeric_limits<float>::infinity(), 0.0f, 0.0f);
     ASSERT_FALSE(infinite.TryNormalize());
 
+    FVec3 nan(std::numeric_limits<float>::quiet_NaN(), 0.0f, 0.0f);
+    ASSERT_FALSE(nan.TryNormalize());
+
     FVec3 tiny(1.0e-8f, 0.0f, 0.0f);
     ASSERT_FALSE(tiny.TryNormalize());
     ASSERT_TRUE(tiny.TryNormalize(1.0e-9f));
     ASSERT_TRUE(tiny.IsNormalized());
     ASSERT_FALSE(FVec3(2, 0, 0).IsNormalized());
     ASSERT_TRUE(tiny == FVec3Consts::unitX);
+    ASSERT_FALSE(AlmostEqual(FVec3(1, 2, 3), FVec3(1, 20, 3)));
 }
 
 TEST(MathTest, VecConstsTest)
@@ -700,6 +732,23 @@ TEST(MathTest, MatCanInverseTest)
     ASSERT_TRUE(smallButInvertible.CanInverse());
     ASSERT_TRUE(smallButInvertible.TryInverse(result));
     ASSERT_TRUE(result == FMat2x2(1.0e8f, 0.0f, 0.0f, 1.0e8f));
+
+    const FMat2x2 zero = FMat2x2Consts::zero;
+    ASSERT_FALSE(zero.CanInverse());
+    result = FMat2x2(7.0f);
+    ASSERT_FALSE(zero.TryInverse(result));
+    ASSERT_TRUE(result == 7.0f);
+
+    FMat2x2 nonFinite = FMat2x2Consts::identity;
+    nonFinite.At(0, 0) = std::numeric_limits<float>::infinity();
+    ASSERT_FALSE(nonFinite.CanInverse());
+    ASSERT_FALSE(nonFinite.TryInverse(result));
+    ASSERT_TRUE(result == 7.0f);
+
+    nonFinite.At(0, 0) = std::numeric_limits<float>::quiet_NaN();
+    ASSERT_FALSE(nonFinite.CanInverse());
+    ASSERT_FALSE(nonFinite.TryInverse(result));
+    ASSERT_TRUE(result == 7.0f);
 }
 
 TEST(MathTest, MatScalarArithmeticTest)
@@ -893,6 +942,14 @@ TEST(MathTest, QuaternionPropertiesTest)
 
     const FQuat v2(2, 3, 4, 5);
     ASSERT_FLOAT_EQ(v0.Dot(v2), 1.0f * 2 + 2 * 3 + 3 * 4 + 4 * 5);
+
+    FQuat infinite(std::numeric_limits<float>::infinity(), 0, 0, 0);
+    ASSERT_FALSE(infinite.TryNormalize());
+    ASSERT_TRUE(std::isinf(infinite.w));
+
+    FQuat nan(std::numeric_limits<float>::quiet_NaN(), 0, 0, 0);
+    ASSERT_FALSE(nan.TryNormalize());
+    ASSERT_TRUE(std::isnan(nan.w));
 }
 
 TEST(MathTest, QuaternionRotationTest)
@@ -953,6 +1010,24 @@ TEST(MathTest, QuaternionToEulerZYXTest)
     EXPECT_NEAR(nonNormalizedEuler.z, -150.0f, angleTolerance);
 
     ASSERT_TRUE(FQuat().ToEulerZYX() == FVec3Consts::zero);
+}
+
+TEST(MathTest, QuaternionToEulerZYXSingularityTest)
+{
+    constexpr float matrixTolerance = 2.0e-4f;
+    const std::array<float, 8> pitchAngles { -90.0f, -89.999f, -89.95f, -89.0f, 89.0f, 89.95f, 89.999f, 90.0f };
+
+    for (const float pitch : pitchAngles) {
+        SCOPED_TRACE(pitch);
+        const FQuat original = FQuat::FromEulerZYX(20.0f, pitch, 35.0f);
+        const FVec3 euler = original.ToEulerZYX();
+        const FQuat reconstructed = FQuat::FromEulerZYX(euler.x, euler.y, euler.z);
+        const FMat4x4 originalMatrix = original.GetRotationMatrix();
+        const FMat4x4 reconstructedMatrix = reconstructed.GetRotationMatrix();
+        for (auto i = 0; i < 16; i++) {
+            EXPECT_NEAR(reconstructedMatrix[i], originalMatrix[i], matrixTolerance) << "matrix element " << i;
+        }
+    }
 }
 
 TEST(MathTest, QuaternionToRotationMatrixTest)
@@ -1680,6 +1755,177 @@ TEST(MathTest, JsonSerializationTest)
             "{",
             FltToJson(90.0f), FltToJson(512.0f), FltToJson(1024.0f), FltToJson(1.0f), FltToJson(500.0f),
             "}"));
+}
+
+TEST(MathTest, JsonDeserializationInvalidInputTest)
+{
+    const auto expectUnchanged = []<typename T>(const char* json, const T& initialValue) {
+        rapidjson::Document document;
+        document.Parse(json);
+        ASSERT_FALSE(document.HasParseError());
+
+        T result(initialValue);
+        JsonDeserialize<T>(document, result);
+        EXPECT_EQ(result, initialValue);
+    };
+
+    expectUnchanged("{}", FVec3(1, 2, 3));
+    expectUnchanged("[4.0,5.0]", FVec3(1, 2, 3));
+    expectUnchanged("{}", FMat2x2(1, 2, 3, 4));
+    expectUnchanged("[1.0,2.0,3.0]", FMat2x2(1, 2, 3, 4));
+    expectUnchanged("{}", FQuat(1, 2, 3, 4));
+    expectUnchanged("[1.0,2.0,3.0]", FQuat(1, 2, 3, 4));
+
+    expectUnchanged("[]", FRect(1, 2, 3, 4));
+    expectUnchanged("[]", FBox(1, 2, 3, 4, 5, 6));
+    expectUnchanged("[]", FSphere(1, 2, 3, 4));
+    expectUnchanged("[]", Color(1, 2, 3, 4));
+    expectUnchanged("[]", LinearColor(0.1f, 0.2f, 0.3f, 0.4f));
+    expectUnchanged("[]", FTransform(FVec3(2, 3, 4), FQuatConsts::identity, FVec3(5, 6, 7)));
+    expectUnchanged("[]", FReversedZOrthoProjection(4, 2, 1, 10));
+    expectUnchanged("[]", FReversedZPerspectiveProjection(90, 4, 2, 1, 10));
+
+    rapidjson::Document transformDocument;
+    transformDocument.Parse(R"({"translation":[8.0,9.0,10.0]})");
+    FTransform transform(FVec3(2, 3, 4), FQuat::FromEulerZYX(10, 20, 30), FVec3(5, 6, 7));
+    const FVec3 originalScale = transform.scale;
+    const FQuat originalRotation = transform.rotation;
+    JsonDeserialize<FTransform>(transformDocument, transform);
+    ASSERT_TRUE(transform.scale == originalScale);
+    ASSERT_TRUE(transform.rotation == originalRotation);
+    ASSERT_TRUE(transform.translation == FVec3(8, 9, 10));
+
+    rapidjson::Document colorDocument;
+    colorDocument.Parse(R"({"r":"invalid","g":9})");
+    Color color(1, 2, 3, 4);
+    JsonDeserialize<Color>(colorDocument, color);
+    ASSERT_TRUE(color == Color(1, 9, 3, 4));
+
+    rapidjson::Document vectorDocument;
+    vectorDocument.Parse(R"([4.0,"invalid",6.0])");
+    FVec3 vector(1, 2, 3);
+    JsonDeserialize<FVec3>(vectorDocument, vector);
+    ASSERT_TRUE(vector == FVec3(4, 2, 6));
+}
+
+// ==================================== Math properties ====================================
+
+TEST(MathTest, MatrixInversePropertyTest)
+{
+    const auto verifyInverse = []<typename M>(uint32_t seed) {
+        constexpr auto dimension = M::rows;
+        constexpr float tolerance = 3.0e-4f;
+        std::mt19937 rng(seed);
+        std::uniform_real_distribution<float> distribution(-2.0f, 2.0f);
+
+        for (auto sample = 0; sample < 64; sample++) {
+            SCOPED_TRACE(sample);
+            M matrix;
+            for (auto i = 0; i < dimension * dimension; i++) {
+                matrix[i] = distribution(rng);
+            }
+            for (auto i = 0; i < dimension; i++) {
+                matrix.At(i, i) += static_cast<float>(dimension * 3);
+            }
+
+            M inverse;
+            ASSERT_TRUE(matrix.TryInverse(inverse));
+            const M identity = matrix * inverse;
+            for (auto row = 0; row < dimension; row++) {
+                for (auto col = 0; col < dimension; col++) {
+                    EXPECT_NEAR(identity.At(row, col), row == col ? 1.0f : 0.0f, tolerance);
+                }
+            }
+
+            M roundTrip;
+            ASSERT_TRUE(inverse.TryInverse(roundTrip));
+            for (auto i = 0; i < dimension * dimension; i++) {
+                EXPECT_NEAR(roundTrip[i], matrix[i], tolerance);
+            }
+        }
+    };
+
+    verifyInverse.template operator()<Mat<float, 2, 2, MathBackend::scalar>>(0x2a11u);
+    verifyInverse.template operator()<Mat<float, 3, 3, MathBackend::scalar>>(0x3a11u);
+    verifyInverse.template operator()<Mat<float, 4, 4, MathBackend::scalar>>(0x4a11u);
+}
+
+TEST(MathTest, TransformRoundTripPropertyTest)
+{
+    constexpr float tolerance = 3.0e-4f;
+    std::mt19937 rng(0x7a4f51u);
+    std::uniform_real_distribution<float> angleDistribution(-179.0f, 179.0f);
+    std::uniform_real_distribution<float> scaleDistribution(0.25f, 4.0f);
+    std::uniform_real_distribution<float> translationDistribution(-100.0f, 100.0f);
+
+    for (auto sample = 0; sample < 128; sample++) {
+        SCOPED_TRACE(sample);
+        FVec3 scale(scaleDistribution(rng), scaleDistribution(rng), scaleDistribution(rng));
+        if (sample % 4 != 0) {
+            scale[sample % 3] = -scale[sample % 3];
+        }
+        const FQuat rotation = FQuat::FromEulerZYX(angleDistribution(rng), angleDistribution(rng), angleDistribution(rng));
+        const FVec3 translation(translationDistribution(rng), translationDistribution(rng), translationDistribution(rng));
+        const FTransform original(scale, rotation, translation);
+
+        FTransform decomposed;
+        ASSERT_TRUE(FTransform::TryFromMatrix(original.GetTransformMatrix(), decomposed));
+        const FMat4x4 originalMatrix = original.GetTransformMatrix();
+        const FMat4x4 decomposedMatrix = decomposed.GetTransformMatrix();
+        for (auto i = 0; i < 16; i++) {
+            EXPECT_NEAR(decomposedMatrix[i], originalMatrix[i], tolerance) << "matrix element " << i;
+        }
+    }
+}
+
+TEST(MathTest, QuaternionRotationPropertyTest)
+{
+    constexpr float tolerance = 3.0e-4f;
+    std::mt19937 rng(0x9a7c31u);
+    std::uniform_real_distribution<float> distribution(-5.0f, 5.0f);
+
+    for (auto sample = 0; sample < 256; sample++) {
+        SCOPED_TRACE(sample);
+        FQuat rotation(distribution(rng), distribution(rng), distribution(rng), distribution(rng));
+        ASSERT_TRUE(rotation.TryNormalize());
+        const FVec3 vector(distribution(rng), distribution(rng), distribution(rng));
+
+        const FVec3 directlyRotated = rotation.RotateVector(vector);
+        EXPECT_NEAR(directlyRotated.Model(), vector.Model(), tolerance);
+
+        const FVec4 matrixRotated = rotation.GetRotationMatrix() * FVec4(vector.x, vector.y, vector.z, 0);
+        EXPECT_NEAR(matrixRotated.x, directlyRotated.x, tolerance);
+        EXPECT_NEAR(matrixRotated.y, directlyRotated.y, tolerance);
+        EXPECT_NEAR(matrixRotated.z, directlyRotated.z, tolerance);
+        EXPECT_NEAR(matrixRotated.w, 0.0f, tolerance);
+
+        ASSERT_TRUE(AlmostEqual(rotation * rotation.Conjugated(), FQuatConsts::identity, tolerance, tolerance));
+    }
+}
+
+TEST(MathTest, ProjectionDepthPropertyTest)
+{
+    const FReversedZOrthoProjection orthogonal(4.0f, 2.0f, 1.0f, 101.0f);
+    const FMat4x4 orthogonalMatrix = orthogonal.GetProjectionMatrix();
+    ASSERT_NEAR((orthogonalMatrix * FVec4(0, 0, 51, 1)).z, 0.5f, 1.0e-5f);
+
+    const FReversedZPerspectiveProjection perspective(90.0f, 4.0f, 2.0f, 1.0f, 101.0f);
+    const FMat4x4 perspectiveMatrix = perspective.GetProjectionMatrix();
+    const std::array<float, 6> depths { 1.0f, 2.0f, 5.0f, 20.0f, 50.0f, 101.0f };
+    float previousDepth = std::numeric_limits<float>::infinity();
+    for (const float depth : depths) {
+        const FVec4 clip = perspectiveMatrix * FVec4(0, 0, depth, 1);
+        const float normalizedDepth = clip.z / clip.w;
+        EXPECT_LE(normalizedDepth, previousDepth);
+        EXPECT_GE(normalizedDepth, -1.0e-6f);
+        EXPECT_LE(normalizedDepth, 1.0f + 1.0e-6f);
+        previousDepth = normalizedDepth;
+    }
+
+    const FReversedZPerspectiveProjection infinitePerspective(90.0f, 4.0f, 2.0f, 1.0f, std::nullopt);
+    const FMat4x4 infiniteMatrix = infinitePerspective.GetProjectionMatrix();
+    const FVec4 distantClip = infiniteMatrix * FVec4(0, 0, 100000.0f, 1);
+    ASSERT_NEAR(distantClip.z / distantClip.w, 1.0e-5f, 1.0e-7f);
 }
 
 // ==================================== Math backends ====================================
