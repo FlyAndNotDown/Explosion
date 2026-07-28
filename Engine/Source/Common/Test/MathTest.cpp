@@ -7,6 +7,7 @@
 #include <limits>
 #include <numbers>
 #include <random>
+#include <utility>
 
 #include <Common/Math/Vector.h>
 #include <Common/Math/Matrix.h>
@@ -736,7 +737,7 @@ TEST(MathTest, MatExtractionTest)
 
     ASSERT_TRUE(trans.translation == FVec3(7.0f, 5.0f, 3.0f));
     ASSERT_TRUE(trans.scale == FVec3(4.0f, 2.0f, 3.0f));
-    ASSERT_TRUE(AlmostEqual(trans.rotation, FQuat(0.7071067f, .0f, .0f, .7071067f)));
+    ASSERT_TRUE(AlmostEqual(trans.rotation, FQuat(0.7071067f, .0f, .0f, -.7071067f)));
 
     FVec3 translation(9.0f);
     FQuat rotation(9.0f, 9.0f, 9.0f, 9.0f);
@@ -760,6 +761,44 @@ TEST(MathTest, MatExtractionTest)
     FTransform unchanged(FQuatConsts::identity, FVec3(1, 2, 3));
     ASSERT_FALSE(FTransform::TryFromMatrix(nonAffine, unchanged));
     ASSERT_TRUE(unchanged == FTransform(FQuatConsts::identity, FVec3(1, 2, 3)));
+}
+
+TEST(MathTest, MatAffineDecompositionEdgeCaseTest)
+{
+    const auto expectRoundTrip = [](const char* description, const FTransform& transform) {
+        SCOPED_TRACE(description);
+        FTransform decomposed;
+        ASSERT_TRUE(FTransform::TryFromMatrix(transform.GetTransformMatrix(), decomposed));
+        const FMat4x4 decomposedMatrix = decomposed.GetTransformMatrix();
+        const FMat4x4 originalMatrix = transform.GetTransformMatrix();
+        for (auto i = 0; i < 16; i++) {
+            EXPECT_NEAR(decomposedMatrix[i], originalMatrix[i], 1.0e-5f) << "matrix element " << i;
+        }
+    };
+
+    expectRoundTrip("arbitrary rotation", FTransform(FVec3(2, 3, 4), FQuat::FromEulerZYX(20, -35, 70), FVec3(5, -6, 7)));
+    expectRoundTrip("negative scale", FTransform(FVec3(-2, 3, 4), FQuat::FromEulerZYX(20, -35, 70), FVec3(5, -6, 7)));
+    expectRoundTrip("x-axis rotation", FTransform(FVec3(2, 3, 4), FQuat(FVec3Consts::unitX, 180), FVec3(1, 2, 3)));
+    expectRoundTrip("y-axis rotation", FTransform(FVec3(2, 3, 4), FQuat(FVec3Consts::unitY, 180), FVec3(1, 2, 3)));
+    expectRoundTrip("z-axis rotation", FTransform(FVec3(2, 3, 4), FQuat(FVec3Consts::unitZ, 180), FVec3(1, 2, 3)));
+
+    FVec3 translation(9.0f);
+    FQuat rotation(9.0f, 9.0f, 9.0f, 9.0f);
+    FVec3 scale(9.0f);
+
+    FMat4x4 nonFinite = FMat4x4Consts::identity;
+    nonFinite.At(0, 3) = std::numeric_limits<float>::infinity();
+    ASSERT_FALSE(nonFinite.TryDecomposeAffine(translation, rotation, scale));
+    ASSERT_TRUE(translation == FVec3(9.0f));
+    ASSERT_TRUE(rotation == FQuat(9.0f, 9.0f, 9.0f, 9.0f));
+    ASSERT_TRUE(scale == FVec3(9.0f));
+
+    FMat4x4 singular = FMat4x4Consts::identity;
+    singular.SetCol(1, singular.Col(0));
+    ASSERT_FALSE(singular.TryDecomposeAffine(translation, rotation, scale));
+    ASSERT_TRUE(translation == FVec3(9.0f));
+    ASSERT_TRUE(rotation == FQuat(9.0f, 9.0f, 9.0f, 9.0f));
+    ASSERT_TRUE(scale == FVec3(9.0f));
 }
 
 // ==================================== Quaternion ====================================
@@ -1087,6 +1126,20 @@ TEST(MathTest, TransformLookAtTest)
     FTransform parallelUp;
     ASSERT_TRUE(parallelUp.TryLookTo(FVec3Consts::unitZ, FVec3Consts::unitZ));
     ASSERT_TRUE(CompareNumber(parallelUp.rotation.Model(), 1.0f));
+
+    FTransform rotateAroundX;
+    ASSERT_TRUE(rotateAroundX.TryLookTo(FVec3Consts::unitX, FVec3Consts::negaUnitZ));
+    const FMat4x4 rotateAroundXMatrix = rotateAroundX.GetRotationMatrix();
+    ASSERT_TRUE(AlmostEqual(rotateAroundXMatrix * FVec4(1, 0, 0, 0), FVec4(1, 0, 0, 0)));
+    ASSERT_TRUE(AlmostEqual(rotateAroundXMatrix * FVec4(0, 1, 0, 0), FVec4(0, -1, 0, 0)));
+    ASSERT_TRUE(AlmostEqual(rotateAroundXMatrix * FVec4(0, 0, 1, 0), FVec4(0, 0, -1, 0)));
+
+    FTransform rotateAroundY;
+    ASSERT_TRUE(rotateAroundY.TryLookTo(FVec3Consts::negaUnitX, FVec3Consts::negaUnitZ));
+    const FMat4x4 rotateAroundYMatrix = rotateAroundY.GetRotationMatrix();
+    ASSERT_TRUE(AlmostEqual(rotateAroundYMatrix * FVec4(1, 0, 0, 0), FVec4(-1, 0, 0, 0)));
+    ASSERT_TRUE(AlmostEqual(rotateAroundYMatrix * FVec4(0, 1, 0, 0), FVec4(0, 1, 0, 0)));
+    ASSERT_TRUE(AlmostEqual(rotateAroundYMatrix * FVec4(0, 0, 1, 0), FVec4(0, 0, -1, 0)));
 }
 
 TEST(MathTest, TransformCastToTest)
@@ -1134,6 +1187,22 @@ TEST(MathTest, RectGeometryTest)
     ASSERT_TRUE(v2.max == IVec2(5, 8));
 }
 
+TEST(MathTest, RectBoundaryTest)
+{
+    const FRect rect(FVec2(0, 0), FVec2(2, 2));
+    ASSERT_TRUE(rect.Inside(FVec2(0, 0)));
+    ASSERT_TRUE(rect.Inside(FVec2(2, 2)));
+    ASSERT_FALSE(rect.Inside(FVec2(-1, 1)));
+    ASSERT_FALSE(rect.Inside(FVec2(3, 1)));
+    ASSERT_FALSE(rect.Inside(FVec2(1, -1)));
+    ASSERT_FALSE(rect.Inside(FVec2(1, 3)));
+
+    ASSERT_FALSE(rect.Intersect(FRect(FVec2(-2, 0), FVec2(0, 2))));
+    ASSERT_FALSE(rect.Intersect(FRect(FVec2(0, -2), FVec2(2, 0))));
+    ASSERT_FALSE(rect.Intersect(FRect(FVec2(2, 0), FVec2(4, 2))));
+    ASSERT_FALSE(rect.Intersect(FRect(FVec2(0, 2), FVec2(2, 4))));
+}
+
 // ==================================== Box ====================================
 
 TEST(MathTest, BoxTest)
@@ -1175,6 +1244,26 @@ TEST(MathTest, BoxGeometryTest)
     ASSERT_TRUE(v4.max == IVec3(3, 6, 9));
 }
 
+TEST(MathTest, BoxBoundaryTest)
+{
+    const FBox box(FVec3(0, 0, 0), FVec3(2, 2, 2));
+    ASSERT_TRUE(box.Inside(FVec3(0, 0, 0)));
+    ASSERT_TRUE(box.Inside(FVec3(2, 2, 2)));
+    ASSERT_FALSE(box.Inside(FVec3(-1, 1, 1)));
+    ASSERT_FALSE(box.Inside(FVec3(3, 1, 1)));
+    ASSERT_FALSE(box.Inside(FVec3(1, -1, 1)));
+    ASSERT_FALSE(box.Inside(FVec3(1, 3, 1)));
+    ASSERT_FALSE(box.Inside(FVec3(1, 1, -1)));
+    ASSERT_FALSE(box.Inside(FVec3(1, 1, 3)));
+
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(-2, 0, 0), FVec3(0, 2, 2))));
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(0, -2, 0), FVec3(2, 0, 2))));
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(0, 0, -2), FVec3(2, 2, 0))));
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(2, 0, 0), FVec3(4, 2, 2))));
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(0, 2, 0), FVec3(2, 4, 2))));
+    ASSERT_FALSE(box.Intersect(FBox(FVec3(0, 0, 2), FVec3(2, 2, 4))));
+}
+
 // ==================================== Sphere ====================================
 
 TEST(MathTest, SphereTest)
@@ -1209,6 +1298,9 @@ TEST(MathTest, SphereGeometryTest)
     const DSphere v3 = v2.CastTo<double>();
     ASSERT_TRUE(v3.center == DVec3(1, 2, 3));
     ASSERT_TRUE(CompareNumber(v3.radius, 1.0));
+
+    ASSERT_TRUE(FSphere(FVec3Consts::zero, 1.0f).Intersect(FSphere(FVec3(2, 0, 0), 1.0f)));
+    ASSERT_FALSE(FSphere(FVec3Consts::zero, -2.0f).Intersect(FSphere(FVec3Consts::zero, 1.0f)));
 }
 
 // ==================================== Color ====================================
@@ -1233,6 +1325,28 @@ TEST(MathTest, ColorConversionTest)
     ASSERT_TRUE(ColorConsts::blue == Color(0, 0, 255, 255));
     ASSERT_TRUE(LinearColorConsts::white == LinearColor(1.0f, 1.0f, 1.0f, 1.0f));
     ASSERT_TRUE(LinearColorConsts::black == LinearColor(0.0f, 0.0f, 0.0f, 1.0f));
+}
+
+TEST(MathTest, ColorConstructionAndComparisonTest)
+{
+    const Color rgb(12, 34, 56);
+    ASSERT_TRUE(rgb == Color(12, 34, 56, 255));
+
+    const LinearColor linearRgb(0.25f, 0.5f, 0.75f);
+    ASSERT_TRUE(linearRgb == LinearColor(0.25f, 0.5f, 0.75f, 1.0f));
+
+    const Color copiedColor(rgb);
+    Color colorToMove(copiedColor);
+    const Color movedColor(std::move(colorToMove));
+    ASSERT_TRUE(movedColor == rgb);
+
+    const LinearColor copiedLinear(linearRgb);
+    LinearColor linearToMove(copiedLinear);
+    const LinearColor movedLinear(std::move(linearToMove));
+    ASSERT_TRUE(movedLinear == linearRgb);
+
+    ASSERT_TRUE(AlmostEqual(linearRgb, LinearColor(0.25f + epsilon / 2.0f, 0.5f, 0.75f)));
+    ASSERT_FALSE(AlmostEqual(linearRgb, LinearColor(0.5f, 0.5f, 0.75f)));
 }
 
 // ==================================== View ====================================
@@ -1285,6 +1399,8 @@ TEST(MathTest, OrthoProjectionMatrixTest)
 
     ASSERT_TRUE(v0 == FReversedZOrthoProjection(4.0f, 2.0f, 1.0f, 11.0f));
     ASSERT_FALSE(v0 == v1);
+    ASSERT_FALSE(v1 == v0);
+    ASSERT_FALSE(v0 == FReversedZOrthoProjection(4.0f, 2.0f, 1.0f, 12.0f));
 }
 
 TEST(MathTest, PerspectiveProjectionMatrixTest)
@@ -1305,6 +1421,9 @@ TEST(MathTest, PerspectiveProjectionMatrixTest)
 
     ASSERT_TRUE(v0 == FReversedZPerspectiveProjection(90.0f, 2.0f, 2.0f, 1.0f, 11.0f));
     ASSERT_FALSE(v0 == FReversedZPerspectiveProjection(60.0f, 2.0f, 2.0f, 1.0f, 11.0f));
+    ASSERT_FALSE(v0 == v1);
+    ASSERT_FALSE(v1 == v0);
+    ASSERT_FALSE(v0 == FReversedZPerspectiveProjection(90.0f, 2.0f, 2.0f, 1.0f, 12.0f));
 }
 
 // ==================================== Serialization / String / Json ====================================

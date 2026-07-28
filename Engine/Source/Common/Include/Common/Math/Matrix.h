@@ -1161,15 +1161,15 @@ namespace Common {
         if (trace > static_cast<EvaluationT>(0)) {
             const EvaluationT s = static_cast<EvaluationT>(0.5) / std::sqrt(trace + static_cast<EvaluationT>(1));
             qw = static_cast<EvaluationT>(0.25) / s;
-            qx = (m32n - m23) * s;
-            qy = (m13 - m31n) * s;
-            qz = (m21 - m12) * s;
+            qx = (m23 - m32n) * s;
+            qy = (m31n - m13) * s;
+            qz = (m12 - m21) * s;
         } else if (m11 > m22 && m11 > m33n) {
             const EvaluationT s = static_cast<EvaluationT>(2) * std::sqrt(std::max(static_cast<EvaluationT>(0), static_cast<EvaluationT>(1) + m11 - m22 - m33n));
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m32n - m23) / s;
+            qw = (m23 - m32n) / s;
             qx = static_cast<EvaluationT>(0.25) * s;
             qy = (m12 + m21) / s;
             qz = (m13 + m31n) / s;
@@ -1178,7 +1178,7 @@ namespace Common {
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m13 - m31n) / s;
+            qw = (m31n - m13) / s;
             qx = (m12 + m21) / s;
             qy = static_cast<EvaluationT>(0.25) * s;
             qz = (m23 + m32n) / s;
@@ -1187,7 +1187,7 @@ namespace Common {
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m21 - m12) / s;
+            qw = (m12 - m21) / s;
             qx = (m13 + m31n) / s;
             qy = (m23 + m32n) / s;
             qz = static_cast<EvaluationT>(0.25) * s;
