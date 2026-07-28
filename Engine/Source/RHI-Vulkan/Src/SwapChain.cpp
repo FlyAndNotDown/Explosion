@@ -27,7 +27,7 @@ namespace RHI::Vulkan {
     VulkanSwapChain::~VulkanSwapChain()
     {
         const auto vkDevice = device.GetNative();
-        vkDeviceWaitIdle(vkDevice);
+        queue.WaitIdle();
 
         for (const auto& tex : textures) {
             delete tex;

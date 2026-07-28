@@ -93,4 +93,10 @@ namespace RHI::Vulkan {
         const std::scoped_lock lock(*nativeQueueMutex);
         return vkQueuePresentKHR(nativeQueue, &inPresentInfo);
     }
+
+    void VulkanQueue::WaitIdle() const
+    {
+        const std::scoped_lock lock(*nativeQueueMutex);
+        Assert(vkQueueWaitIdle(nativeQueue) == VK_SUCCESS);
+    }
 }

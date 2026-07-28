@@ -26,6 +26,7 @@ namespace RHI::Vulkan {
 
         VkQueue GetNative() const;
         VkResult Present(const VkPresentInfoKHR& inPresentInfo) const;
+        void WaitIdle() const;
 
     private:
         void SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo) override;
