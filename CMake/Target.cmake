@@ -455,7 +455,7 @@ endfunction()
 function(exp_add_executable)
     set(options NOT_INSTALL)
     set(singleValueArgs NAME FOLDER)
-    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT)
+    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT PRIVATE_COMPILE_DEF PRIVATE_COMPILE_OPT)
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (arg_NOT_INSTALL)
@@ -503,6 +503,14 @@ function(exp_add_executable)
     target_link_libraries(
         ${arg_NAME}
         PRIVATE ${arg_LIB}
+    )
+    target_compile_options(
+        ${arg_NAME}
+        PRIVATE ${arg_PRIVATE_COMPILE_OPT}
+    )
+    target_compile_definitions(
+        ${arg_NAME}
+        PRIVATE ${arg_PRIVATE_COMPILE_DEF}
     )
     exp_process_runtime_dependencies(
         NAME ${arg_NAME}
@@ -730,7 +738,7 @@ function(exp_add_benchmark)
 
     set(options "")
     set(singleValueArgs NAME)
-    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT)
+    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT PRIVATE_COMPILE_DEF PRIVATE_COMPILE_OPT)
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
     exp_add_executable(
@@ -743,6 +751,8 @@ function(exp_add_benchmark)
         DEP_TARGET ${arg_DEP_TARGET}
         RES ${arg_RES}
         REFLECT ${arg_REFLECT}
+        PRIVATE_COMPILE_DEF ${arg_PRIVATE_COMPILE_DEF}
+        PRIVATE_COMPILE_OPT ${arg_PRIVATE_COMPILE_OPT}
         NOT_INSTALL
     )
 endfunction()
