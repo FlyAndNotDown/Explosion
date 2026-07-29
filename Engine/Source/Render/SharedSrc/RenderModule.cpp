@@ -39,7 +39,7 @@ namespace Render {
         RenderThread::Get().Start();
         RenderWorkerThreads::Get().Start();
 
-        rhiInstance = RHI::Instance::GetByType(inParams.rhiType);
+        rhiInstance = RHI::Instance::GetByType(inParams.rhiType, inParams.instanceCreateInfo);
         rhiDevice = rhiInstance->GetGpu(0)->RequestDevice(
             RHI::DeviceCreateInfo()
                 .AddQueueRequest(RHI::QueueRequestInfo(RHI::QueueType::graphics, 1))

@@ -20,9 +20,11 @@ namespace RHI::Vulkan::Internal {
 }
 
 namespace RHI::Vulkan {
+#if BUILD_CONFIG_DEBUG
     static std::vector requiredLayerNames = {
         "VK_LAYER_KHRONOS_validation"
     };
+#endif
 
     static std::vector requiredExtensionNames = {
         "VK_KHR_surface",
@@ -34,7 +36,7 @@ namespace RHI::Vulkan {
         "VK_KHR_get_physical_device_properties2",
 #endif
 #if BUILD_CONFIG_DEBUG
-        "VK_EXT_debug_utils"
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 #endif
     };
 
@@ -56,7 +58,7 @@ namespace RHI::Vulkan {
         return VK_FALSE;
     }
 
-    void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& inCreateInfo)
+    static void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& inCreateInfo)
     {
         inCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         inCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
@@ -71,14 +73,21 @@ namespace RHI::Vulkan {
 namespace RHI::Vulkan {
     RHI::Instance* gInstance = nullptr;
 
-    VulkanInstance::VulkanInstance()
+    VulkanInstance::VulkanInstance(const InstanceCreateInfo& inCreateInfo)
+        : Instance(inCreateInfo)
+#if BUILD_CONFIG_DEBUG
+        , nativeDebugMessenger(VK_NULL_HANDLE)
+#endif
+        , nativeInstance(VK_NULL_HANDLE)
     {
 #if PLATFORM_MACOS
         Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", Internal::GetRuntimeManifestPath("MoltenVK_icd.json"));
 #endif
 
 #if BUILD_CONFIG_DEBUG
-        PrepareLayers();
+        if (GetCreateInfo().gpuDebug) {
+            PrepareLayers();
+        }
 #endif
         PrepareExtensions();
         CreateNativeInstance();
@@ -164,13 +173,14 @@ namespace RHI::Vulkan {
         createInfo.pApplicationInfo = &applicationInfo;
         createInfo.enabledExtensionCount = enabledExtensionNames.size();
         createInfo.ppEnabledExtensionNames = enabledExtensionNames.data();
-#if BUILD_CONFIG_DEBUG
-        createInfo.enabledLayerCount = requiredLayerNames.size();
-        createInfo.ppEnabledLayerNames = requiredLayerNames.data();
 
+#if BUILD_CONFIG_DEBUG
+        if (GetCreateInfo().gpuDebug) {
+            createInfo.enabledLayerCount = requiredLayerNames.size();
+            createInfo.ppEnabledLayerNames = requiredLayerNames.data();
+        }
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
         PopulateDebugMessengerCreateInfo(debugCreateInfo);
-
         createInfo.pNext = &debugCreateInfo;
 #endif
 #if PLATFORM_MACOS

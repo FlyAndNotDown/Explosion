@@ -20,6 +20,7 @@ namespace Editor {
     struct EditorApplicationDesc {
         EditorApplicationMode mode;
         std::string rhiType;
+        bool gpuDebug;
         std::string projectRoot;
     };
 

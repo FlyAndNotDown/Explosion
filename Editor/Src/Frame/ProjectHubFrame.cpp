@@ -89,12 +89,13 @@ namespace Editor::ProjectHub::Internal {
         return result;
     }
 
-    static std::string LaunchCommand(const std::string& inExecutable, const std::string& inProjectPath, const std::string& inRhiType)
+    static std::string LaunchCommand(const std::string& inExecutable, const std::string& inProjectPath, const std::string& inRhiType, bool inGpuDebug)
     {
+        const std::string gpuDebugArg = inGpuDebug ? " -gpuDebug" : "";
 #if PLATFORM_WINDOWS
-        return std::format("start \"\" \"{}\" -project \"{}\" -rhi {}", inExecutable, inProjectPath, inRhiType);
+        return std::format("start \"\" \"{}\" -project \"{}\" -rhi {}{}", inExecutable, inProjectPath, inRhiType, gpuDebugArg);
 #else
-        return std::format("\"{}\" -project \"{}\" -rhi {} &", inExecutable, inProjectPath, inRhiType);
+        return std::format("\"{}\" -project \"{}\" -rhi {}{} &", inExecutable, inProjectPath, inRhiType, gpuDebugArg);
 #endif
     }
 }
@@ -125,7 +126,7 @@ namespace Editor {
         SaveRecentProjects();
     }
 
-    void ProjectHubFrame::Render(EditorWindow& inWindow, const std::string& inRhiType)
+    void ProjectHubFrame::Render(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug)
     {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -142,21 +143,21 @@ namespace Editor {
                 | ImGuiWindowFlags_NoBringToFrontOnFocus);
         ImGui::PopStyleVar(2);
 
-        RenderActionBar(inWindow, inRhiType);
+        RenderActionBar(inWindow, inRhiType, inGpuDebug);
         ImGui::Dummy(ImVec2(0.0f, 22.0f));
-        RenderRecentProjects(inWindow, inRhiType);
-        RenderCreateProjectPopup(inWindow, inRhiType);
+        RenderRecentProjects(inWindow, inRhiType, inGpuDebug);
+        RenderCreateProjectPopup(inWindow, inRhiType, inGpuDebug);
         ImGui::End();
     }
 
-    void ProjectHubFrame::RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType)
+    void ProjectHubFrame::RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug)
     {
         const float spacing = ImGui::GetStyle().ItemSpacing.x;
         const float buttonWidth = (ImGui::GetContentRegionAvail().x - spacing) * 0.5f;
         const std::string openLabel = Widgets::Label(Icons::Tabler::folderOpen, "Open");
         if (Widgets::PrimaryButton(openLabel.c_str(), ImVec2(buttonWidth, ProjectHub::Internal::actionButtonHeight))) {
             if (const auto selectedDirectory = PlatformUtils::SelectDirectory("Open Explosion Project")) {
-                OpenProject(inWindow, *selectedDirectory, inRhiType);
+                OpenProject(inWindow, *selectedDirectory, inRhiType, inGpuDebug);
             }
         }
 
@@ -168,7 +169,7 @@ namespace Editor {
         }
     }
 
-    void ProjectHubFrame::RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType)
+    void ProjectHubFrame::RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug)
     {
         const std::string recentProjectsLabel = Widgets::Label(Icons::Tabler::folder, "Recent projects");
         ImGui::TextUnformatted(recentProjectsLabel.c_str());
@@ -208,11 +209,11 @@ namespace Editor {
         ImGui::EndChild();
 
         if (!projectToOpen.empty()) {
-            OpenProject(inWindow, projectToOpen, inRhiType);
+            OpenProject(inWindow, projectToOpen, inRhiType, inGpuDebug);
         }
     }
 
-    void ProjectHubFrame::RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType)
+    void ProjectHubFrame::RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug)
     {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -287,7 +288,7 @@ namespace Editor {
                 if (result.success) {
                     statusMessage.clear();
                     ImGui::CloseCurrentPopup();
-                    OpenProject(inWindow, result.projectPath, inRhiType);
+                    OpenProject(inWindow, result.projectPath, inRhiType, inGpuDebug);
                 } else {
                     statusMessage = result.error;
                 }
@@ -326,7 +327,7 @@ namespace Editor {
         return { .success = true, .error = {}, .projectPath = projectDir.String() };
     }
 
-    void ProjectHubFrame::OpenProject(EditorWindow& inWindow, const std::string& inProjectPath, const std::string& inRhiType)
+    void ProjectHubFrame::OpenProject(EditorWindow& inWindow, const std::string& inProjectPath, const std::string& inRhiType, bool inGpuDebug)
     {
         const Common::Path projectDir(inProjectPath);
         if (!projectDir.Exists() || !projectDir.IsDirectory()) {
@@ -337,7 +338,7 @@ namespace Editor {
         TouchRecentProject(inProjectPath);
         SaveRecentProjects();
 
-        const std::string command = ProjectHub::Internal::LaunchCommand(Core::Paths::ExecutablePath().String(), inProjectPath, inRhiType);
+        const std::string command = ProjectHub::Internal::LaunchCommand(Core::Paths::ExecutablePath().String(), inProjectPath, inRhiType, inGpuDebug);
         std::ignore = std::system(command.c_str());
         inWindow.RequestClose();
     }

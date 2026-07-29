@@ -157,14 +157,18 @@ namespace RHI::DirectX12 {
         CreateDescriptorPools();
         CreateIndirectCommandSignatures();
 #if BUILD_CONFIG_DEBUG
-        RegisterNativeDebugLayerExceptionHandler();
+        if (gpu.GetInstance().GetCreateInfo().gpuDebug) {
+            RegisterNativeDebugLayerExceptionHandler();
+        }
 #endif
     }
 
     DX12Device::~DX12Device()
     {
 #if BUILD_CONFIG_DEBUG
-        UnregisterNativeDebugLayerExceptionHandler();
+        if (gpu.GetInstance().GetCreateInfo().gpuDebug) {
+            UnregisterNativeDebugLayerExceptionHandler();
+        }
 #endif
     }
 

@@ -12,7 +12,7 @@ namespace RHI::Vulkan {
 
     void VulkanRHIModule::OnLoad()
     {
-        gInstance = new VulkanInstance();
+        RHIModule::OnLoad();
     }
 
     void VulkanRHIModule::OnUnload()
@@ -27,6 +27,13 @@ namespace RHI::Vulkan {
 
     Instance* VulkanRHIModule::GetRHIInstance() // NOLINT
     {
+        return gInstance;
+    }
+
+    Instance* VulkanRHIModule::CreateRHIInstance(const InstanceCreateInfo& inCreateInfo)
+    {
+        Assert(gInstance == nullptr);
+        gInstance = new VulkanInstance(inCreateInfo);
         return gInstance;
     }
 }

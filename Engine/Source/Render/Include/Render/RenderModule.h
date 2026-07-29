@@ -16,6 +16,7 @@
 namespace Render {
     struct RenderModuleInitParams {
         RHI::RHIType rhiType;
+        RHI::InstanceCreateInfo instanceCreateInfo;
     };
 
     class RENDER_API RenderModule final : public Core::Module {

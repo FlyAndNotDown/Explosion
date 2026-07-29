@@ -6,6 +6,13 @@
 #include <RHI/RHIModule.h>
 
 namespace RHI {
+    InstanceCreateInfo::InstanceCreateInfo()
+#if BUILD_CONFIG_DEBUG
+        : gpuDebug(false)
+#endif
+    {
+    }
+
     RHIType GetPlatformRHIType()
     {
 #if PLATFORM_WINDOWS
@@ -54,18 +61,26 @@ namespace RHI {
         return map.at(type);
     }
 
-    Instance* Instance::GetByPlatform()
+    Instance* Instance::GetByPlatform(const InstanceCreateInfo& inCreateInfo)
     {
-        return GetByType(GetPlatformRHIType());
+        return GetByType(GetPlatformRHIType(), inCreateInfo);
     }
 
-    Instance* Instance::GetByType(const RHIType& type)
+    Instance* Instance::GetByType(const RHIType& type, const InstanceCreateInfo& inCreateInfo)
     {
         auto* module = Core::ModuleManager::Get().FindOrLoadTyped<RHIModule>(GetRHIModuleNameByType(type));
         if (module == nullptr) {
             return nullptr;
         }
-        return module->GetRHIInstance();
+        auto* instance = module->GetRHIInstance();
+        if (instance == nullptr) {
+            instance = module->CreateRHIInstance(inCreateInfo);
+        } else {
+#if BUILD_CONFIG_DEBUG
+            Assert(instance->GetCreateInfo().gpuDebug == inCreateInfo.gpuDebug);
+#endif
+        }
+        return instance;
     }
 
     void Instance::UnloadByType(const RHIType& type)
@@ -83,5 +98,13 @@ namespace RHI {
 
     Instance::~Instance() = default;
 
-    Instance::Instance() = default;
+    Instance::Instance(const InstanceCreateInfo& inCreateInfo)
+        : createInfo(inCreateInfo)
+    {
+    }
+
+    const InstanceCreateInfo& Instance::GetCreateInfo() const
+    {
+        return createInfo;
+    }
 }

@@ -28,7 +28,7 @@ namespace Runtime {
         if (inParams.logToFile) {
             AttachLogFile();
         }
-        InitRender(inParams.rhiType);
+        InitRender(inParams.rhiType, inParams.gpuDebug);
         LoadPlugins();
         LoadConfigs();
     }
@@ -94,13 +94,16 @@ namespace Runtime {
         LogInfo(Core, "logger attached to file {}", logFile);
     }
 
-    void Engine::InitRender(const std::string& inRhiTypeStr)
+    void Engine::InitRender(const std::string& inRhiTypeStr, bool inGpuDebug)
     {
         renderModule = ::Core::ModuleManager::Get().FindOrLoadTyped<Render::RenderModule>("Render");
         Assert(renderModule != nullptr);
 
         Render::RenderModuleInitParams initParams;
         initParams.rhiType = RHI::GetRHITypeByAbbrString(inRhiTypeStr);
+#if BUILD_CONFIG_DEBUG
+        initParams.instanceCreateInfo.gpuDebug = inGpuDebug;
+#endif
         renderModule->Initialize(initParams);
         LogInfo(Render, "RHI type: {}", inRhiTypeStr);
     }

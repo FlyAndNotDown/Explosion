@@ -12,6 +12,7 @@ namespace RHI {
     public:
         ~RHIModule() override;
         virtual Instance* GetRHIInstance() = 0;
+        virtual Instance* CreateRHIInstance(const InstanceCreateInfo& inCreateInfo) = 0;
 
     protected:
         RHIModule();

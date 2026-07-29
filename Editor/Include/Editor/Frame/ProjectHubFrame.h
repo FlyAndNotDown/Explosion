@@ -40,14 +40,14 @@ namespace Editor {
         ProjectHubFrame();
         ~ProjectHubFrame();
 
-        void Render(EditorWindow& inWindow, const std::string& inRhiType);
+        void Render(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug);
 
     private:
-        void RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType);
-        void RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType);
-        void RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType);
+        void RenderActionBar(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug);
+        void RenderRecentProjects(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug);
+        void RenderCreateProjectPopup(EditorWindow& inWindow, const std::string& inRhiType, bool inGpuDebug);
         CreateProjectResult CreateProject();
-        void OpenProject(EditorWindow& inWindow, const std::string& inProjectPath, const std::string& inRhiType);
+        void OpenProject(EditorWindow& inWindow, const std::string& inProjectPath, const std::string& inRhiType, bool inGpuDebug);
         void SaveRecentProjects() const;
         void TouchRecentProject(const std::string& inProjectPath);
 

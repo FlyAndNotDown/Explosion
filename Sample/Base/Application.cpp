@@ -44,9 +44,15 @@ bool Application::Initialize(int argc, char* argv[])
     Core::Cli::Get().Parse(argc, argv);
 
     std::string rhiString;
+#if BUILD_CONFIG_DEBUG
+    bool gpuDebug = false;
+#endif
     if (const auto cli = (
             clipp::option("-w").doc("window width, 1024 by default") & clipp::value("width", windowExtent.x),
             clipp::option("-h").doc("window height, 768 by default") & clipp::value("height", windowExtent.y),
+#if BUILD_CONFIG_DEBUG
+            clipp::option("-gpuDebug").set(gpuDebug).doc("enable GPU validation layers"),
+#endif
             clipp::required("-rhi").doc("RHI type, can be 'dx12' or 'vulkan'") & clipp::value("RHI type", rhiString)
             );
         !clipp::parse(argc, argv, cli)) {
@@ -55,7 +61,11 @@ bool Application::Initialize(int argc, char* argv[])
     }
 
     rhiType = RHI::GetRHITypeByAbbrString(rhiString);
-    instance = RHI::Instance::GetByType(rhiType);
+    RHI::InstanceCreateInfo instanceCreateInfo;
+#if BUILD_CONFIG_DEBUG
+    instanceCreateInfo.gpuDebug = gpuDebug;
+#endif
+    instance = RHI::Instance::GetByType(rhiType, instanceCreateInfo);
 
     return true;
 }
