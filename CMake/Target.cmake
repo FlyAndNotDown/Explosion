@@ -491,6 +491,13 @@ function(exp_add_executable)
         ${arg_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${runtime_output_dir}
     )
+    if (APPLE)
+        set_target_properties(
+            ${arg_NAME} PROPERTIES
+            BUILD_RPATH "@executable_path"
+            INSTALL_RPATH "@executable_path"
+        )
+    endif ()
 
     target_include_directories(
         ${arg_NAME}
@@ -553,10 +560,6 @@ function(exp_add_executable)
                 NAMESPACE ${SUB_PROJECT_NAME}::
                 APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
             )
-        endif ()
-
-        if (APPLE)
-            install(CODE "execute_process(COMMAND install_name_tool -add_rpath @executable_path ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries/$<TARGET_FILE_NAME:${arg_NAME}>)")
         endif ()
     endif ()
 endfunction()

@@ -9,7 +9,15 @@
 
 #include <Common/Platform.h>
 #include <Common/IO.h>
+#include <Core/Paths.h>
 #include <RHI/Vulkan/Gpu.h>
+
+namespace RHI::Vulkan::Internal {
+    static std::string GetRuntimeManifestPath(const char* inFileName)
+    {
+        return (Core::Paths::ExecutablePath().Absolute().Parent() / inFileName).String();
+    }
+}
 
 namespace RHI::Vulkan {
     static std::vector requiredLayerNames = {
@@ -66,7 +74,7 @@ namespace RHI::Vulkan {
     VulkanInstance::VulkanInstance()
     {
 #if PLATFORM_MACOS
-        Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", "MoltenVK_icd.json");
+        Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", Internal::GetRuntimeManifestPath("MoltenVK_icd.json"));
 #endif
 
 #if BUILD_CONFIG_DEBUG
@@ -96,7 +104,7 @@ namespace RHI::Vulkan {
 #if BUILD_CONFIG_DEBUG
     void VulkanInstance::PrepareLayers()
     {
-        Common::PlatformUtils::SetEnvVar("VK_LAYER_PATH", "VkLayer_khronos_validation.json");
+        Common::PlatformUtils::SetEnvVar("VK_LAYER_PATH", Internal::GetRuntimeManifestPath("VkLayer_khronos_validation.json"));
 
         uint32_t supportedLayerCount = 0;
         vkEnumerateInstanceLayerProperties(&supportedLayerCount, nullptr);
