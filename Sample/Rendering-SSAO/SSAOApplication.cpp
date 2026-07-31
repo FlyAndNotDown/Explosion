@@ -181,7 +181,7 @@ protected:
             auto* gBufferPos = builder.ImportTexture(gBufferPosTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferNormal = builder.ImportTexture(gBufferNormalTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferAlbedo = builder.ImportTexture(gBufferAlbedoTex.Get(), TextureState::shaderReadOnly);
-            auto* gBufferDepth = builder.ImportTexture(gBufferDepthTex.Get(), TextureState::depthStencilReadonly);
+            auto* gBufferDepth = builder.ImportTexture(gBufferDepthTex.Get(), TextureState::depthStencilWrite);
 
             auto* ssaoTexture = builder.ImportTexture(ssaoTex.Get(), TextureState::shaderReadOnly);
             auto* ssaoBlurTexture = builder.ImportTexture(ssaoBlurTex.Get(), TextureState::shaderReadOnly);
