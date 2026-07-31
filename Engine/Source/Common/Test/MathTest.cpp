@@ -159,10 +159,13 @@ TEST(MathTest, HFloatBitPatternRoundTripTest) // NOLINT
 
 TEST(MathTest, HFloatFloatConversionRoundingTest) // NOLINT
 {
-    const float nanWithTruncatedPayload = std::bit_cast<float>(0x7f800001u);
-    const HFloat nan(nanWithTruncatedPayload);
-    ASSERT_EQ(nan.value, 0x7c01u);
-    ASSERT_TRUE(std::isnan(nan.AsFloat()));
+    const HFloat signalingNan(std::bit_cast<float>(0x7f800001u));
+    const HFloat quietNan(std::numeric_limits<float>::quiet_NaN());
+    const HFloat negativeNan(-std::numeric_limits<float>::quiet_NaN());
+    ASSERT_EQ(signalingNan.value, 0x7e00u);
+    ASSERT_EQ(quietNan.value, 0x7e00u);
+    ASSERT_EQ(negativeNan.value, 0x7e00u);
+    ASSERT_TRUE(std::isnan(signalingNan.AsFloat()));
 
     const float minimumSubnormal = std::ldexp(1.0f, -24);
     const float halfwayFromZero = std::ldexp(1.0f, -25);
