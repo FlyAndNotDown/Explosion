@@ -18,8 +18,8 @@ namespace RHI::Vulkan {
     VulkanSwapChain::VulkanSwapChain(VulkanDevice& inDevice, const SwapChainCreateInfo& inCreateInfo)
         : SwapChain(inCreateInfo)
         , device(inDevice)
+        , queue(static_cast<VulkanQueue&>(*inCreateInfo.presentQueue))
         , nativeSwapChain(VK_NULL_HANDLE)
-        , nativeQueue(VK_NULL_HANDLE)
     {
         CreateNativeSwapChain(inCreateInfo);
     }
@@ -27,7 +27,7 @@ namespace RHI::Vulkan {
     VulkanSwapChain::~VulkanSwapChain()
     {
         const auto vkDevice = device.GetNative();
-        vkDeviceWaitIdle(vkDevice);
+        queue.WaitIdle();
 
         for (const auto& tex : textures) {
             delete tex;
@@ -70,18 +70,16 @@ namespace RHI::Vulkan {
         presetInfo.pWaitSemaphores = waitSemaphores.data();
         presetInfo.pImageIndices = &currentImage;
 
-        const auto result = vkQueuePresentKHR(nativeQueue, &presetInfo);
+        const auto result = queue.Present(presetInfo);
         Assert(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
     }
 
     void VulkanSwapChain::CreateNativeSwapChain(const SwapChainCreateInfo& inCreateInfo)
     {
         const auto vkDevice = device.GetNative();
-        const auto* mQueue = static_cast<VulkanQueue*>(inCreateInfo.presentQueue);
-        Assert(mQueue);
+        Assert(inCreateInfo.presentQueue != nullptr);
         auto* vkSurface = static_cast<VulkanSurface*>(inCreateInfo.surface);
         Assert(vkSurface);
-        nativeQueue = mQueue->GetNative();
         const auto surface = vkSurface->GetNative();
 
         VkSurfaceCapabilitiesKHR surfaceCap;

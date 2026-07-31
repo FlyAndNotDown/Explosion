@@ -108,7 +108,7 @@ namespace RHI::Vulkan {
             const auto& srcState = createInfo.fragmentState.colorTargets[i];
             blendStates[i].blendEnable = srcState.blendEnabled ? VK_TRUE : VK_FALSE;
             blendStates[i].colorWriteMask = srcState.writeFlags.Value();
-            blendStates[i].alphaBlendOp = EnumCast<BlendOp, VkBlendOp>(srcState.colorBlend.op);
+            blendStates[i].colorBlendOp = EnumCast<BlendOp, VkBlendOp>(srcState.colorBlend.op);
             blendStates[i].alphaBlendOp = EnumCast<BlendOp, VkBlendOp>(srcState.alphaBlend.op);
             blendStates[i].srcColorBlendFactor = EnumCast<BlendFactor, VkBlendFactor>(srcState.colorBlend.srcFactor);
             blendStates[i].srcAlphaBlendFactor = EnumCast<BlendFactor, VkBlendFactor>(srcState.alphaBlend.srcFactor);

@@ -16,6 +16,7 @@ namespace Runtime {
 
     struct EngineInitParams {
         bool logToFile;
+        bool gpuDebug;
         std::string gameRoot;
         std::string rhiType;
     };
@@ -35,7 +36,7 @@ namespace Runtime {
         explicit Engine(const EngineInitParams& inParams);
 
         void AttachLogFile() const;
-        void InitRender(const std::string& inRhiTypeStr);
+        void InitRender(const std::string& inRhiTypeStr, bool inGpuDebug);
         void LoadPlugins() const;
         void LoadConfigs() const;
 

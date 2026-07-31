@@ -12,7 +12,7 @@ namespace RHI::DirectX12 {
 
     void DX12RHIModule::OnLoad()
     {
-        gInstance = new DX12Instance();
+        RHIModule::OnLoad();
     }
 
     void DX12RHIModule::OnUnload()
@@ -27,6 +27,13 @@ namespace RHI::DirectX12 {
 
     Instance* DX12RHIModule::GetRHIInstance() // NOLINT
     {
+        return gInstance;
+    }
+
+    Instance* DX12RHIModule::CreateRHIInstance(const InstanceCreateInfo& inCreateInfo)
+    {
+        Assert(gInstance == nullptr);
+        gInstance = new DX12Instance(inCreateInfo);
         return gInstance;
     }
 }

@@ -2,6 +2,7 @@
 // Created by johnk on 2023/11/28.
 //
 
+#include <algorithm>
 #include <cstring>
 #include <ranges>
 
@@ -10,6 +11,18 @@
 #include <Common/Container.h>
 
 namespace Render::Internal {
+    static std::pair<const uint8_t*, size_t> GetBufferUploadSource(const RGBufferUploadInfo& inUploadInfo)
+    {
+        if (const auto* dataView = std::get_if<RGBufferUploadInfo::DataView>(&inUploadInfo.src)) {
+            return { static_cast<const uint8_t*>(dataView->data), dataView->size };
+        }
+        if (const auto* dataCopy = std::get_if<RGBufferUploadInfo::DataCopy>(&inUploadInfo.src)) {
+            return { dataCopy->data.data(), dataCopy->data.size() };
+        }
+        Unimplement();
+        return {};
+    }
+
     static void ComputeReadsWritesForBindGroup(const RGBindGroupDesc& inDesc, std::unordered_set<RGResourceRef>& outReads, std::unordered_set<RGResourceRef>& outWrites)
     {
         for (const auto& [type, view] : inDesc.items | std::views::values) {
@@ -18,15 +31,19 @@ namespace Render::Internal {
             } else if (type == RHI::BindingType::storageBuffer) {
                 outReads.emplace(std::get<RGBufferViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::rwStorageBuffer) {
-                outWrites.emplace(std::get<RGBufferViewRef>(view)->GetResource());
+                auto* resource = std::get<RGBufferViewRef>(view)->GetResource();
+                outReads.emplace(resource);
+                outWrites.emplace(resource);
             } else if (type == RHI::BindingType::texture) {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::storageTexture) {
                 outReads.emplace(std::get<RGTextureViewRef>(view)->GetResource());
             } else if (type == RHI::BindingType::rwStorageTexture) {
-                outWrites.emplace(std::get<RGTextureViewRef>(view)->GetResource());
-            } else if (type == RHI::BindingType::sampler){
-                return;
+                auto* resource = std::get<RGTextureViewRef>(view)->GetResource();
+                outReads.emplace(resource);
+                outWrites.emplace(resource);
+            } else if (type == RHI::BindingType::sampler) {
+                continue;
             } else {
                 Unimplement();
             }
@@ -343,10 +360,11 @@ namespace Render {
     {
     }
 
-    RGBufferUploadInfo::RGBufferUploadInfo(void* inData, size_t inSize, size_t inSrcOffset, size_t inDstOffset, bool inCopy)
+    RGBufferUploadInfo::RGBufferUploadInfo(const void* inData, size_t inSize, size_t inSrcOffset, size_t inDstOffset, bool inCopy)
         : srcOffset(inSrcOffset)
         , dstOffset(inDstOffset)
     {
+        Assert(inData != nullptr && inSize > 0);
         if (inCopy) {
             auto& [data] = src.emplace<DataCopy>();
             data.resize(inSize);
@@ -461,10 +479,20 @@ namespace Render {
         return bindGroups.back().Get();
     }
 
-    void RGBuilder::QueueBufferUpload(RGBufferRef inBuffer, const RGBufferUploadInfo& inUploadInfo)
+    void RGBuilder::QueueBufferUpload(RGBufferRef inBuffer, RGBufferUploadInfo inUploadInfo)
     {
+        Assert(!executed);
+        Assert(inBuffer != nullptr);
         Assert((inBuffer->GetDesc().usages & RHI::BufferUsageBits::mapWrite) != RHI::BufferUsageFlags::null);
-        bufferUploads.emplace(inBuffer, inUploadInfo);
+        const auto [srcData, srcDataSize] = Internal::GetBufferUploadSource(inUploadInfo);
+        Assert(srcData != nullptr && srcDataSize > 0);
+        Assert(inUploadInfo.srcOffset < srcDataSize);
+
+        const size_t uploadSize = srcDataSize - inUploadInfo.srcOffset;
+        const size_t bufferSize = inBuffer->GetDesc().size;
+        Assert(inUploadInfo.dstOffset <= bufferSize);
+        Assert(uploadSize <= bufferSize - inUploadInfo.dstOffset);
+        bufferUploads[inBuffer].emplace_back(std::move(inUploadInfo));
     }
 
     void RGBuilder::AddCopyPass(const std::string& inName, const RGCopyPassDesc& inPassDesc, const RGCopyPassExecuteFunc& inFunc, bool inAsyncCopy, const RGCommonPassExecuteFunc& inPreExecuteFunc, const RGCommonPassExecuteFunc& inPostExecuteFunc)
@@ -563,6 +591,8 @@ namespace Render {
     {
         CompilePassReadWrites();
         PerformCull();
+        CompileResourceUseCounts();
+        PerformSyncCheck();
         ComputeResourcesInitialState();
     }
 
@@ -600,7 +630,8 @@ namespace Render {
             semaphoreMap.reserve(queueNumInAsyncTimeline);
 
             for (const auto& [queueType, passes] : queuePasses) {
-                commandBufferMap.emplace(queueType, device.CreateCommandBuffer());
+                const auto [rhiQueueType, rhiQueueIndex] = Internal::GetRHIQueueTypeAndIndex(queueType);
+                commandBufferMap.emplace(queueType, device.CreateCommandBuffer(rhiQueueType));
                 semaphoreMap.emplace(queueType, isLastAsyncTimeline ? nullptr : device.CreateSemaphore());
 
                 auto& commandBufferToRecord = commandBufferMap.at(queueType);
@@ -626,7 +657,6 @@ namespace Render {
                     commandRecorder->End();
                 }
 
-                auto [rhiQueueType, rhiQueueIndex] = Internal::GetRHIQueueTypeAndIndex(queueType);
                 auto submitInfo = RHI::QueueSubmitInfo()
                     .SetWaitSemaphores(semaphoresToWait);
                 if (isLastAsyncTimeline) {
@@ -682,22 +712,54 @@ namespace Render {
 
                 const auto& [colorAttachments, depthStencilAttachment] = rasterPass->passDesc;
                 if (depthStencilAttachment.has_value()) {
-                    passWrites.emplace(depthStencilAttachment.value().view->GetResource());
+                    const auto& attachment = depthStencilAttachment.value();
+                    const auto aspect = attachment.view->GetDesc().aspect;
+                    const bool hasDepth = aspect == RHI::TextureAspect::depth || aspect == RHI::TextureAspect::depthStencil;
+                    const bool hasStencil = aspect == RHI::TextureAspect::stencil || aspect == RHI::TextureAspect::depthStencil;
+                    auto* resource = attachment.view->GetResource();
+
+                    if ((hasDepth && (attachment.depthReadOnly || attachment.depthLoadOp == RHI::LoadOp::load))
+                        || (hasStencil && (attachment.stencilReadOnly || attachment.stencilLoadOp == RHI::LoadOp::load))) {
+                        passReads.emplace(resource);
+                    }
+                    if ((hasDepth && !attachment.depthReadOnly) || (hasStencil && !attachment.stencilReadOnly)) {
+                        passWrites.emplace(resource);
+                    }
                 }
                 for (const auto& colorAttachment : colorAttachments) {
-                    passWrites.emplace(colorAttachment.view->GetResource());
+                    auto* resource = colorAttachment.view->GetResource();
+                    if (colorAttachment.loadOp == RHI::LoadOp::load) {
+                        passReads.emplace(resource);
+                    }
+                    passWrites.emplace(resource);
                 }
             } else {
                 Unimplement();
             }
         }
+    }
 
+    void RGBuilder::CompileResourceUseCounts()
+    {
         for (const auto& resource : resources) {
-            resourceReadCounts[resource.Get()] = resource->forceUsed || resource->imported ? 1 : 0;
+            auto* resourceRef = resource.Get();
+            resourceUseCounts[resourceRef] = resourceRef->forceUsed || resourceRef->imported ? 1 : 0;
         }
+
         for (const auto& pass : passes) {
-            for (auto* read : passReadsMap.at(pass.Get())) {
-                resourceReadCounts[read]++;
+            auto* passRef = pass.Get();
+            if (culledPasses.contains(passRef)) {
+                continue;
+            }
+
+            const auto& reads = passReadsMap.at(passRef);
+            for (auto* resource : reads) {
+                resourceUseCounts.at(resource)++;
+            }
+            for (auto* resource : passWritesMap.at(passRef)) {
+                if (!reads.contains(resource)) {
+                    resourceUseCounts.at(resource)++;
+                }
             }
         }
     }
@@ -706,6 +768,9 @@ namespace Render {
     {
         auto collectQueueReadWrites = [this](const std::vector<RGPassRef>& passes, std::unordered_set<RGResourceRef>& outReads, std::unordered_set<RGResourceRef>& outWrites) -> void {
             for (auto* pass : passes) {
+                if (culledPasses.contains(pass)) {
+                    continue;
+                }
                 Common::SetUtils::GetUnionInplace(outReads, passReadsMap.at(pass));
                 Common::SetUtils::GetUnionInplace(outWrites, passWritesMap.at(pass));
             }
@@ -742,37 +807,53 @@ namespace Render {
 
     void RGBuilder::PerformCull()
     {
-        // initial cull
+        std::unordered_set<RGResourceRef> requiredResources;
         for (const auto& resource : resources) {
-            if (auto* resourceRef = resource.Get();
-                resourceReadCounts.at(resourceRef) == 0) {
-                culledResources.emplace(resourceRef);
+            auto* resourceRef = resource.Get();
+            culledResources.emplace(resourceRef);
+            if (resourceRef->forceUsed || resourceRef->imported) {
+                requiredResources.emplace(resourceRef);
             }
         }
 
-        // iterative cull
         for (auto riter = passes.rbegin(); riter != passes.rend(); ++riter) {
-            const auto& pass = riter->Get();
+            auto* pass = riter->Get();
             const auto& passWrites = passWritesMap.at(pass);
 
-            bool allWritesCulled = true;
+            bool hasRequiredWrite = false;
             for (auto* write : passWrites) {
-                if (!culledResources.contains(write)) {
-                    allWritesCulled = false;
+                if (requiredResources.contains(write)) {
+                    hasRequiredWrite = true;
                     break;
                 }
             }
 
-            if (!allWritesCulled) {
+            if (!hasRequiredWrite) {
+                culledPasses.emplace(pass);
                 continue;
             }
-            culledPasses.emplace(pass);
-            for (const auto& passReads = passReadsMap.at(pass);
-                auto* read : passReads) {
-                if (auto& readCount = resourceReadCounts.at(read);
-                    --readCount == 0) {
-                    culledResources.emplace(read);
-                }
+
+            for (auto* read : passReadsMap.at(pass)) {
+                requiredResources.emplace(read);
+            }
+        }
+
+        for (const auto& resource : resources) {
+            auto* resourceRef = resource.Get();
+            if (resourceRef->forceUsed || resourceRef->imported) {
+                culledResources.erase(resourceRef);
+            }
+        }
+        for (const auto& pass : passes) {
+            auto* passRef = pass.Get();
+            if (culledPasses.contains(passRef)) {
+                continue;
+            }
+            for (auto* read : passReadsMap.at(passRef)) {
+                culledResources.erase(read);
+            }
+            for (auto* write : passWritesMap.at(passRef)) {
+                culledResources.erase(write);
             }
         }
     }
@@ -813,7 +894,7 @@ namespace Render {
                 inCopyPass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inCopyPass));
+        FinalizePassResources(inCopyPass);
     }
 
     void RGBuilder::ExecuteComputePass(RHI::CommandRecorder& inRecoder, RGComputePass* inComputePass)
@@ -835,7 +916,7 @@ namespace Render {
                 inComputePass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inComputePass));
+        FinalizePassResources(inComputePass);
         FinalizePassBindGroups(inComputePass->bindGroups);
     }
 
@@ -860,45 +941,49 @@ namespace Render {
                 inRasterPass->postPassFunc(*this, inRecoder);
             }
         }
-        FinalizePassResources(passReadsMap.at(inRasterPass));
+        FinalizePassResources(inRasterPass);
         FinalizePassBindGroups(inRasterPass->bindGroups);
     }
 
     void RGBuilder::PerformBufferUploads()
     {
         bufferUploadTasks.reserve(bufferUploads.size());
-        for (const auto& [buffer, uploadInfo] : bufferUploads) {
+        for (auto& [buffer, uploads] : bufferUploads) {
+            if (culledResources.contains(buffer)) {
+                continue;
+            }
+
             DevirtualizeResource(buffer);
             auto* rhiBuffer = GetRHI(buffer);
 
-            bufferUploadTasks.emplace_back(RenderWorkerThreads::Get().EmplaceTask([rhiBuffer, uploadInfo]() -> void {
-                const uint8_t* srcDataPtr = nullptr;
-                size_t srcDataSize = 0;
-                if (uploadInfo.src.index() == 1) {
-                    const auto& [srcData, srcSize] = std::get<RGBufferUploadInfo::DataView>(uploadInfo.src);
-                    srcDataPtr = static_cast<const uint8_t*>(srcData);
-                    srcDataSize = srcSize;
-                } else if (uploadInfo.src.index() == 2) {
-                    const auto& [srcData] = std::get<RGBufferUploadInfo::DataCopy>(uploadInfo.src);
-                    srcDataPtr = srcData.data();
-                    srcDataSize = srcData.size() * sizeof(uint8_t);
-                } else {
-                    Unimplement();
+            bufferUploadTasks.emplace_back(RenderWorkerThreads::Get().EmplaceTask([rhiBuffer, uploads = std::move(uploads)]() -> void {
+                Assert(!uploads.empty());
+
+                size_t mapOffset = uploads.front().dstOffset;
+                size_t mapEnd = mapOffset;
+                for (const auto& upload : uploads) {
+                    const auto [srcData, srcDataSize] = Internal::GetBufferUploadSource(upload);
+                    const size_t uploadSize = srcDataSize - upload.srcOffset;
+                    mapOffset = std::min(mapOffset, upload.dstOffset);
+                    mapEnd = std::max(mapEnd, upload.dstOffset + uploadSize);
                 }
 
-                Assert(srcDataPtr != nullptr && srcDataSize > 0);
-                const auto* src = srcDataPtr + uploadInfo.srcOffset; // NOLINT
-                auto* dst = rhiBuffer->Map(RHI::MapMode::write, uploadInfo.dstOffset, srcDataSize);
-                std::memcpy(dst, src, srcDataSize);
+                auto* const mappedData = static_cast<uint8_t*>(rhiBuffer->Map(RHI::MapMode::write, mapOffset, mapEnd - mapOffset));
+                Assert(mappedData != nullptr);
+                for (const auto& upload : uploads) {
+                    const auto [srcData, srcDataSize] = Internal::GetBufferUploadSource(upload);
+                    const size_t uploadSize = srcDataSize - upload.srcOffset;
+                    std::memcpy(mappedData + upload.dstOffset - mapOffset, srcData + upload.srcOffset, uploadSize);
+                }
                 rhiBuffer->Unmap();
             }));
         }
     }
 
-    void RGBuilder::WaitBufferUploadsFinish() const
+    void RGBuilder::WaitBufferUploadsFinish()
     {
-        for (const auto& task : bufferUploadTasks) {
-            task.wait();
+        for (auto& task : bufferUploadTasks) {
+            task.get();
         }
     }
 
@@ -997,11 +1082,11 @@ namespace Render {
         }
     }
 
-    void RGBuilder::FinalizePassResources(const std::unordered_set<RGResourceRef>& inResources)
+    void RGBuilder::FinalizePassResources(RGPassRef inPass)
     {
-        for (auto* resource : inResources) {
-            if (auto& readCount = resourceReadCounts.at(resource);
-                --readCount == 0) {
+        const auto finalizeResource = [this](RGResourceRef resource) -> void {
+            if (auto& useCount = resourceUseCounts.at(resource);
+                --useCount == 0) {
                 if (resource->type == RGResType::buffer) {
                     ResourceViewCache::Get(device).Invalidate(std::get<PooledBufferRef>(devirtualizedResources.at(resource))->GetRHI());
                 } else if (resource->type == RGResType::texture) {
@@ -1010,6 +1095,16 @@ namespace Render {
                     Unimplement();
                 }
                 devirtualizedResources.erase(resource);
+            }
+        };
+
+        const auto& reads = passReadsMap.at(inPass);
+        for (auto* resource : reads) {
+            finalizeResource(resource);
+        }
+        for (auto* resource : passWritesMap.at(inPass)) {
+            if (!reads.contains(resource)) {
+                finalizeResource(resource);
             }
         }
     }

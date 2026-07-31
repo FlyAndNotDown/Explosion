@@ -239,7 +239,7 @@ namespace Render {
 
     struct RGBufferUploadInfo {
         struct DataView {
-            void* data;
+            const void* data;
             size_t size;
         };
 
@@ -252,7 +252,7 @@ namespace Render {
         size_t dstOffset;
 
         RGBufferUploadInfo();
-        RGBufferUploadInfo(void* inData, size_t inSize, size_t inSrcOffset = 0, size_t inDstOffset = 0, bool inCopy = false);
+        RGBufferUploadInfo(const void* inData, size_t inSize, size_t inSrcOffset = 0, size_t inDstOffset = 0, bool inCopy = true);
     };
 
     class RGPass {
@@ -357,7 +357,7 @@ namespace Render {
         RGBufferRef ImportBuffer(RHI::Buffer* inBuffer, RHI::BufferState inInitialState);
         RGTextureRef ImportTexture(RHI::Texture* inTexture, RHI::TextureState inInitialState);
         RGBindGroupRef AllocateBindGroup(const RGBindGroupDesc& inDesc);
-        void QueueBufferUpload(RGBufferRef inBuffer, const RGBufferUploadInfo& inUploadInfo);
+        void QueueBufferUpload(RGBufferRef inBuffer, RGBufferUploadInfo inUploadInfo);
         void AddCopyPass(const std::string& inName, const RGCopyPassDesc& inPassDesc, const RGCopyPassExecuteFunc& inFunc, bool inAsyncCopy = false, const RGCommonPassExecuteFunc& inPreExecuteFunc = {}, const RGCommonPassExecuteFunc& inPostExecuteFunc = {});
         void AddComputePass(const std::string& inName, const std::vector<RGBindGroupRef>& inBindGroups, const RGComputePassExecuteFunc& inFunc, bool inAsyncCompute = false, const RGCommonPassExecuteFunc& inPreExecuteFunc = {}, const RGCommonPassExecuteFunc& inPostExecuteFunc = {});
         void AddRasterPass(const std::string& inName, const RGRasterPassDesc& inPassDesc, const std::vector<RGBindGroupRef>& inBindGroups, const RGRasterPassExecuteFunc& inFunc, const RGCommonPassExecuteFunc& inPreExecuteFunc = {}, const RGCommonPassExecuteFunc& inPostExecuteFunc = {});
@@ -384,6 +384,7 @@ namespace Render {
         void ExecuteInternal(const RGExecuteInfo& inExecuteInfo);
 
         void CompilePassReadWrites();
+        void CompileResourceUseCounts();
         void PerformSyncCheck() const;
         void PerformCull();
         // TODO resource states check inside pass (e.g. read/write a resource within a pass)
@@ -392,13 +393,13 @@ namespace Render {
         void ExecuteComputePass(RHI::CommandRecorder& inRecoder, RGComputePass* inComputePass);
         void ExecuteRasterPass(RHI::CommandRecorder& inRecoder, RGRasterPass* inRasterPass);
         void PerformBufferUploads();
-        void WaitBufferUploadsFinish() const;
+        void WaitBufferUploadsFinish();
         void DevirtualizeViewsCreatedOnImportedResources();
         void DevirtualizeResource(RGResourceRef inResource);
         void DevirtualizeResources(const std::unordered_set<RGResourceRef>& inResources);
         void DevirtualizeBindGroupsAndViews(const std::vector<RGBindGroupRef>& inBindGroups);
         void DevirtualizeAttachmentViews(const RGRasterPassDesc& inDesc);
-        void FinalizePassResources(const std::unordered_set<RGResourceRef>& inResources);
+        void FinalizePassResources(RGPassRef inPass);
         void FinalizePassBindGroups(const std::vector<RGBindGroupRef>& inBindGroups);
         void TransitionResourcesForCopyPassDesc(RHI::CommonCommandRecorder& inRecoder, const RGCopyPassDesc& inDesc);
         void TransitionResourcesForRasterPassDesc(RHI::CommonCommandRecorder& inRecoder, const RGRasterPassDesc& inDesc);
@@ -414,10 +415,10 @@ namespace Render {
         std::vector<Common::UniquePtr<RGPass>> passes;
         std::unordered_map<RGQueueType, std::vector<RGPassRef>> recordingAsyncTimeline;
         std::vector<std::unordered_map<RGQueueType, std::vector<RGPassRef>>> asyncTimelines;
-        std::unordered_map<RGBufferRef, RGBufferUploadInfo> bufferUploads;
+        std::unordered_map<RGBufferRef, std::vector<RGBufferUploadInfo>> bufferUploads;
 
         // execute context
-        std::unordered_map<RGResourceRef, uint32_t> resourceReadCounts;
+        std::unordered_map<RGResourceRef, uint32_t> resourceUseCounts;
         std::unordered_map<RGPassRef, std::unordered_set<RGResourceRef>> passReadsMap;
         std::unordered_map<RGPassRef, std::unordered_set<RGResourceRef>> passWritesMap;
         std::unordered_set<RGResourceRef> culledResources;

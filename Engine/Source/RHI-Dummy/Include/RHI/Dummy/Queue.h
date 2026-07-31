@@ -13,8 +13,10 @@ namespace RHI::Dummy {
         DummyQueue();
         ~DummyQueue() override;
 
-        void Submit(RHI::CommandBuffer* commandBuffer, const RHI::QueueSubmitInfo& submitInfo) override;
         void Flush(RHI::Fence* fenceToSignal) override;
         float GetTimestampPeriod() override;
+
+    private:
+        void SubmitInternal(RHI::CommandBuffer* commandBuffer, const RHI::QueueSubmitInfo& submitInfo) override;
     };
 }

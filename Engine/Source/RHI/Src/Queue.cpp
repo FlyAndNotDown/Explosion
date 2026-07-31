@@ -3,6 +3,8 @@
 //
 
 #include <RHI/Queue.h>
+#include <RHI/CommandBuffer.h>
+#include <Common/Debug.h>
 
 namespace RHI {
     QueueSubmitInfo::QueueSubmitInfo()
@@ -40,7 +42,22 @@ namespace RHI {
         return *this;
     }
 
-    Queue::Queue() = default;
+    Queue::Queue(const QueueType inType)
+        : type(inType)
+    {
+    }
 
     Queue::~Queue() = default;
+
+    QueueType Queue::GetType() const
+    {
+        return type;
+    }
+
+    void Queue::Submit(CommandBuffer* commandBuffer, const QueueSubmitInfo& submitInfo)
+    {
+        Assert(commandBuffer != nullptr);
+        Assert(commandBuffer->GetQueueType() == type);
+        SubmitInternal(commandBuffer, submitInfo);
+    }
 }

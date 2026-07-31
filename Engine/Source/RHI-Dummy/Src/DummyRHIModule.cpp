@@ -12,7 +12,7 @@ namespace RHI::Dummy {
 
     void DummyRHIModule::OnLoad()
     {
-        gInstance = new DummyInstance();
+        RHIModule::OnLoad();
     }
 
     void DummyRHIModule::OnUnload()
@@ -27,6 +27,13 @@ namespace RHI::Dummy {
 
     Instance* DummyRHIModule::GetRHIInstance() // NOLINT
     {
+        return gInstance;
+    }
+
+    Instance* DummyRHIModule::CreateRHIInstance(const InstanceCreateInfo& inCreateInfo)
+    {
+        Assert(gInstance == nullptr);
+        gInstance = new DummyInstance(inCreateInfo);
         return gInstance;
     }
 }

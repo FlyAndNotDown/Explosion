@@ -512,6 +512,8 @@ namespace Common::Internal {
             for (auto i = 0; i < L; i++) { result += a.data[i] * b.data[i]; }
             return result;
         }
+
+        static T ModelSquared(const Vec<T, L, B>& v) { return Dot(v, v); }
     };
 
     // Vec<float, 4, simd> is backed by float[4] (16 bytes), so unaligned 128-bit loads/stores stay in bounds. Vec3 is
@@ -533,8 +535,10 @@ namespace Common::Internal {
 
         static float Dot(const V& a, const V& b)
         {
-            return Simd::Sum(Simd::Mul(Simd::LoadU(a.data), Simd::LoadU(b.data)));
+            return Simd::Dot(a.data, b.data);
         }
+
+        static float ModelSquared(const V& v) { return Simd::LengthSquared(Simd::LoadU(v.data)); }
     };
 }
 
@@ -757,7 +761,7 @@ namespace Common {
     template <typename T, uint8_t L, MathBackend B>
     T Vec<T, L, B>::ModelSquared() const
     {
-        return Internal::VecOps<T, L, B>::Dot(*this, *this);
+        return Internal::VecOps<T, L, B>::ModelSquared(*this);
     }
 
     template <typename T, uint8_t L, MathBackend B>

@@ -455,7 +455,7 @@ endfunction()
 function(exp_add_executable)
     set(options NOT_INSTALL)
     set(singleValueArgs NAME FOLDER)
-    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT)
+    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT PRIVATE_COMPILE_DEF PRIVATE_COMPILE_OPT)
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (arg_NOT_INSTALL)
@@ -491,6 +491,13 @@ function(exp_add_executable)
         ${arg_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${runtime_output_dir}
     )
+    if (APPLE)
+        set_target_properties(
+            ${arg_NAME} PROPERTIES
+            BUILD_RPATH "@executable_path"
+            INSTALL_RPATH "@executable_path"
+        )
+    endif ()
 
     target_include_directories(
         ${arg_NAME}
@@ -503,6 +510,14 @@ function(exp_add_executable)
     target_link_libraries(
         ${arg_NAME}
         PRIVATE ${arg_LIB}
+    )
+    target_compile_options(
+        ${arg_NAME}
+        PRIVATE ${arg_PRIVATE_COMPILE_OPT}
+    )
+    target_compile_definitions(
+        ${arg_NAME}
+        PRIVATE ${arg_PRIVATE_COMPILE_DEF}
     )
     exp_process_runtime_dependencies(
         NAME ${arg_NAME}
@@ -545,10 +560,6 @@ function(exp_add_executable)
                 NAMESPACE ${SUB_PROJECT_NAME}::
                 APPEND FILE ${CMAKE_BINARY_DIR}/${SUB_PROJECT_NAME}Targets.cmake
             )
-        endif ()
-
-        if (APPLE)
-            install(CODE "execute_process(COMMAND install_name_tool -add_rpath @executable_path ${CMAKE_INSTALL_PREFIX}/${SUB_PROJECT_NAME}/Binaries/$<TARGET_FILE_NAME:${arg_NAME}>)")
         endif ()
     endif ()
 endfunction()
@@ -730,7 +741,7 @@ function(exp_add_benchmark)
 
     set(options "")
     set(singleValueArgs NAME)
-    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT)
+    set(multiValueArgs SRC INC LINK LIB DEP_TARGET RES REFLECT PRIVATE_COMPILE_DEF PRIVATE_COMPILE_OPT)
     cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
 
     exp_add_executable(
@@ -743,6 +754,8 @@ function(exp_add_benchmark)
         DEP_TARGET ${arg_DEP_TARGET}
         RES ${arg_RES}
         REFLECT ${arg_REFLECT}
+        PRIVATE_COMPILE_DEF ${arg_PRIVATE_COMPILE_DEF}
+        PRIVATE_COMPILE_OPT ${arg_PRIVATE_COMPILE_OPT}
         NOT_INSTALL
     )
 endfunction()

@@ -329,7 +329,7 @@ namespace Editor {
 
     void EditorApplication::RenderProjectHubFrame()
     {
-        projectHubFrame->Render(*window, desc.rhiType);
+        projectHubFrame->Render(*window, desc.rhiType, desc.gpuDebug);
         ImGui::Render();
         Runtime::EngineHolder::Get().Tick(ImGui::GetIO().DeltaTime);
         window->RenderUiOnly(*ImGui::GetDrawData());

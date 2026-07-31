@@ -12,15 +12,17 @@
 #include <RHI/Vulkan/Gpu.h>
 
 namespace RHI::Vulkan {
-    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const VkQueue inNativeQueue)
-        : device(inDevice)
+    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex)
+        : Queue(inType)
+        , device(inDevice)
         , nativeQueue(inNativeQueue)
+        , nativeQueueMutex(std::move(inNativeQueueMutex))
     {
     }
 
     VulkanQueue::~VulkanQueue() = default;
 
-    void VulkanQueue::Submit(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
+    void VulkanQueue::SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo)
     {
         const auto* commandBuffer = static_cast<VulkanCommandBuffer*>(inCmdBuffer);
         const auto* vkFence = static_cast<VulkanFence*>(inSubmitInfo.signalFence);
@@ -57,6 +59,7 @@ namespace RHI::Vulkan {
         vkSubmitInfo.pCommandBuffers = &cmdBuffer;
 
         const VkFence nativeFence = vkFence == nullptr ? VK_NULL_HANDLE : vkFence->GetNative();
+        const std::scoped_lock lock(*nativeQueueMutex);
         Assert(vkQueueSubmit(nativeQueue, 1, &vkSubmitInfo, nativeFence) == VK_SUCCESS);
     }
 
@@ -69,6 +72,7 @@ namespace RHI::Vulkan {
         vkSubmitInfo.commandBufferCount = 0;
         vkSubmitInfo.pCommandBuffers = nullptr;
 
+        const std::scoped_lock lock(*nativeQueueMutex);
         Assert(vkQueueSubmit(nativeQueue, 1, &vkSubmitInfo, vkFence->GetNative()) == VK_SUCCESS);
     }
 
@@ -82,5 +86,17 @@ namespace RHI::Vulkan {
     VkQueue VulkanQueue::GetNative() const
     {
         return nativeQueue;
+    }
+
+    VkResult VulkanQueue::Present(const VkPresentInfoKHR& inPresentInfo) const
+    {
+        const std::scoped_lock lock(*nativeQueueMutex);
+        return vkQueuePresentKHR(nativeQueue, &inPresentInfo);
+    }
+
+    void VulkanQueue::WaitIdle() const
+    {
+        const std::scoped_lock lock(*nativeQueueMutex);
+        Assert(vkQueueWaitIdle(nativeQueue) == VK_SUCCESS);
     }
 }

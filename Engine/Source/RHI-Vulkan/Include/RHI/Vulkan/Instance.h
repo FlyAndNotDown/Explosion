@@ -17,7 +17,7 @@ namespace RHI::Vulkan {
     class VulkanInstance final : public Instance {
     public:
         NonCopyable(VulkanInstance)
-        VulkanInstance();
+        explicit VulkanInstance(const InstanceCreateInfo& inCreateInfo);
         ~VulkanInstance() override;
 
         RHIType GetRHIType() override;

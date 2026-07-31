@@ -62,9 +62,17 @@ namespace RHI::Vulkan {
     {
         VkBufferCreateInfo bufferInfo = {};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         bufferInfo.usage = FlagsCast<BufferUsageFlags, VkBufferUsageFlags>(inCreateInfo.usages);
         bufferInfo.size = inCreateInfo.size;
+
+        const auto& queueFamilyIndices = device.GetActiveQueueFamilyIndices();
+        if (queueFamilyIndices.size() > 1) {
+            bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+            bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
+            bufferInfo.pQueueFamilyIndices = queueFamilyIndices.data();
+        } else {
+            bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        }
 
         VmaAllocationCreateInfo allocInfo = {};
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -90,7 +98,7 @@ namespace RHI::Vulkan {
             Assert(queue);
 
             const auto fence = device.CreateFence(false);
-            const auto commandBuffer = device.CreateCommandBuffer();
+            const auto commandBuffer = device.CreateCommandBuffer(QueueType::graphics);
             const auto commandRecorder = commandBuffer->Begin();
             commandRecorder->ResourceBarrier(Barrier::Transition(this, BufferState::undefined, inCreateInfo.initialState));
             commandRecorder->End();

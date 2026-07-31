@@ -82,11 +82,7 @@ namespace Common::Internal {
                 return static_cast<uint16_t>(sign | 0x7c00u);
             }
 
-            uint16_t payload = static_cast<uint16_t>(mantissa >> 13);
-            if (payload == 0) {
-                payload = 1;
-            }
-            return static_cast<uint16_t>(sign | 0x7c00u | payload);
+            return 0x7e00u;
         }
 
         const int32_t halfExponent = static_cast<int32_t>(exponent) - 127 + 15;

@@ -17,5 +17,6 @@ namespace RHI::DirectX12 {
         void OnUnload() override;
         Core::ModuleType Type() const override;
         Instance* GetRHIInstance() override;
+        Instance* CreateRHIInstance(const InstanceCreateInfo& inCreateInfo) override;
     };
 }

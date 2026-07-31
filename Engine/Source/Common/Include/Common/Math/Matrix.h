@@ -671,13 +671,10 @@ namespace Common::Internal {
 
             M result;
             for (auto i = 0; i < 4; i++) {
-                const Simd::F32x4 row = Simd::Add(
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 0]), bRow0),
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 1]), bRow1)),
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 2]), bRow2),
-                        Simd::Mul(Simd::Set1(a.data[i * 4 + 3]), bRow3)));
+                const Simd::F32x4 aRow = Simd::LoadU(&a.data[i * 4]);
+                const Simd::F32x4 pair01 = Simd::MulAddLane<1>(Simd::MulLane<0>(bRow0, aRow), bRow1, aRow);
+                const Simd::F32x4 pair23 = Simd::MulAddLane<3>(Simd::MulLane<2>(bRow2, aRow), bRow3, aRow);
+                const Simd::F32x4 row = Simd::Add(pair01, pair23);
                 Simd::StoreU(&result.data[i * 4], row);
             }
             return result;
@@ -689,11 +686,13 @@ namespace Common::Internal {
         static V MulVec(const M& m, const V& v)
         {
             const Simd::F32x4 vv = Simd::LoadU(v.data);
+            const Simd::F32x4 row0 = Simd::Mul(Simd::LoadU(&m.data[0]), vv);
+            const Simd::F32x4 row1 = Simd::Mul(Simd::LoadU(&m.data[4]), vv);
+            const Simd::F32x4 row2 = Simd::Mul(Simd::LoadU(&m.data[8]), vv);
+            const Simd::F32x4 row3 = Simd::Mul(Simd::LoadU(&m.data[12]), vv);
+
             V result;
-            result.data[0] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[0]), vv));
-            result.data[1] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[4]), vv));
-            result.data[2] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[8]), vv));
-            result.data[3] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[12]), vv));
+            Simd::StoreU(result.data, Simd::Sum4(row0, row1, row2, row3));
             return result;
         }
 
@@ -739,9 +738,8 @@ namespace Common::Internal {
             const Simd::F32x4 r3 = Simd::LoadU(&m.data[12]);
 
             const auto makeFac = [](const Simd::F32x4 p, const Simd::F32x4 q) {
-                return Simd::Sub(
-                    Simd::Mul(Simd::Shuffle<2, 2, 1, 1>(p), Simd::Shuffle<3, 3, 3, 2>(q)),
-                    Simd::Mul(Simd::Shuffle<3, 3, 3, 2>(p), Simd::Shuffle<2, 2, 1, 1>(q)));
+                const Simd::F32x4 lhs = Simd::Mul(Simd::Shuffle<2, 2, 1, 1>(p), Simd::Shuffle<3, 3, 3, 2>(q));
+                return Simd::MulSub(lhs, Simd::Shuffle<3, 3, 3, 2>(p), Simd::Shuffle<2, 2, 1, 1>(q));
             };
 
             const Simd::F32x4 fac0 = makeFac(r2, r3);
@@ -756,18 +754,17 @@ namespace Common::Internal {
             const Simd::F32x4 vec2 = Simd::Shuffle<1, 0, 0, 0>(r2);
             const Simd::F32x4 vec3 = Simd::Shuffle<1, 0, 0, 0>(r3);
 
-            const Simd::F32x4 inv0 = Simd::Add(Simd::Sub(Simd::Mul(vec1, fac0), Simd::Mul(vec2, fac1)), Simd::Mul(vec3, fac2));
-            const Simd::F32x4 inv1 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac0), Simd::Mul(vec2, fac3)), Simd::Mul(vec3, fac4));
-            const Simd::F32x4 inv2 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac1), Simd::Mul(vec1, fac3)), Simd::Mul(vec3, fac5));
-            const Simd::F32x4 inv3 = Simd::Add(Simd::Sub(Simd::Mul(vec0, fac2), Simd::Mul(vec1, fac4)), Simd::Mul(vec2, fac5));
+            const auto makeInv = [](const Simd::F32x4 a, const Simd::F32x4 b, const Simd::F32x4 c, const Simd::F32x4 facA, const Simd::F32x4 facB, const Simd::F32x4 facC) { return Simd::MulAdd(Simd::MulSub(Simd::Mul(a, facA), b, facB), c, facC); };
 
-            const Simd::F32x4 signA = Simd::Set(1.0f, -1.0f, 1.0f, -1.0f);
-            const Simd::F32x4 signB = Simd::Set(-1.0f, 1.0f, -1.0f, 1.0f);
+            const Simd::F32x4 inv0 = makeInv(vec1, vec2, vec3, fac0, fac1, fac2);
+            const Simd::F32x4 inv1 = makeInv(vec0, vec2, vec3, fac0, fac3, fac4);
+            const Simd::F32x4 inv2 = makeInv(vec0, vec1, vec3, fac1, fac3, fac5);
+            const Simd::F32x4 inv3 = makeInv(vec0, vec1, vec2, fac2, fac4, fac5);
 
-            Simd::F32x4 col0 = Simd::Mul(inv0, signA);
-            Simd::F32x4 col1 = Simd::Mul(inv1, signB);
-            Simd::F32x4 col2 = Simd::Mul(inv2, signA);
-            Simd::F32x4 col3 = Simd::Mul(inv3, signB);
+            Simd::F32x4 col0 = Simd::FlipSigns<false, true, false, true>(inv0);
+            Simd::F32x4 col1 = Simd::FlipSigns<true, false, true, false>(inv1);
+            Simd::F32x4 col2 = Simd::FlipSigns<false, true, false, true>(inv2);
+            Simd::F32x4 col3 = Simd::FlipSigns<true, false, true, false>(inv3);
 
             // det = row0 . (column 0 of the cofactor matrix). That column is the col0 register as-is, so compute the
             // determinant before Transpose4 turns col0 into the cofactor matrix's first row.
@@ -793,86 +790,6 @@ namespace Common::Internal {
         static float Determinant(const M& m) { return MatDeterminantScalar(m); }
     };
 
-    // Row-major 3x3 float matrix, backed by a tight float[9] (no padding, so the layout stays GPU/serialization
-    // friendly). The first eight elements are covered by two safe 128-bit loads (data[0..3], data[4..7]) with data[8]
-    // handled by a scalar tail; matrix-product rows and the transpose use Load3/Store3 to avoid over-running the
-    // float[9] on the last row. The 4th lane is always discarded on store, so the garbage it may carry is harmless.
-    template <>
-    struct MatOps<float, 3, 3, MathBackend::simd> {
-        using M = Mat<float, 3, 3, MathBackend::simd>;
-        using V = Vec<float, 3, MathBackend::simd>;
-
-        // MapBinary/MapScalar<9> cover data[0..7] with two safe 128-bit loads (the second, at index 4, reads data[4..7])
-        // and finish data[8] in the scalar tail, so the float[9] is never over-run.
-        static M Add(const M& a, const M& b) { M r; Simd::MapBinary<9>(r.data, a.data, b.data, Simd::AddOp {}); return r; }
-        static M Sub(const M& a, const M& b) { M r; Simd::MapBinary<9>(r.data, a.data, b.data, Simd::SubOp {}); return r; }
-
-        static M AddScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::AddOp {}); return r; }
-        static M SubScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::SubOp {}); return r; }
-        static M MulScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::MulOp {}); return r; }
-        static M DivScalar(const M& a, float b) { M r; Simd::MapScalar<9>(r.data, a.data, b, Simd::DivOp {}); return r; }
-
-        // C_row_i = A[i][0]*B_row0 + A[i][1]*B_row1 + A[i][2]*B_row2. B_row0/B_row1 come from safe full loads (their 4th
-        // lane is the next row's first element, unused); B_row2 uses Load3 to stay in bounds.
-        static M Mul(const M& a, const M& b)
-        {
-            const Simd::F32x4 bRow0 = Simd::LoadU(&b.data[0]);
-            const Simd::F32x4 bRow1 = Simd::LoadU(&b.data[3]);
-            const Simd::F32x4 bRow2 = Simd::Load3(&b.data[6]);
-
-            M result;
-            for (auto i = 0; i < 3; i++) {
-                const Simd::F32x4 row = Simd::Add(
-                    Simd::Add(
-                        Simd::Mul(Simd::Set1(a.data[i * 3 + 0]), bRow0),
-                        Simd::Mul(Simd::Set1(a.data[i * 3 + 1]), bRow1)),
-                    Simd::Mul(Simd::Set1(a.data[i * 3 + 2]), bRow2));
-                Simd::Store3(&result.data[i * 3], row);
-            }
-            return result;
-        }
-
-        // result[i] = dot(row_i, v). v is loaded with Load3 so its 4th lane is 0, which zeroes the unused 4th lane the
-        // full row loads carry, leaving the 4-wide horizontal sum equal to the 3-component dot.
-        static V MulVec(const M& m, const V& v)
-        {
-            const Simd::F32x4 vv = Simd::Load3(v.data);
-            V result;
-            result.data[0] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[0]), vv));
-            result.data[1] = Simd::Sum(Simd::Mul(Simd::LoadU(&m.data[3]), vv));
-            result.data[2] = Simd::Sum(Simd::Mul(Simd::Load3(&m.data[6]), vv));
-            return result;
-        }
-
-        // 3x3 transpose via the 4x4 primitive with a zero 4th row: the garbage in the loaded rows' 4th lanes only lands
-        // in the discarded 4th output row, so the three Store3'd rows are the exact transpose.
-        static M Transpose(const M& m)
-        {
-            Simd::F32x4 r0 = Simd::LoadU(&m.data[0]);
-            Simd::F32x4 r1 = Simd::LoadU(&m.data[3]);
-            Simd::F32x4 r2 = Simd::Load3(&m.data[6]);
-            Simd::F32x4 r3 = Simd::Set1(0.0f);
-            Simd::Transpose4(r0, r1, r2, r3);
-
-            M result;
-            Simd::Store3(&result.data[0], r0);
-            Simd::Store3(&result.data[3], r1);
-            Simd::Store3(&result.data[6], r2);
-            return result;
-        }
-
-        static bool TryInverse(const M& m, M& outResult, float tolerance)
-        {
-            const float determinant = MatDeterminantScalar(m);
-            if (!MatDeterminantIsInvertible(m, determinant, tolerance)) {
-                return false;
-            }
-            outResult = MatInverseScalar(m, determinant);
-            return true;
-        }
-        static M InverseUnchecked(const M& m) { return MatInverseScalar(m, MatDeterminantScalar(m)); }
-        static float Determinant(const M& m) { return MatDeterminantScalar(m); }
-    };
 }
 
 namespace Common {
@@ -1069,8 +986,6 @@ namespace Common {
     {
         if constexpr (B == MathBackend::simd && std::is_same_v<T, float> && R == 4 && C == 4 && IC == 4) {
             return Internal::MatOps<float, 4, 4, MathBackend::simd>::Mul(*this, rhs);
-        } else if constexpr (B == MathBackend::simd && std::is_same_v<T, float> && R == 3 && C == 3 && IC == 3) {
-            return Internal::MatOps<float, 3, 3, MathBackend::simd>::Mul(*this, rhs);
         } else {
             // Row-linear-combination order (ikj): each result row is sum_k A[i][k] * B_row_k. Unlike the textbook
             // Row(i).Dot(Col(j)) form it builds no temporary vectors and does not gather B's columns with a stride. The
@@ -1246,15 +1161,15 @@ namespace Common {
         if (trace > static_cast<EvaluationT>(0)) {
             const EvaluationT s = static_cast<EvaluationT>(0.5) / std::sqrt(trace + static_cast<EvaluationT>(1));
             qw = static_cast<EvaluationT>(0.25) / s;
-            qx = (m32n - m23) * s;
-            qy = (m13 - m31n) * s;
-            qz = (m21 - m12) * s;
+            qx = (m23 - m32n) * s;
+            qy = (m31n - m13) * s;
+            qz = (m12 - m21) * s;
         } else if (m11 > m22 && m11 > m33n) {
             const EvaluationT s = static_cast<EvaluationT>(2) * std::sqrt(std::max(static_cast<EvaluationT>(0), static_cast<EvaluationT>(1) + m11 - m22 - m33n));
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m32n - m23) / s;
+            qw = (m23 - m32n) / s;
             qx = static_cast<EvaluationT>(0.25) * s;
             qy = (m12 + m21) / s;
             qz = (m13 + m31n) / s;
@@ -1263,7 +1178,7 @@ namespace Common {
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m13 - m31n) / s;
+            qw = (m31n - m13) / s;
             qx = (m12 + m21) / s;
             qy = static_cast<EvaluationT>(0.25) * s;
             qz = (m23 + m32n) / s;
@@ -1272,7 +1187,7 @@ namespace Common {
             if (s <= toleranceValue) {
                 return false;
             }
-            qw = (m21 - m12) / s;
+            qw = (m12 - m21) / s;
             qx = (m13 + m31n) / s;
             qy = (m23 + m32n) / s;
             qz = static_cast<EvaluationT>(0.25) * s;

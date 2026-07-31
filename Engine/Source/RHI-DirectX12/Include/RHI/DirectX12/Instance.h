@@ -31,7 +31,7 @@ namespace RHI::DirectX12 {
     class RHI_DIRECTX12_API DX12Instance final : public Instance {
     public:
         NonCopyable(DX12Instance)
-        DX12Instance();
+        explicit DX12Instance(const InstanceCreateInfo& inCreateInfo);
         ~DX12Instance() noexcept override;
 
         RHIType GetRHIType() override;

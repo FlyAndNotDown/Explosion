@@ -14,7 +14,7 @@ namespace RHI::Dummy {
     class DummyInstance final : public Instance {
     public:
         NonCopyable(DummyInstance)
-        DummyInstance();
+        explicit DummyInstance(const InstanceCreateInfo& inCreateInfo);
         ~DummyInstance() override;
         RHIType GetRHIType() override;
         uint32_t GetGpuNum() override;

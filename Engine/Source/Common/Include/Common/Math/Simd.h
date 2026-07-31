@@ -48,10 +48,15 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return { a.lanes[0] + b.lanes[0], a.lanes[1] + b.lanes[1], a.lanes[2] + b.lanes[2], a.lanes[3] + b.lanes[3] }; }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return { a.lanes[0] - b.lanes[0], a.lanes[1] - b.lanes[1], a.lanes[2] - b.lanes[2], a.lanes[3] - b.lanes[3] }; }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return { a.lanes[0] * b.lanes[0], a.lanes[1] * b.lanes[1], a.lanes[2] * b.lanes[2], a.lanes[3] * b.lanes[3] }; }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return Add(acc, Mul(a, b)); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return Sub(acc, Mul(a, b)); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return { a.lanes[0] / b.lanes[0], a.lanes[1] / b.lanes[1], a.lanes[2] / b.lanes[2], a.lanes[3] / b.lanes[3] }; }
     inline F32x4 Abs(F32x4 v) { return { std::abs(v.lanes[0]), std::abs(v.lanes[1]), std::abs(v.lanes[2]), std::abs(v.lanes[3]) }; }
     inline F32x4 Max(F32x4 a, F32x4 b) { return { std::max(a.lanes[0], b.lanes[0]), std::max(a.lanes[1], b.lanes[1]), std::max(a.lanes[2], b.lanes[2]), std::max(a.lanes[3], b.lanes[3]) }; }
     inline float Sum(F32x4 v) { return v.lanes[0] + v.lanes[1] + v.lanes[2] + v.lanes[3]; }
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+    inline float Dot(const float* a, const float* b) { return Dot(LoadU(a), LoadU(b)); }
+    inline float LengthSquared(F32x4 v) { return Dot(v, v); }
     inline float MaxValue(F32x4 v) { return std::max(std::max(v.lanes[0], v.lanes[1]), std::max(v.lanes[2], v.lanes[3])); }
     inline F32x4 Set(float x, float y, float z, float w) { return { x, y, z, w }; }
 
@@ -60,6 +65,15 @@ namespace Common::Simd {
 
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v) { return { v.lanes[I0], v.lanes[I1], v.lanes[I2], v.lanes[I3] }; }
+
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return Mul(a, Splat<L>(lanes)); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return MulAdd(acc, a, Splat<L>(lanes)); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v) { return { X ? -v.lanes[0] : v.lanes[0], Y ? -v.lanes[1] : v.lanes[1], Z ? -v.lanes[2] : v.lanes[2], W ? -v.lanes[3] : v.lanes[3] }; }
 
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -78,6 +92,8 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return _mm_add_ps(a, b); }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return _mm_sub_ps(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return _mm_mul_ps(a, b); }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return Add(acc, Mul(a, b)); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return Sub(acc, Mul(a, b)); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return _mm_div_ps(a, b); }
     inline F32x4 Abs(F32x4 v) { return _mm_andnot_ps(_mm_set1_ps(-0.0f), v); }
     inline F32x4 Max(F32x4 a, F32x4 b) { return _mm_max_ps(a, b); }
@@ -90,6 +106,10 @@ namespace Common::Simd {
         sums = _mm_add_ss(sums, shuf);
         return _mm_cvtss_f32(sums);
     }
+
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+    inline float Dot(const float* a, const float* b) { return Dot(LoadU(a), LoadU(b)); }
+    inline float LengthSquared(F32x4 v) { return Dot(v, v); }
 
     inline float MaxValue(F32x4 v)
     {
@@ -105,6 +125,15 @@ namespace Common::Simd {
     template <int I0, int I1, int I2, int I3>
     inline F32x4 Shuffle(F32x4 v) { return _mm_shuffle_ps(v, v, _MM_SHUFFLE(I3, I2, I1, I0)); }
 
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return Mul(a, Splat<L>(lanes)); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return MulAdd(acc, a, Splat<L>(lanes)); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v) { return _mm_xor_ps(v, _mm_set_ps(W ? -0.0f : 0.0f, Z ? -0.0f : 0.0f, Y ? -0.0f : 0.0f, X ? -0.0f : 0.0f)); }
+
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -119,10 +148,31 @@ namespace Common::Simd {
     inline F32x4 Add(F32x4 a, F32x4 b) { return vaddq_f32(a, b); }
     inline F32x4 Sub(F32x4 a, F32x4 b) { return vsubq_f32(a, b); }
     inline F32x4 Mul(F32x4 a, F32x4 b) { return vmulq_f32(a, b); }
+    inline F32x4 MulAdd(F32x4 acc, F32x4 a, F32x4 b) { return vfmaq_f32(acc, a, b); }
+    inline F32x4 MulSub(F32x4 acc, F32x4 a, F32x4 b) { return vfmsq_f32(acc, a, b); }
     inline F32x4 Div(F32x4 a, F32x4 b) { return vdivq_f32(a, b); }
     inline F32x4 Abs(F32x4 v) { return vabsq_f32(v); }
     inline F32x4 Max(F32x4 a, F32x4 b) { return vmaxq_f32(a, b); }
     inline float Sum(F32x4 v) { return vaddvq_f32(v); }
+
+    inline float Dot(F32x4 a, F32x4 b) { return Sum(Mul(a, b)); }
+
+    // Returning a scalar makes NEON horizontal reduction latency dominant, so a directly addressable Vec4 is faster
+    // as a scalar accumulation. LengthSquared keeps all lanes dependent and benefits from two parallel half-width paths.
+    inline float Dot(const float* a, const float* b)
+    {
+        const float low = a[0] * b[0] + a[1] * b[1];
+        const float high = a[2] * b[2] + a[3] * b[3];
+        return low + high;
+    }
+
+    inline float LengthSquared(F32x4 v)
+    {
+        const float32x2_t lowSquares = vmul_f32(vget_low_f32(v), vget_low_f32(v));
+        const float32x2_t highSquares = vmul_f32(vget_high_f32(v), vget_high_f32(v));
+        return vpadds_f32(vadd_f32(lowSquares, highSquares));
+    }
+
     inline float MaxValue(F32x4 v) { return vmaxvq_f32(v); }
 
     inline F32x4 Set(float x, float y, float z, float w)
@@ -147,6 +197,19 @@ namespace Common::Simd {
         return vreinterpretq_f32_u8(vqtbl1q_u8(vreinterpretq_u8_f32(v), vld1q_u8(indices)));
     }
 
+    template <int L>
+    inline F32x4 MulLane(F32x4 a, F32x4 lanes) { return vmulq_laneq_f32(a, lanes, L); }
+
+    template <int L>
+    inline F32x4 MulAddLane(F32x4 acc, F32x4 a, F32x4 lanes) { return vfmaq_laneq_f32(acc, a, lanes, L); }
+
+    template <bool X, bool Y, bool Z, bool W>
+    inline F32x4 FlipSigns(F32x4 v)
+    {
+        const F32x4 signs = Set(X ? -0.0f : 0.0f, Y ? -0.0f : 0.0f, Z ? -0.0f : 0.0f, W ? -0.0f : 0.0f);
+        return vreinterpretq_f32_u32(veorq_u32(vreinterpretq_u32_f32(v), vreinterpretq_u32_f32(signs)));
+    }
+
     // In-place transpose of the 4x4 matrix whose rows are r0..r3.
     inline void Transpose4(F32x4& r0, F32x4& r1, F32x4& r2, F32x4& r3)
     {
@@ -159,18 +222,18 @@ namespace Common::Simd {
     }
 #endif
 
-    // Safe partial load/store for tight 3-float storage (a Vec3, or one row of a Mat3). Load3 reads exactly three
-    // floats and zeroes the 4th lane, so it never over-reads the float[3] / float[9] backing; the zeroed lane also lets
-    // a 4-wide dot reduce to the 3-component dot. Store3 writes exactly three floats and leaves the 4th element alone.
-    inline F32x4 Load3(const float* p) { return Set(p[0], p[1], p[2], 0.0f); }
-
-    inline void Store3(float* p, F32x4 v)
+    // Horizontally sum four registers and return their sums as the four lanes of one register. Combining all four
+    // reductions lets each backend share shuffle/add work that four independent Sum calls would repeat.
+    inline F32x4 Sum4(F32x4 r0, F32x4 r1, F32x4 r2, F32x4 r3)
     {
-        alignas(16) float tmp[4];
-        StoreU(tmp, v);
-        p[0] = tmp[0];
-        p[1] = tmp[1];
-        p[2] = tmp[2];
+#if defined(MIRROR_TOOL_PARSING)
+        return Set(Sum(r0), Sum(r1), Sum(r2), Sum(r3));
+#elif ARCH_X86
+        Transpose4(r0, r1, r2, r3);
+        return Add(Add(r0, r1), Add(r2, r3));
+#elif ARCH_ARM
+        return vpaddq_f32(vpaddq_f32(r0, r1), vpaddq_f32(r2, r3));
+#endif
     }
 
     // Element-wise binary ops as functors so a single Map* template can drive every Vec/Mat/Quaternion kernel. Each

@@ -15,6 +15,10 @@ static Core::CmdlineArgValue<std::string> caProjectRoot(
     "projectRoot", "-project", "",
     "project root path");
 
+static Core::CmdlineArgValue<bool> caGpuDebug(
+    "gpuDebug", "-gpuDebug", false,
+    "enable GPU validation layers");
+
 static Editor::EditorApplicationMode GetAppMode()
 {
     return caProjectRoot.GetValue().empty()
@@ -30,6 +34,7 @@ static void InitializeEngine()
     params.logToFile = true;
     params.gameRoot = caProjectRoot.GetValue();
     params.rhiType = caRhiType.GetValue();
+    params.gpuDebug = caGpuDebug.GetValue();
     Runtime::EngineHolder::Load("Editor", params);
 }
 
@@ -41,6 +46,7 @@ int main(int argc, char* argv[])
     const Editor::EditorApplicationDesc appDesc {
         .mode = GetAppMode(),
         .rhiType = caRhiType.GetValue(),
+        .gpuDebug = caGpuDebug.GetValue(),
         .projectRoot = caProjectRoot.GetValue()
     };
     int result = 0;

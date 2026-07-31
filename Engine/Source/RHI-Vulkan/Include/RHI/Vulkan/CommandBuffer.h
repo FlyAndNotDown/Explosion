@@ -16,7 +16,7 @@ namespace RHI::Vulkan {
     class VulkanCommandBuffer final : public CommandBuffer {
     public:
         NonCopyable(VulkanCommandBuffer)
-        VulkanCommandBuffer(VulkanDevice& inDevice, VkCommandPool inNativeCmdPool);
+        VulkanCommandBuffer(VulkanDevice& inDevice, QueueType inQueueType, VkCommandPool inNativeCmdPool);
         ~VulkanCommandBuffer() override;
 
         Common::UniquePtr<CommandRecorder> Begin() override;

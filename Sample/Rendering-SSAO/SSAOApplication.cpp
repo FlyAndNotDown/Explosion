@@ -181,7 +181,7 @@ protected:
             auto* gBufferPos = builder.ImportTexture(gBufferPosTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferNormal = builder.ImportTexture(gBufferNormalTex.Get(), TextureState::shaderReadOnly);
             auto* gBufferAlbedo = builder.ImportTexture(gBufferAlbedoTex.Get(), TextureState::shaderReadOnly);
-            auto* gBufferDepth = builder.ImportTexture(gBufferDepthTex.Get(), TextureState::depthStencilReadonly);
+            auto* gBufferDepth = builder.ImportTexture(gBufferDepthTex.Get(), TextureState::depthStencilWrite);
 
             auto* ssaoTexture = builder.ImportTexture(ssaoTex.Get(), TextureState::shaderReadOnly);
             auto* ssaoBlurTexture = builder.ImportTexture(ssaoBlurTex.Get(), TextureState::shaderReadOnly);
@@ -263,7 +263,7 @@ protected:
                     .AddColorAttachment(RGColorAttachment(gBufferPosRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
                     .AddColorAttachment(RGColorAttachment(gBufferNormalRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
                     .AddColorAttachment(RGColorAttachment(gBufferAlbedoRTV, LoadOp::clear, StoreOp::store, LinearColorConsts::black))
-                    .SetDepthStencilAttachment(RGDepthStencilAttachment(gBufferDepthView, true, LoadOp::clear, StoreOp::store, 0.0f)),
+                    .SetDepthStencilAttachment(RGDepthStencilAttachment(gBufferDepthView, false, LoadOp::clear, StoreOp::store, 0.0f)),
                 gGroups,
                 [gBufferPipeline, vBufferView, iBufferView, gGroups, this](const RGBuilder& rg, RasterPassCommandRecorder& recorder) -> void {
                     recorder.SetPipeline(gBufferPipeline->GetRHI());
@@ -868,7 +868,7 @@ private:
                 .SetInitialState(TextureState::undefined));
 
         // Copy data
-        auto copyCmdBuffer = device->CreateCommandBuffer();
+        auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
         const UniquePtr<CommandRecorder> commandRecorder = copyCmdBuffer->Begin();
         {
             const UniquePtr<CopyPassCommandRecorder> copyRecorder = commandRecorder->BeginCopyPass();
@@ -931,7 +931,7 @@ private:
                     stagingBuffer->Unmap();
                 }
 
-                auto copyCmdBuffer = device->CreateCommandBuffer();
+                auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
                 const UniquePtr<CommandRecorder> commandRecorder = copyCmdBuffer->Begin();
                 {
                     const UniquePtr<CopyPassCommandRecorder> copyRecorder = commandRecorder->BeginCopyPass();

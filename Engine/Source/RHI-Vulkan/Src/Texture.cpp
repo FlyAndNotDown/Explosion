@@ -87,6 +87,15 @@ namespace RHI::Vulkan {
         imageInfo.format = EnumCast<PixelFormat, VkFormat>(inCreateInfo.format);
         imageInfo.usage = FlagsCast<TextureUsageFlags, VkImageUsageFlags>(inCreateInfo.usages);
 
+        const auto& queueFamilyIndices = device.GetActiveQueueFamilyIndices();
+        if (queueFamilyIndices.size() > 1) {
+            imageInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+            imageInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
+            imageInfo.pQueueFamilyIndices = queueFamilyIndices.data();
+        } else {
+            imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        }
+
         VmaAllocationCreateInfo allocInfo = {};
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
@@ -106,7 +115,7 @@ namespace RHI::Vulkan {
             Assert(queue);
 
             const auto fence = device.CreateFence(false);
-            const auto commandBuffer = device.CreateCommandBuffer();
+            const auto commandBuffer = device.CreateCommandBuffer(QueueType::graphics);
             const auto commandRecorder = commandBuffer->Begin();
             commandRecorder->ResourceBarrier(Barrier::Transition(this, TextureState::undefined, inCreateInfo.initialState));
             commandRecorder->End();

@@ -4,11 +4,12 @@
 
 #include <RHI/Dummy/Buffer.h>
 #include <RHI/Dummy/BufferView.h>
+#include <Common/Debug.h>
 
 namespace RHI::Dummy {
     DummyBuffer::DummyBuffer(const BufferCreateInfo& createInfo)
         : Buffer(createInfo)
-        , dummyData(1)
+        , dummyData(createInfo.size)
     {
     }
 
@@ -16,7 +17,9 @@ namespace RHI::Dummy {
 
     void* DummyBuffer::Map(MapMode mapMode, size_t offset, size_t length)
     {
-        return dummyData.data();
+        Assert(offset <= dummyData.size());
+        Assert(length <= dummyData.size() - offset);
+        return dummyData.data() + offset;
     }
 
     void DummyBuffer::Unmap()

@@ -26,6 +26,7 @@ namespace Launch {
 
         Runtime::EngineInitParams engineInitParams;
         engineInitParams.logToFile = true;
+        engineInitParams.gpuDebug = false;
         engineInitParams.rhiType = caRhiType.GetValue();
         Runtime::EngineHolder::Load(gameModuleName, engineInitParams);
 

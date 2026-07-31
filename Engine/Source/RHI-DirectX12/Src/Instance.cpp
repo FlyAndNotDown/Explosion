@@ -26,19 +26,24 @@ namespace RHI::DirectX12 {
 namespace RHI::DirectX12 {
     RHI::Instance* gInstance = nullptr;
 
-    DX12Instance::DX12Instance() : Instance()
+    DX12Instance::DX12Instance(const InstanceCreateInfo& inCreateInfo)
+        : Instance(inCreateInfo)
     {
         CreateNativeFactory();
         EnumerateAdapters();
 #if BUILD_CONFIG_DEBUG
-        RegisterDX12ExceptionHandler();
+        if (GetCreateInfo().gpuDebug) {
+            RegisterDX12ExceptionHandler();
+        }
 #endif
     }
 
     DX12Instance::~DX12Instance()
     {
 #if BUILD_CONFIG_DEBUG
-        UnregisterDX12ExceptionHandler();
+        if (GetCreateInfo().gpuDebug) {
+            UnregisterDX12ExceptionHandler();
+        }
 #endif
     }
 
@@ -91,7 +96,7 @@ namespace RHI::DirectX12 {
         UINT factoryFlags = 0;
 
 #if BUILD_CONFIG_DEBUG
-        {
+        if (GetCreateInfo().gpuDebug) {
             ComPtr<ID3D12Debug> debugController;
             if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
                 debugController->EnableDebugLayer();

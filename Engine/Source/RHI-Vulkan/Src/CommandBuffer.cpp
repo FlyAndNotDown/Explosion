@@ -8,8 +8,9 @@
 #include <Common/Debug.h>
 
 namespace RHI::Vulkan {
-    VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice& inDevice, VkCommandPool inNativeCmdPool) // NOLINT
-        : device(inDevice)
+    VulkanCommandBuffer::VulkanCommandBuffer(VulkanDevice& inDevice, const QueueType inQueueType, VkCommandPool inNativeCmdPool) // NOLINT
+        : CommandBuffer(inQueueType)
+        , device(inDevice)
         , pool(inNativeCmdPool)
     {
         CreateNativeCommandBuffer();

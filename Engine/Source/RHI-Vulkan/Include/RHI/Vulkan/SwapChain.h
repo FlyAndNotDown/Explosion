@@ -29,9 +29,9 @@ namespace RHI::Vulkan {
         void CreateNativeSwapChain(const SwapChainCreateInfo& inCreateInfo);
 
         VulkanDevice& device;
+        VulkanQueue& queue;
         std::vector<Texture*> textures;
         VkSwapchainKHR nativeSwapChain;
-        VkQueue nativeQueue;
         uint32_t swapChainImageCount = 0;
         uint32_t currentImage = 0;
     };

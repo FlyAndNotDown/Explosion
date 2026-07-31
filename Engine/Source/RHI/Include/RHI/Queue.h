@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <Common/Utility.h>
+#include <RHI/Common.h>
 
 namespace RHI {
     class CommandBuffer;
@@ -32,11 +33,16 @@ namespace RHI {
         NonCopyable(Queue)
         virtual ~Queue();
 
-        virtual void Submit(CommandBuffer* commandBuffer, const QueueSubmitInfo& submitInfo) = 0;
+        QueueType GetType() const;
+        void Submit(CommandBuffer* commandBuffer, const QueueSubmitInfo& submitInfo);
         virtual void Flush(Fence* fenceToSignal) = 0;
         virtual float GetTimestampPeriod() = 0;
 
     protected:
-        Queue();
+        explicit Queue(QueueType inType);
+        virtual void SubmitInternal(CommandBuffer* commandBuffer, const QueueSubmitInfo& submitInfo) = 0;
+
+    private:
+        QueueType type;
     };
 }

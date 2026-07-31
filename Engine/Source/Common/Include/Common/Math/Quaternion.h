@@ -5,6 +5,8 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
+#include <type_traits>
 
 #include <Common/Math/Simd.h>
 #include <Common/Math/Half.h>
@@ -214,25 +216,23 @@ namespace Common::Internal {
         static Q DivScalar(const Q& a, float b) { Q r; Simd::MapScalar<4>(&r.x, &a.x, b, Simd::DivOp {}); return r; }
 
         // Hamilton product, with both quaternions loaded as (x, y, z, w). Each row of the product is one component of
-        // a broadcast against a sign-flipped permutation of b, summed across the four components of a:
+        // a lane multiply against a sign-flipped permutation of b, summed as two independent pairs:
         //   result = aw*(bx,by,bz,bw) + ax*(bw,-bz,by,-bx) + ay*(bz,bw,-bx,-by) + az*(-by,bx,bw,-bz)
-        // The accumulation order matches the scalar reference above, so both backends produce identical results.
         static Q Mul(const Q& a, const Q& b)
         {
             const Simd::F32x4 av = Simd::LoadU(&a.x);
             const Simd::F32x4 bv = Simd::LoadU(&b.x);
 
-            const Simd::F32x4 sign0 = Simd::Set(1.0f, -1.0f, 1.0f, -1.0f);
-            const Simd::F32x4 sign1 = Simd::Set(1.0f, 1.0f, -1.0f, -1.0f);
-            const Simd::F32x4 sign2 = Simd::Set(-1.0f, 1.0f, 1.0f, -1.0f);
+            const Simd::F32x4 term1 = Simd::FlipSigns<false, true, false, true>(Simd::Shuffle<3, 2, 1, 0>(bv));
+            const Simd::F32x4 term2 = Simd::FlipSigns<false, false, true, true>(Simd::Shuffle<2, 3, 0, 1>(bv));
+            const Simd::F32x4 term3 = Simd::FlipSigns<true, false, false, true>(Simd::Shuffle<1, 0, 3, 2>(bv));
 
-            Simd::F32x4 acc = Simd::Mul(Simd::Splat<3>(av), bv);
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<0>(av), Simd::Mul(Simd::Shuffle<3, 2, 1, 0>(bv), sign0)));
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<1>(av), Simd::Mul(Simd::Shuffle<2, 3, 0, 1>(bv), sign1)));
-            acc = Simd::Add(acc, Simd::Mul(Simd::Splat<2>(av), Simd::Mul(Simd::Shuffle<1, 0, 3, 2>(bv), sign2)));
+            const Simd::F32x4 pair01 = Simd::MulAddLane<0>(Simd::MulLane<3>(bv, av), term1, av);
+            const Simd::F32x4 pair23 = Simd::MulAddLane<2>(Simd::MulLane<1>(term2, av), term3, av);
+            const Simd::F32x4 resultValue = Simd::Add(pair01, pair23);
 
             Q result;
-            Simd::StoreU(&result.x, acc);
+            Simd::StoreU(&result.x, resultValue);
             return result;
         }
 
@@ -578,13 +578,19 @@ namespace Common {
         }
 
         const T sinY = std::clamp(T(2.0f) * (this->w * this->y - this->z * this->x) / normSquared, T(-1.0f), T(1.0f));
-        const Radian<T> radianX(static_cast<T>(std::atan2(
-            T(2.0f) * (this->w * this->x + this->y * this->z),
-            normSquared - T(2.0f) * (this->x * this->x + this->y * this->y))));
+        using EvaluationT = std::conditional_t<HalfFloatingPoint<T>, float, T>;
+        const bool atGimbalLock = std::abs(static_cast<EvaluationT>(sinY)) >= static_cast<EvaluationT>(1) - std::numeric_limits<EvaluationT>::epsilon();
+        const Radian<T> radianX(atGimbalLock
+            ? static_cast<T>(T(2.0f) * std::atan2(this->x, this->w))
+            : static_cast<T>(std::atan2(
+                  T(2.0f) * (this->w * this->x + this->y * this->z),
+                  normSquared - T(2.0f) * (this->x * this->x + this->y * this->y))));
         const Radian<T> radianY(static_cast<T>(std::asin(sinY)));
-        const Radian<T> radianZ(static_cast<T>(std::atan2(
-            T(2.0f) * (this->w * this->z + this->x * this->y),
-            normSquared - T(2.0f) * (this->y * this->y + this->z * this->z))));
+        const Radian<T> radianZ(atGimbalLock
+            ? T(0.0f)
+            : static_cast<T>(std::atan2(
+                  T(2.0f) * (this->w * this->z + this->x * this->y),
+                  normSquared - T(2.0f) * (this->y * this->y + this->z * this->z))));
         return Vec<T, 3, B>(radianX.ToAngle(), radianY.ToAngle(), radianZ.ToAngle());
     }
 

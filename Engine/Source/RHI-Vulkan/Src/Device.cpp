@@ -2,8 +2,12 @@
 // Created by johnk on 16/1/2022.
 //
 
-#include <map>
 #include <algorithm>
+#include <array>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <span>
 
 #include <RHI/Vulkan/Common.h>
 #include <RHI/Vulkan/Instance.h>
@@ -37,6 +41,58 @@ namespace RHI::Vulkan {
 #endif
     };
 
+}
+
+namespace RHI::Vulkan::Internal {
+    struct QueueFamilyRule {
+        VkQueueFlags requiredFlags;
+        VkQueueFlags excludedFlags;
+    };
+
+    constexpr std::array graphicsQueueFamilyRules = {
+        QueueFamilyRule { VK_QUEUE_GRAPHICS_BIT, 0 }
+    };
+
+    constexpr std::array computeQueueFamilyRules = {
+        QueueFamilyRule { VK_QUEUE_COMPUTE_BIT, VK_QUEUE_GRAPHICS_BIT },
+        QueueFamilyRule { VK_QUEUE_COMPUTE_BIT, 0 }
+    };
+
+    constexpr std::array transferQueueFamilyRules = {
+        QueueFamilyRule { VK_QUEUE_TRANSFER_BIT, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT },
+        QueueFamilyRule { VK_QUEUE_COMPUTE_BIT, VK_QUEUE_GRAPHICS_BIT },
+        QueueFamilyRule { VK_QUEUE_GRAPHICS_BIT, 0 }
+    };
+
+    static std::span<const QueueFamilyRule> GetQueueFamilyRules(const QueueType inQueueType)
+    {
+        if (inQueueType == QueueType::graphics) {
+            return graphicsQueueFamilyRules;
+        }
+        if (inQueueType == QueueType::compute) {
+            return computeQueueFamilyRules;
+        }
+        if (inQueueType == QueueType::transfer) {
+            return transferQueueFamilyRules;
+        }
+        Unimplement();
+        return {};
+    }
+
+    static std::optional<uint32_t> FindQueueFamilyIndex(const std::vector<VkQueueFamilyProperties>& inProperties, const QueueType inQueueType)
+    {
+        for (const auto& rule : GetQueueFamilyRules(inQueueType)) {
+            for (uint32_t i = 0; i < inProperties.size(); i++) {
+                const auto& properties = inProperties[i];
+                if (properties.queueCount > 0
+                    && (properties.queueFlags & rule.requiredFlags) == rule.requiredFlags
+                    && (properties.queueFlags & rule.excludedFlags) == 0) {
+                    return i;
+                }
+            }
+        }
+        return {};
+    }
 }
 
 namespace RHI::Vulkan {
@@ -131,9 +187,10 @@ namespace RHI::Vulkan {
         return { new VulkanRasterPipeline(*this, inCreateInfo) };
     }
 
-    Common::UniquePtr<CommandBuffer> VulkanDevice::CreateCommandBuffer()
+    Common::UniquePtr<CommandBuffer> VulkanDevice::CreateCommandBuffer(const QueueType inQueueType)
     {
-        return { new VulkanCommandBuffer(*this, nativeCmdPools[QueueType::graphics]) };
+        Assert(nativeCmdPools.contains(inQueueType));
+        return { new VulkanCommandBuffer(*this, inQueueType, nativeCmdPools.at(inQueueType)) };
     }
 
     Common::UniquePtr<Fence> VulkanDevice::CreateFence(const bool initAsSignaled)
@@ -199,20 +256,9 @@ namespace RHI::Vulkan {
         return nativeDevice;
     }
 
-    std::optional<uint32_t> VulkanDevice::FindQueueFamilyIndex(const std::vector<VkQueueFamilyProperties>& inProperties, std::vector<uint32_t>& inUsedQueueFamily, QueueType inQueueType)
+    const std::vector<uint32_t>& VulkanDevice::GetActiveQueueFamilyIndices() const
     {
-        for (uint32_t i = 0; i < inProperties.size(); i++) {
-            if (const auto iter = std::ranges::find(inUsedQueueFamily, i);
-                iter != inUsedQueueFamily.end()) {
-                continue;
-            }
-
-            if (inProperties[i].queueFlags & EnumCast<QueueType, VkQueueFlagBits>(inQueueType)) {
-                inUsedQueueFamily.emplace_back(i);
-                return i;
-            }
-        }
-        return {};
+        return activeQueueFamilyIndices;
     }
 
     void VulkanDevice::CreateNativeDevice(const DeviceCreateInfo& inCreateInfo)
@@ -232,26 +278,50 @@ namespace RHI::Vulkan {
             queueNumMap[queueCreateInfo.type] += queueCreateInfo.num;
         }
 
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::vector<uint32_t> usedQueueFamily;
-        std::vector<float> queuePriorities;
+        std::map<uint32_t, uint32_t> familyQueueCounts;
+        std::map<uint32_t, uint32_t> familySharedQueueCursors;
         for (auto [queueType, queueNum] : queueNumMap) {
-            auto queueFamilyIndex = FindQueueFamilyIndex(queueFamilyProperties, usedQueueFamily, queueType);
+            auto queueFamilyIndex = Internal::FindQueueFamilyIndex(queueFamilyProperties, queueType);
             Assert(queueFamilyIndex.has_value());
-            auto queueCount = std::min(queueFamilyProperties[queueFamilyIndex.value()].queueCount, queueNum);
+            const auto familyIndex = queueFamilyIndex.value();
+            const auto familyQueueCapacity = queueFamilyProperties[familyIndex].queueCount;
+            const auto queueCount = std::min(familyQueueCapacity, queueNum);
+            Assert(queueCount > 0);
 
-            if (queueCount > queuePriorities.size()) {
-                queuePriorities.resize(queueCount, 1.0f);
+            QueueFamilyMapping mapping;
+            mapping.familyIndex = familyIndex;
+            mapping.queueIndices.reserve(queueCount);
+            for (uint32_t i = 0; i < queueCount; i++) {
+                auto& allocatedQueueCount = familyQueueCounts[familyIndex];
+                if (allocatedQueueCount < familyQueueCapacity) {
+                    mapping.queueIndices.emplace_back(allocatedQueueCount);
+                    allocatedQueueCount++;
+                } else {
+                    auto& sharedQueueCursor = familySharedQueueCursors[familyIndex];
+                    mapping.queueIndices.emplace_back(sharedQueueCursor % familyQueueCapacity);
+                    sharedQueueCursor++;
+                }
             }
+            queueFamilyMappings.emplace(queueType, std::move(mapping));
+        }
 
-            VkDeviceQueueCreateInfo tempCreateInfo = {};
-            tempCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            tempCreateInfo.queueFamilyIndex = queueFamilyIndex.value();
-            tempCreateInfo.queueCount = queueCount;
-            tempCreateInfo.pQueuePriorities = queuePriorities.data();
-            queueCreateInfos.emplace_back(tempCreateInfo);
+        activeQueueFamilyIndices.clear();
+        activeQueueFamilyIndices.reserve(familyQueueCounts.size());
 
-            queueFamilyMappings[queueType] = std::make_pair(queueFamilyIndex.value(), queueCount);
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        queueCreateInfos.reserve(familyQueueCounts.size());
+        std::vector<std::vector<float>> queuePriorities;
+        queuePriorities.reserve(familyQueueCounts.size());
+        for (const auto [familyIndex, queueCount] : familyQueueCounts) {
+            activeQueueFamilyIndices.emplace_back(familyIndex);
+            queuePriorities.emplace_back(queueCount, 1.0f);
+
+            VkDeviceQueueCreateInfo queueCreateInfo = {};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = familyIndex;
+            queueCreateInfo.queueCount = queueCount;
+            queueCreateInfo.pQueuePriorities = queuePriorities.back().data();
+            queueCreateInfos.emplace_back(queueCreateInfo);
         }
 
         VkPhysicalDeviceFeatures deviceFeatures = {};
@@ -285,18 +355,27 @@ namespace RHI::Vulkan {
 
     void VulkanDevice::GetQueues()
     {
+        std::map<std::pair<uint32_t, uint32_t>, std::shared_ptr<std::mutex>> nativeQueueMutexes;
+
         VkCommandPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-        for (auto [queueType, queueFamilyInfo] : queueFamilyMappings) {
-            auto [queueFamilyIndex, queueNum] = queueFamilyInfo;
+        for (const auto& [queueType, queueFamilyInfo] : queueFamilyMappings) {
+            const auto queueFamilyIndex = queueFamilyInfo.familyIndex;
+            const auto& queueIndices = queueFamilyInfo.queueIndices;
 
-            std::vector<Common::UniquePtr<VulkanQueue>> tempQueues(queueNum);
+            std::vector<Common::UniquePtr<VulkanQueue>> tempQueues(queueIndices.size());
             for (auto i = 0; i < tempQueues.size(); i++) {
+                const auto queueIndex = queueIndices[i];
                 VkQueue queue;
-                vkGetDeviceQueue(nativeDevice, queueFamilyIndex, i, &queue);
-                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queue);
+                vkGetDeviceQueue(nativeDevice, queueFamilyIndex, queueIndex, &queue);
+                const auto queueKey = std::make_pair(queueFamilyIndex, queueIndex);
+                auto& queueMutex = nativeQueueMutexes[queueKey];
+                if (queueMutex == nullptr) {
+                    queueMutex = std::make_shared<std::mutex>();
+                }
+                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queue, queueMutex);
             }
             queues[queueType] = std::move(tempQueues);
 
