@@ -18,12 +18,12 @@ namespace RHI::Internal {
                 break;
             case TextureType::tCube:
                 AssertWithReason(createInfo.width == createInfo.height, "cube textures must be square");
-                AssertWithReason(createInfo.depthOrArraySize == 6, "cube textures must have exactly six array layers");
+                AssertWithReason(createInfo.depthOrArraySize == textureCubeFaceNum, "cube textures must have exactly six array layers");
                 AssertWithReason(createInfo.samples == 1, "cube textures must be single-sampled");
                 break;
             case TextureType::tCubeArray:
                 AssertWithReason(createInfo.width == createInfo.height, "cube texture arrays must be square");
-                AssertWithReason(createInfo.depthOrArraySize >= 6 && createInfo.depthOrArraySize % 6 == 0, "cube texture arrays must have a positive multiple of six array layers");
+                AssertWithReason(createInfo.depthOrArraySize >= textureCubeFaceNum && createInfo.depthOrArraySize % textureCubeFaceNum == 0, "cube texture arrays must have a positive multiple of six array layers");
                 AssertWithReason(createInfo.samples == 1, "cube texture arrays must be single-sampled");
                 break;
             case TextureType::t3D:
@@ -65,9 +65,9 @@ namespace RHI::Internal {
         if (viewCreateInfo.dimension == TextureViewDimension::tv1D || viewCreateInfo.dimension == TextureViewDimension::tv2D || viewCreateInfo.dimension == TextureViewDimension::tv3D) {
             AssertWithReason(viewCreateInfo.arrayLayerNum == 1, "non-array texture views must have exactly one array layer");
         } else if (viewCreateInfo.dimension == TextureViewDimension::tvCube) {
-            AssertWithReason(viewCreateInfo.baseArrayLayer % 6 == 0 && viewCreateInfo.arrayLayerNum == 6, "cube texture views must select one aligned group of six array layers");
+            AssertWithReason(viewCreateInfo.baseArrayLayer % textureCubeFaceNum == 0 && viewCreateInfo.arrayLayerNum == textureCubeFaceNum, "cube texture views must select one aligned group of six array layers");
         } else if (viewCreateInfo.dimension == TextureViewDimension::tvCubeArray) {
-            AssertWithReason(viewCreateInfo.baseArrayLayer % 6 == 0 && viewCreateInfo.arrayLayerNum % 6 == 0, "cube texture array views must select aligned groups of six array layers");
+            AssertWithReason(viewCreateInfo.baseArrayLayer % textureCubeFaceNum == 0 && viewCreateInfo.arrayLayerNum % textureCubeFaceNum == 0, "cube texture array views must select aligned groups of six array layers");
         }
     }
 }

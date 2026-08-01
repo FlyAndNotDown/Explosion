@@ -48,6 +48,8 @@
 #define ALIGN_AS_GPU alignas(16)
 
 namespace RHI {
+    constexpr uint8_t textureCubeFaceNum = 6;
+
     enum class RHIType : uint8_t {
         directX12,
         vulkan,

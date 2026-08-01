@@ -81,7 +81,7 @@ namespace RHI::DirectX12 {
         srv.MostDetailedMip = createInfo.baseMipLevel;
         srv.MipLevels = createInfo.mipLevelNum;
         srv.First2DArrayFace = createInfo.baseArrayLayer;
-        srv.NumCubes = createInfo.arrayLayerNum;
+        srv.NumCubes = createInfo.arrayLayerNum / textureCubeFaceNum;
         srv.ResourceMinLODClamp = static_cast<float>(createInfo.baseMipLevel);
     }
 
