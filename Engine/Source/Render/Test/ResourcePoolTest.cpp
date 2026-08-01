@@ -32,7 +32,7 @@ TEST_F(ResourcePoolTest, BasicTest)
 {
     auto& texturePool = TexturePool::Get(*device);
     PooledTextureDesc textureDesc {};
-    textureDesc.dimension = RHI::TextureDimension::t2D;
+    textureDesc.type = RHI::TextureType::t2D;
     textureDesc.width = 1920;
     textureDesc.height = 1080;
     textureDesc.depthOrArraySize = 1;

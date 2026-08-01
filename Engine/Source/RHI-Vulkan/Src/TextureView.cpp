@@ -27,6 +27,10 @@ namespace RHI::Vulkan {
 
     void VulkanTextureView::CreateImageView(const TextureViewCreateInfo& inCreateInfo)
     {
+        if (inCreateInfo.dimension == TextureViewDimension::tvCubeArray) {
+            AssertWithReason(device.GetEnabledFeatures().imageCubeArray == VK_TRUE, "Vulkan image cube array feature is not supported");
+        }
+
         VkImageViewCreateInfo viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.format = EnumCast<PixelFormat, VkFormat>(texture.GetCreateInfo().format);

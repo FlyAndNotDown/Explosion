@@ -165,9 +165,12 @@ namespace RHI {
         max
     };
 
-    enum class TextureDimension : uint8_t {
+    enum class TextureType : uint8_t {
         t1D,
         t2D,
+        t2DArray,
+        tCube,
+        tCubeArray,
         t3D,
         max
     };
@@ -480,7 +483,8 @@ namespace RHI {
         timestampQuery            = 0x4,
         multiDrawIndirect         = 0x8,
         drawIndirectFirstInstance = 0x10,
-        max                       = 0x20
+        textureCubeArray          = 0x20,
+        max                       = 0x40
     };
     using FeatureFlags = Common::Flags<FeatureBits>;
     DECLARE_FLAG_BITS_OP(FeatureFlags, FeatureBits)

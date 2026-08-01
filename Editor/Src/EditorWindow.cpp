@@ -404,7 +404,7 @@ namespace Editor {
 
         imguiFontTexture = device.CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(static_cast<uint32_t>(width))
                 .SetHeight(static_cast<uint32_t>(height))
                 .SetDepthOrArraySize(1)

@@ -682,7 +682,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::textureBinding | TextureUsageBits::renderAttachment)
                 .SetInitialState(TextureState::shaderReadOnly));
@@ -695,7 +695,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::textureBinding | TextureUsageBits::renderAttachment)
                 .SetInitialState(TextureState::shaderReadOnly));
@@ -708,7 +708,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::textureBinding | TextureUsageBits::renderAttachment)
                 .SetInitialState(TextureState::shaderReadOnly));
@@ -721,7 +721,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::depthStencilAttachment)
                 .SetInitialState(TextureState::depthStencilWrite));
@@ -737,7 +737,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::textureBinding | TextureUsageBits::renderAttachment)
                 .SetInitialState(TextureState::shaderReadOnly));
@@ -750,7 +750,7 @@ private:
                 .SetWidth(GetWindowWidth())
                 .SetHeight(GetWindowHeight())
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::textureBinding | TextureUsageBits::renderAttachment)
                 .SetInitialState(TextureState::shaderReadOnly));
@@ -862,7 +862,7 @@ private:
                 .SetWidth(ssaoNoiseDim)
                 .SetHeight(ssaoNoiseDim)
                 .SetDepthOrArraySize(1)
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetSamples(1)
                 .SetUsages(TextureUsageBits::copyDst | TextureUsageBits::textureBinding)
                 .SetInitialState(TextureState::undefined));
@@ -904,7 +904,7 @@ private:
                 diffuseTex = device->CreateTexture(
                     TextureCreateInfo()
                         .SetFormat(PixelFormat::rgba8Unorm)
-                        .SetDimension(TextureDimension::t2D)
+                        .SetType(TextureType::t2D)
                         .SetMipLevels(1)
                         .SetWidth(texData->width)
                         .SetHeight(texData->height)

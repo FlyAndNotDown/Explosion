@@ -236,7 +236,7 @@ namespace RHI::Vulkan {
     {
         const auto& createInfo = texture.GetCreateInfo();
         const auto mipLevel = subResourceInfo.mipLevel;
-        const auto baseDepth = createInfo.dimension == TextureDimension::t3D ? createInfo.depthOrArraySize : 1;
+        const auto baseDepth = createInfo.type == TextureType::t3D ? createInfo.depthOrArraySize : 1;
 
         TextureSubResourceCopyFootprint result {};
         result.extent = {
@@ -356,6 +356,7 @@ namespace RHI::Vulkan {
         enabledFeatures.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
         enabledFeatures.textureCompressionBC = supportedFeatures.features.textureCompressionBC;
         enabledFeatures.occlusionQueryPrecise = supportedFeatures.features.occlusionQueryPrecise;
+        enabledFeatures.imageCubeArray = supportedFeatures.features.imageCubeArray;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

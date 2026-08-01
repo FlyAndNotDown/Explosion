@@ -69,7 +69,7 @@ namespace Runtime {
     {
         texture = device.CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetDepthOrArraySize(1)

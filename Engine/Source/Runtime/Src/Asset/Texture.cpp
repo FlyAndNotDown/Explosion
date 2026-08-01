@@ -5,15 +5,20 @@
 #include <Runtime/Asset/Texture.h>
 
 namespace Runtime::Internal {
-    static RHI::TextureDimension GetTextureDimension(TextureType inType)
+    struct TextureTypeInfo {
+        RHI::TextureType rhiType;
+        RHI::TextureViewDimension rhiViewDimension;
+    };
+
+    static const TextureTypeInfo& GetTextureTypeInfo(TextureType inType)
     {
-        static std::unordered_map<TextureType, RHI::TextureDimension> map = {
-            { TextureType::t1D, RHI::TextureDimension::t1D },
-            { TextureType::t2D, RHI::TextureDimension::t2D },
-            { TextureType::t2DArray, RHI::TextureDimension::t2D },
-            { TextureType::tCube, RHI::TextureDimension::t2D },
-            { TextureType::tCubeArray, RHI::TextureDimension::t2D },
-            { TextureType::t3D, RHI::TextureDimension::t3D }
+        static std::unordered_map<TextureType, TextureTypeInfo> map = {
+            { TextureType::t1D, { RHI::TextureType::t1D, RHI::TextureViewDimension::tv1D } },
+            { TextureType::t2D, { RHI::TextureType::t2D, RHI::TextureViewDimension::tv2D } },
+            { TextureType::t2DArray, { RHI::TextureType::t2DArray, RHI::TextureViewDimension::tv2DArray } },
+            { TextureType::tCube, { RHI::TextureType::tCube, RHI::TextureViewDimension::tvCube } },
+            { TextureType::tCubeArray, { RHI::TextureType::tCubeArray, RHI::TextureViewDimension::tvCubeArray } },
+            { TextureType::t3D, { RHI::TextureType::t3D, RHI::TextureViewDimension::tv3D } }
         };
         return map.at(inType);
     }
@@ -208,7 +213,7 @@ namespace Runtime {
 
         texture = device->CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(Internal::GetTextureDimension(type))
+                .SetType(Internal::GetTextureTypeInfo(type).rhiType)
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetDepthOrArraySize(depthOrArraySize)
@@ -222,7 +227,7 @@ namespace Runtime {
         textureView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::textureBinding)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));
@@ -438,7 +443,7 @@ namespace Runtime {
 
         texture = device->CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(Internal::GetTextureDimension(type))
+                .SetType(Internal::GetTextureTypeInfo(type).rhiType)
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetDepthOrArraySize(depthOrArraySize)
@@ -452,7 +457,7 @@ namespace Runtime {
         renderTargetView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::colorAttachment)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));
@@ -460,7 +465,7 @@ namespace Runtime {
         shaderResourceView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::textureBinding)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));

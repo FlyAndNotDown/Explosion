@@ -79,10 +79,13 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(QueueType::transfer, VK_QUEUE_TRANSFER_BIT)
     ECIMPL_END(VkQueueFlagBits)
 
-    ECIMPL_BEGIN(TextureDimension, VkImageType)
-        ECIMPL_ITEM(TextureDimension::t1D, VK_IMAGE_TYPE_1D)
-        ECIMPL_ITEM(TextureDimension::t2D, VK_IMAGE_TYPE_2D)
-        ECIMPL_ITEM(TextureDimension::t3D, VK_IMAGE_TYPE_3D)
+    ECIMPL_BEGIN(TextureType, VkImageType)
+        ECIMPL_ITEM(TextureType::t1D,        VK_IMAGE_TYPE_1D)
+        ECIMPL_ITEM(TextureType::t2D,        VK_IMAGE_TYPE_2D)
+        ECIMPL_ITEM(TextureType::t2DArray,   VK_IMAGE_TYPE_2D)
+        ECIMPL_ITEM(TextureType::tCube,      VK_IMAGE_TYPE_2D)
+        ECIMPL_ITEM(TextureType::tCubeArray, VK_IMAGE_TYPE_2D)
+        ECIMPL_ITEM(TextureType::t3D,        VK_IMAGE_TYPE_3D)
     ECIMPL_END(VkImageType)
 
     ECIMPL_BEGIN(TextureViewDimension, VkImageViewType)
@@ -313,4 +316,5 @@ namespace RHI::Vulkan {
         FCIMPL_ITEM(TextureUsageBits::renderAttachment,       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
         FCIMPL_ITEM(TextureUsageBits::depthStencilAttachment, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
     FCIMPL_END(VkImageUsageFlagBits)
+
 }

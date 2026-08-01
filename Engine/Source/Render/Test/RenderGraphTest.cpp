@@ -89,7 +89,7 @@ namespace Render {
         RGBuilder builder(*device);
         auto* texture = builder.CreateTexture(
             RGTextureDesc()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(4)
                 .SetHeight(4)
                 .SetDepthOrArraySize(1)
@@ -122,7 +122,7 @@ namespace Render {
         RGBuilder builder(*device);
         auto* depthTexture = builder.CreateTexture(
             RGTextureDesc()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(4)
                 .SetHeight(4)
                 .SetDepthOrArraySize(1)
@@ -139,7 +139,7 @@ namespace Render {
                 RHI::TextureAspect::depth));
         auto* colorTexture = builder.CreateTexture(
             RGTextureDesc()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(4)
                 .SetHeight(4)
                 .SetDepthOrArraySize(1)

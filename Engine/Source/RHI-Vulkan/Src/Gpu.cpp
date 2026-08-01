@@ -43,6 +43,7 @@ namespace RHI::Vulkan {
         if (properties.limits.timestampComputeAndGraphics) { result = result | FeatureBits::timestampQuery; }
         if (features.multiDrawIndirect) { result = result | FeatureBits::multiDrawIndirect; }
         if (features.drawIndirectFirstInstance) { result = result | FeatureBits::drawIndirectFirstInstance; }
+        if (features.imageCubeArray) { result = result | FeatureBits::textureCubeArray; }
         return result;
     }
 

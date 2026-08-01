@@ -37,7 +37,7 @@ namespace RHI::DirectX12 {
     static size_t GetNativeSubResourceIndex(const DX12Texture& texture, const TextureSubResourceInfo& subResource)
     {
         const auto& createInfo = texture.GetCreateInfo();
-        return D3D12CalcSubresource(subResource.mipLevel, subResource.arrayLayer, 0, createInfo.mipLevels, createInfo.dimension == TextureDimension::t3D ? 1 : createInfo.depthOrArraySize);
+        return D3D12CalcSubresource(subResource.mipLevel, subResource.arrayLayer, 0, createInfo.mipLevels, createInfo.type == TextureType::t3D ? 1 : createInfo.depthOrArraySize);
     }
 
     static CD3DX12_TEXTURE_COPY_LOCATION GetNativeTextureCopyLocation(const DX12Texture& texture, const TextureSubResourceInfo& subResource)

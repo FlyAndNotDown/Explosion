@@ -19,11 +19,10 @@ namespace RHI::DirectX12 {
         DX12Texture(DX12Device& inDevice, const TextureCreateInfo& inCreateInfo, ComPtr<ID3D12Resource>&& nativeResource);
         ~DX12Texture() override;
 
-        Common::UniquePtr<TextureView> CreateTextureView(const TextureViewCreateInfo& inCreateInfo) override;
-
         ID3D12Resource* GetNative() const;
 
     private:
+        Common::UniquePtr<TextureView> CreateTextureViewInternal(const TextureViewCreateInfo& inCreateInfo) override;
         void CreateNativeTexture(const TextureCreateInfo& inCreateInfo);
 
         DX12Device& device;

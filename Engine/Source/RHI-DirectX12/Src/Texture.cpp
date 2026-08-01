@@ -27,7 +27,7 @@ namespace RHI::DirectX12 {
 
     DX12Texture::~DX12Texture() = default;
 
-    Common::UniquePtr<TextureView> DX12Texture::CreateTextureView(const TextureViewCreateInfo& inCreateInfo)
+    Common::UniquePtr<TextureView> DX12Texture::CreateTextureViewInternal(const TextureViewCreateInfo& inCreateInfo)
     {
         return Common::UniquePtr<TextureView>(new DX12TextureView(static_cast<DX12Device&>(device), *this, inCreateInfo));
     }
@@ -49,7 +49,7 @@ namespace RHI::DirectX12 {
         textureDesc.DepthOrArraySize = inCreateInfo.depthOrArraySize;
         textureDesc.SampleDesc.Count = inCreateInfo.samples;
         textureDesc.SampleDesc.Quality = 0;
-        textureDesc.Dimension = EnumCast<TextureDimension, D3D12_RESOURCE_DIMENSION>(inCreateInfo.dimension);
+        textureDesc.Dimension = EnumCast<TextureType, D3D12_RESOURCE_DIMENSION>(inCreateInfo.type);
 
         bool success = SUCCEEDED(device.GetNative()->CreateCommittedResource(
             &heapProperties,
