@@ -22,12 +22,12 @@ namespace RHI {
 
     BufferViewCreateInfo::BufferViewCreateInfo(
         const BufferViewType inType,
-        const uint32_t inSize,
-        const uint32_t inOffset,
+        const uint32_t inSizeInBytes,
+        const uint32_t inOffsetInBytes,
         const std::variant<VertexBufferViewInfo, IndexBufferViewInfo, StorageBufferViewInfo>& inExtent)
         : type(inType)
-        , size(inSize)
-        , offset(inOffset)
+        , sizeInBytes(inSizeInBytes)
+        , offsetInBytes(inOffsetInBytes)
         , extend(inExtent)
     {
     }
@@ -38,15 +38,15 @@ namespace RHI {
         return *this;
     }
 
-    BufferViewCreateInfo& BufferViewCreateInfo::SetOffset(const uint32_t inOffset)
+    BufferViewCreateInfo& BufferViewCreateInfo::SetOffsetInBytes(const uint32_t inOffsetInBytes)
     {
-        offset = inOffset;
+        offsetInBytes = inOffsetInBytes;
         return *this;
     }
 
-    BufferViewCreateInfo& BufferViewCreateInfo::SetSize(const uint32_t inSize)
+    BufferViewCreateInfo& BufferViewCreateInfo::SetSizeInBytes(const uint32_t inSizeInBytes)
     {
-        size = inSize;
+        sizeInBytes = inSizeInBytes;
         return *this;
     }
 
@@ -68,7 +68,15 @@ namespace RHI {
         return *this;
     }
 
-    BufferView::BufferView(const BufferViewCreateInfo&) {}
+    BufferView::BufferView(const BufferViewCreateInfo& inCreateInfo)
+        : createInfo(inCreateInfo)
+    {
+    }
 
     BufferView::~BufferView() = default;
+
+    const BufferViewCreateInfo& BufferView::GetCreateInfo() const
+    {
+        return createInfo;
+    }
 }

@@ -67,8 +67,8 @@ namespace Render::Internal {
             createInfo.extend);
         return CombineHashes({
             static_cast<uint64_t>(createInfo.type),
-            static_cast<uint64_t>(createInfo.size),
-            static_cast<uint64_t>(createInfo.offset),
+            static_cast<uint64_t>(createInfo.sizeInBytes),
+            static_cast<uint64_t>(createInfo.offsetInBytes),
             static_cast<uint64_t>(createInfo.extend.index()),
             extendHash
         });

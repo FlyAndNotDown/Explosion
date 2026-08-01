@@ -534,20 +534,25 @@ namespace RHI::Vulkan {
 
     void VulkanRasterPassCommandRecorder::SetIndexBuffer(BufferView *inBufferView)
     {
-        const auto* mBufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto* bufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto& createInfo = bufferView->GetCreateInfo();
+        Assert(createInfo.type == BufferViewType::index);
 
-        const VkBuffer indexBuffer = mBufferView->GetBuffer().GetNative();
-        const auto vkFormat = EnumCast<IndexFormat, VkIndexType>(mBufferView->GetIndexFormat());
+        const VkBuffer indexBuffer = bufferView->GetBuffer().GetNative();
+        const auto indexFormat = std::get<IndexBufferViewInfo>(createInfo.extend).format;
+        const auto vkFormat = EnumCast<IndexFormat, VkIndexType>(indexFormat);
 
-        vkCmdBindIndexBuffer(commandBuffer.GetNative(), indexBuffer, 0, vkFormat);
+        vkCmdBindIndexBuffer(commandBuffer.GetNative(), indexBuffer, createInfo.offsetInBytes, vkFormat);
     }
 
     void VulkanRasterPassCommandRecorder::SetVertexBuffer(size_t inSlot, BufferView *inBufferView)
     {
-        const auto* mBufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto* bufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto& createInfo = bufferView->GetCreateInfo();
+        Assert(createInfo.type == BufferViewType::vertex);
 
-        const VkBuffer vertexBuffer = mBufferView->GetBuffer().GetNative();
-        const VkDeviceSize offset[] = { mBufferView->GetOffset() };
+        const VkBuffer vertexBuffer = bufferView->GetBuffer().GetNative();
+        const VkDeviceSize offset[] = { createInfo.offsetInBytes };
         vkCmdBindVertexBuffers(commandBuffer.GetNative(), inSlot, 1, &vertexBuffer, offset);
     }
 

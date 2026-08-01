@@ -22,13 +22,13 @@ namespace RHI::DirectX12 {
 
         void* Map(MapMode inMapMode, size_t inOffset, size_t inLength) override;
         void Unmap() override;
-        Common::UniquePtr<BufferView> CreateBufferView(const BufferViewCreateInfo& inCreateInfo) override;
 
         ID3D12Resource* GetNative() const;
         DX12Device& GetDevice() const;
         BufferUsageFlags GetUsages() const;
 
     private:
+        Common::UniquePtr<BufferView> CreateBufferViewInternal(const BufferViewCreateInfo& inCreateInfo) override;
         void CreateNativeBuffer(DX12Device& inDevice, const BufferCreateInfo& inCreateInfo);
 
         DX12Device& device;

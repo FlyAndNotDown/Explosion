@@ -108,11 +108,12 @@ namespace RHI::Vulkan {
                 || entry.binding.type == BindingType::storageBuffer
                 || entry.binding.type == BindingType::rwStorageBuffer) {
                 auto* bufferView = static_cast<VulkanBufferView*>(std::get<BufferView*>(entry.entity));
+                const auto& bufferViewCreateInfo = bufferView->GetCreateInfo();
 
                 bufferInfos.emplace_back();
                 bufferInfos.back().buffer = bufferView->GetBuffer().GetNative();
-                bufferInfos.back().offset = bufferView->GetOffset();
-                bufferInfos.back().range = bufferView->GetBufferSize();
+                bufferInfos.back().offset = bufferViewCreateInfo.offsetInBytes;
+                bufferInfos.back().range = bufferViewCreateInfo.sizeInBytes;
 
                 descriptorWrites[i].pBufferInfo = &bufferInfos.back();
             } else if (entry.binding.type == BindingType::sampler) {

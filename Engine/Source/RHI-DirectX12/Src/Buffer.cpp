@@ -89,7 +89,7 @@ namespace RHI::DirectX12 {
         nativeResource->Unmap(0, nullptr);
     }
 
-    Common::UniquePtr<BufferView> DX12Buffer::CreateBufferView(const BufferViewCreateInfo& inCreateInfo)
+    Common::UniquePtr<BufferView> DX12Buffer::CreateBufferViewInternal(const BufferViewCreateInfo& inCreateInfo)
     {
         return Common::UniquePtr<BufferView>(new DX12BufferView(*this, inCreateInfo));
     }

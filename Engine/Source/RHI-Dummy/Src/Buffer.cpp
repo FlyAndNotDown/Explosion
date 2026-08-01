@@ -26,7 +26,7 @@ namespace RHI::Dummy {
     {
     }
 
-    Common::UniquePtr<BufferView> DummyBuffer::CreateBufferView(const BufferViewCreateInfo& createInfo)
+    Common::UniquePtr<BufferView> DummyBuffer::CreateBufferViewInternal(const BufferViewCreateInfo& createInfo)
     {
         return Common::UniquePtr<BufferView>(new DummyBufferView(createInfo));
     }

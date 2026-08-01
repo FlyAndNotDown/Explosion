@@ -37,10 +37,11 @@ namespace RHI {
         const BufferCreateInfo& GetCreateInfo() const;
         virtual void* Map(MapMode mapMode, size_t offset, size_t length) = 0;
         virtual void Unmap() = 0;
-        virtual Common::UniquePtr<BufferView> CreateBufferView(const BufferViewCreateInfo& createInfo) = 0;
+        Common::UniquePtr<BufferView> CreateBufferView(const BufferViewCreateInfo& createInfo);
 
     protected:
         explicit Buffer(const BufferCreateInfo& inCreateInfo);
+        virtual Common::UniquePtr<BufferView> CreateBufferViewInternal(const BufferViewCreateInfo& createInfo) = 0;
 
         BufferCreateInfo createInfo;
     };

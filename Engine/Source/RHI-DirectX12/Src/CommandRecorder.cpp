@@ -345,12 +345,14 @@ namespace RHI::DirectX12 {
     void DX12RasterPassCommandRecorder::SetIndexBuffer(BufferView* inBufferView)
     {
         const auto* bufferView = static_cast<DX12BufferView*>(inBufferView);
+        Assert(bufferView->GetCreateInfo().type == BufferViewType::index);
         commandBuffer.GetNativeCmdList()->IASetIndexBuffer(&bufferView->GetNativeIndexBufferView());
     }
 
     void DX12RasterPassCommandRecorder::SetVertexBuffer(const size_t inSlot, BufferView* inBufferView)
     {
         const auto* bufferView = static_cast<DX12BufferView*>(inBufferView);
+        Assert(bufferView->GetCreateInfo().type == BufferViewType::vertex);
         commandBuffer.GetNativeCmdList()->IASetVertexBuffers(inSlot, 1, &bufferView->GetNativeVertexBufferView());
     }
 
