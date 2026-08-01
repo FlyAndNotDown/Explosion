@@ -38,7 +38,11 @@ namespace RHI {
         NonCopyable(TextureView)
         virtual ~TextureView();
 
+        const TextureViewCreateInfo& GetCreateInfo() const;
+
     protected:
-        explicit TextureView(const TextureViewCreateInfo& createInfo);
+        explicit TextureView(const TextureViewCreateInfo& inCreateInfo);
+
+        TextureViewCreateInfo createInfo;
     };
 }

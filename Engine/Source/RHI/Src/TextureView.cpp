@@ -55,7 +55,15 @@ namespace RHI {
         return *this;
     }
 
-    TextureView::TextureView(const TextureViewCreateInfo&) {}
+    TextureView::TextureView(const TextureViewCreateInfo& inCreateInfo)
+        : createInfo(inCreateInfo)
+    {
+    }
 
     TextureView::~TextureView() = default;
+
+    const TextureViewCreateInfo& TextureView::GetCreateInfo() const
+    {
+        return createInfo;
+    }
 }

@@ -23,7 +23,6 @@ namespace RHI::Vulkan {
 
         VkImageView GetNative() const;
         VulkanTexture& GetTexture() const;
-        uint8_t GetArrayLayerNum() const;
 
     private:
         void CreateImageView(const TextureViewCreateInfo& inCreateInfo);
@@ -31,10 +30,6 @@ namespace RHI::Vulkan {
 
         VulkanDevice& device;
         VulkanTexture& texture;
-        uint8_t baseMipLevel;
-        uint8_t mipLevelNum;
-        uint8_t baseArrayLayer;
-        uint8_t arrayLayerNum;
         VkImageView nativeImageView;
     };
 }

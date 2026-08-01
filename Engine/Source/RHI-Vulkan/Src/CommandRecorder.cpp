@@ -18,6 +18,8 @@
 #include <RHI/Vulkan/QuerySet.h>
 #include <RHI/Synchronous.h>
 
+#include <algorithm>
+
 namespace RHI::Vulkan {
     static VkAccessFlags GetBufferMemoryBarrierAccessFlags(const BufferState inState)
     {
@@ -428,9 +430,13 @@ namespace RHI::Vulkan {
         , activeOcclusionQueryIndex(0)
     {
         std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos(inBeginInfo.colorAttachments.size());
+        const VulkanTextureView* referenceAttachmentView = nullptr;
         for (size_t i = 0; i < inBeginInfo.colorAttachments.size(); i++)
         {
-            auto* colorTextureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[i].view);
+            const auto* colorTextureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[i].view);
+            if (referenceAttachmentView == nullptr) {
+                referenceAttachmentView = colorTextureView;
+            }
             colorAttachmentInfos[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
             colorAttachmentInfos[i].imageView = colorTextureView->GetNative();
             colorAttachmentInfos[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -444,15 +450,10 @@ namespace RHI::Vulkan {
                     };
         }
 
-        auto* textureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[0].view);
-        const auto& textureCreateInfo = textureView->GetTexture().GetCreateInfo();
-
         VkRenderingInfoKHR renderingInfo = {};
         renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
         renderingInfo.colorAttachmentCount = colorAttachmentInfos.size();
-        renderingInfo.pColorAttachments = colorAttachmentInfos.data();
-        renderingInfo.layerCount = textureView->GetArrayLayerNum();
-        renderingInfo.renderArea = {{0, 0}, {static_cast<uint32_t>(textureCreateInfo.width), static_cast<uint32_t>(textureCreateInfo.height)}};
+        renderingInfo.pColorAttachments = colorAttachmentInfos.empty() ? nullptr : colorAttachmentInfos.data();
         renderingInfo.viewMask = 0;
 
         VkRenderingAttachmentInfo depthAttachmentInfo = {};
@@ -461,6 +462,9 @@ namespace RHI::Vulkan {
         if (inBeginInfo.depthStencilAttachment.has_value())
         {
             const auto* depthStencilTextureView = static_cast<VulkanTextureView*>(inBeginInfo.depthStencilAttachment->view);
+            if (referenceAttachmentView == nullptr) {
+                referenceAttachmentView = depthStencilTextureView;
+            }
 
             depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
             depthAttachmentInfo.imageView = depthStencilTextureView->GetNative();
@@ -486,6 +490,12 @@ namespace RHI::Vulkan {
                 renderingInfo.pStencilAttachment = &stencilAttachmentInfo;
             }
         }
+
+        AssertWithReason(referenceAttachmentView != nullptr, "raster passes must have at least one attachment");
+        const auto& textureCreateInfo = referenceAttachmentView->GetTexture().GetCreateInfo();
+        const auto& textureViewCreateInfo = referenceAttachmentView->GetCreateInfo();
+        renderingInfo.layerCount = textureViewCreateInfo.arrayLayerNum;
+        renderingInfo.renderArea = {{0, 0}, {std::max(textureCreateInfo.width >> textureViewCreateInfo.baseMipLevel, 1u), std::max(textureCreateInfo.height >> textureViewCreateInfo.baseMipLevel, 1u)}};
 
         auto* pfn = device.GetGpu().GetInstance().FindOrGetTypedDynamicFuncPointer<PFN_vkCmdBeginRenderingKHR>("vkCmdBeginRenderingKHR");
         pfn(commandBuffer.GetNative(), &renderingInfo);
