@@ -201,10 +201,12 @@ namespace RHI::Vulkan {
         setStage(inCreateInfo.vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
         setStage(inCreateInfo.pixelShader, VK_SHADER_STAGE_FRAGMENT_BIT);
 
-        std::vector<VkDynamicState> dynamicStates = {
+        const std::array dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR,
-            VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY
+            VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY,
+            VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE
         };
         VkPipelineDynamicStateCreateInfo dynStateInfo = {};
         dynStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
