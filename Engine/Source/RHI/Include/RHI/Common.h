@@ -494,4 +494,5 @@ namespace RHI {
 
 namespace RHI {
     size_t GetBytesPerPixel(PixelFormat format);
+    TextureAspect GetTextureAspect(PixelFormat format);
 }

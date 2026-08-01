@@ -29,7 +29,6 @@ namespace RHI::Vulkan {
     private:
         Common::UniquePtr<TextureView> CreateTextureViewInternal(const TextureViewCreateInfo& inCreateInfo) override;
         void CreateNativeImage(const TextureCreateInfo& inCreateInfo);
-        void GetAspect(const TextureCreateInfo& inCreateInfo);
         void TransitionToInitState(const TextureCreateInfo& inCreateInfo);
 
         VulkanDevice& device;

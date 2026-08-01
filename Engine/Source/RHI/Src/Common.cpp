@@ -27,4 +27,18 @@ namespace RHI {
         }
         return Assert(false), 1;
     }
+
+    TextureAspect GetTextureAspect(const PixelFormat format)
+    {
+        switch (format) {
+            case PixelFormat::d16Unorm:
+            case PixelFormat::d32Float:
+                return TextureAspect::depth;
+            case PixelFormat::d24UnormS8Uint:
+            case PixelFormat::d32FloatS8Uint:
+                return TextureAspect::depthStencil;
+            default:
+                return TextureAspect::color;
+        }
+    }
 }

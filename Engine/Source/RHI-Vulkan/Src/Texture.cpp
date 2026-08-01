@@ -23,7 +23,7 @@ namespace RHI::Vulkan {
         : Texture(inCreateInfo)
         , device(inDevice)
         , nativeImage(inNativeImage)
-        , nativeAspect(VK_IMAGE_ASPECT_COLOR_BIT)
+        , nativeAspect(EnumCast<TextureAspect, VkImageAspectFlags>(GetTextureAspect(inCreateInfo.format)))
         , ownMemory(false)
     {
     }
@@ -32,7 +32,7 @@ namespace RHI::Vulkan {
         : Texture(inCreateInfo)
         , device(inDevice)
         , nativeImage(VK_NULL_HANDLE)
-        , nativeAspect(VK_IMAGE_ASPECT_COLOR_BIT)
+        , nativeAspect(EnumCast<TextureAspect, VkImageAspectFlags>(GetTextureAspect(inCreateInfo.format)))
         , ownMemory(true)
     {
         CreateNativeImage(inCreateInfo);
@@ -56,16 +56,6 @@ namespace RHI::Vulkan {
         return nativeImage;
     }
 
-    void VulkanTexture::GetAspect(const RHI::TextureCreateInfo& inCreateInfo)
-    {
-        if (inCreateInfo.usages & TextureUsageBits::depthStencilAttachment) {
-            nativeAspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-            if (inCreateInfo.format == PixelFormat::d32FloatS8Uint || inCreateInfo.format == PixelFormat::d24UnormS8Uint) {
-                nativeAspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-            }
-        }
-    }
-
     VkImageSubresourceRange VulkanTexture::GetNativeSubResourceFullRange() const
     {
         if (createInfo.type == TextureType::t3D) {
@@ -77,8 +67,6 @@ namespace RHI::Vulkan {
 
     void VulkanTexture::CreateNativeImage(const TextureCreateInfo& inCreateInfo)
     {
-        GetAspect(inCreateInfo);
-
         VkImageCreateInfo imageInfo = {};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.flags = Internal::GetNativeImageCreateFlags(inCreateInfo.type);
