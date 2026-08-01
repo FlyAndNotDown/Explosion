@@ -629,7 +629,8 @@ namespace RHI::Vulkan {
     {
         activeOcclusionQuerySet = static_cast<VulkanQuerySet*>(inQuerySet);
         activeOcclusionQueryIndex = inQueryIndex;
-        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, VK_QUERY_CONTROL_PRECISE_BIT);
+        const VkQueryControlFlags queryFlags = device.GetEnabledFeatures().occlusionQueryPrecise == VK_TRUE ? VK_QUERY_CONTROL_PRECISE_BIT : 0;
+        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, queryFlags);
     }
 
     void VulkanRasterPassCommandRecorder::EndOcclusionQuery()
