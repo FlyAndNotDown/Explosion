@@ -129,6 +129,7 @@ namespace RHI::DirectX12 {
                 desc.Format = EnumCast<VertexFormat, DXGI_FORMAT>(attribute.format);
                 desc.InputSlot = i;
                 desc.InputSlotClass = EnumCast<VertexStepMode, D3D12_INPUT_CLASSIFICATION>(layout.stepMode);
+                desc.InstanceDataStepRate = layout.stepMode == VertexStepMode::perInstance ? 1 : 0;
                 desc.AlignedByteOffset = attribute.offset;
                 desc.SemanticName = vertexBinding.semanticName.c_str();
                 desc.SemanticIndex = vertexBinding.semanticIndex;
