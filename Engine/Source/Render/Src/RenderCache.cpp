@@ -47,6 +47,7 @@ namespace Render::Internal {
     {
         return CombineHashes({
             static_cast<uint64_t>(state.depthEnabled),
+            static_cast<uint64_t>(state.depthWriteEnabled),
             static_cast<uint64_t>(state.stencilEnabled),
             static_cast<uint64_t>(state.format),
             static_cast<uint64_t>(state.depthCompareFunc),

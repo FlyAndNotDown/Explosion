@@ -77,7 +77,9 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_ACCESS_SHADER_READ_BIT },
             { TextureState::rwStorage, VK_ACCESS_SHADER_WRITE_BIT },
             { TextureState::depthStencilReadonly, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT },
-            { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthReadStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthWriteStencilRead, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
             { TextureState::present, VK_ACCESS_MEMORY_READ_BIT }
         };
         return map.at(inState);
@@ -94,6 +96,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthReadStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthWriteStencilRead, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
         };
@@ -111,6 +115,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthReadStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthWriteStencilRead, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
         };
@@ -128,6 +134,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::rwStorage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::depthStencilReadonly, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
+            { TextureState::depthReadStencilWrite, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL },
+            { TextureState::depthWriteStencilRead, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL },
             { TextureState::depthStencilWrite, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
             { TextureState::present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
         };
@@ -466,27 +474,32 @@ namespace RHI::Vulkan {
                 referenceAttachmentView = depthStencilTextureView;
             }
 
-            depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            depthAttachmentInfo.imageView = depthStencilTextureView->GetNative();
-            depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            depthAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(inBeginInfo.depthStencilAttachment->depthLoadOp);
-            depthAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(inBeginInfo.depthStencilAttachment->depthStoreOp);
-            depthAttachmentInfo.clearValue.depthStencil = {inBeginInfo.depthStencilAttachment->depthClearValue, inBeginInfo.depthStencilAttachment->stencilClearValue };
+            const auto& attachment = inBeginInfo.depthStencilAttachment.value();
+            const auto aspect = depthStencilTextureView->GetCreateInfo().aspect;
+            const bool hasDepth = aspect == TextureAspect::depth || aspect == TextureAspect::depthStencil;
+            const bool hasStencil = aspect == TextureAspect::stencil || aspect == TextureAspect::depthStencil;
+            const auto imageLayout = GetTextureLayout(GetDepthStencilTextureState(aspect, attachment.depthReadOnly, attachment.stencilReadOnly));
 
-            renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+            AssertWithReason(!hasDepth || !attachment.depthReadOnly || attachment.depthLoadOp != LoadOp::clear, "read-only depth attachments cannot be cleared");
+            AssertWithReason(!hasStencil || !attachment.stencilReadOnly || attachment.stencilLoadOp != LoadOp::clear, "read-only stencil attachments cannot be cleared");
 
-            // depth-only formats must not present a stencil attachment, otherwise validation requires the
-            // pipeline's (undefined) stencil format to match the view format
-            const auto depthStencilFormat = depthStencilTextureView->GetTexture().GetCreateInfo().format;
-            const bool hasStencil = GetTextureAspect(depthStencilFormat) == TextureAspect::depthStencil;
-            if (hasStencil && !inBeginInfo.depthStencilAttachment->depthReadOnly) {
+            if (hasDepth) {
+                depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+                depthAttachmentInfo.imageView = depthStencilTextureView->GetNative();
+                depthAttachmentInfo.imageLayout = imageLayout;
+                depthAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(attachment.depthLoadOp);
+                depthAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(attachment.depthStoreOp);
+                depthAttachmentInfo.clearValue.depthStencil = { attachment.depthClearValue, attachment.stencilClearValue };
+                renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+            }
+
+            if (hasStencil) {
                 stencilAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
                 stencilAttachmentInfo.imageView = depthStencilTextureView->GetNative();
-                stencilAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-                stencilAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(inBeginInfo.depthStencilAttachment->stencilLoadOp);
-                stencilAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(inBeginInfo.depthStencilAttachment->stencilStoreOp);
-                stencilAttachmentInfo.clearValue.depthStencil = {inBeginInfo.depthStencilAttachment->depthClearValue, inBeginInfo.depthStencilAttachment->stencilClearValue };
-
+                stencilAttachmentInfo.imageLayout = imageLayout;
+                stencilAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(attachment.stencilLoadOp);
+                stencilAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(attachment.stencilStoreOp);
+                stencilAttachmentInfo.clearValue.depthStencil = { attachment.depthClearValue, attachment.stencilClearValue };
                 renderingInfo.pStencilAttachment = &stencilAttachmentInfo;
             }
         }

@@ -412,6 +412,8 @@ namespace RHI {
         storage,
         rwStorage,
         depthStencilReadonly,
+        depthReadStencilWrite,
+        depthWriteStencilRead,
         depthStencilWrite,
         present,
         max
@@ -495,4 +497,5 @@ namespace RHI {
 namespace RHI {
     size_t GetBytesPerPixel(PixelFormat format);
     TextureAspect GetTextureAspect(PixelFormat format);
+    TextureState GetDepthStencilTextureState(TextureAspect aspect, bool depthReadOnly, bool stencilReadOnly);
 }

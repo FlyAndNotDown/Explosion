@@ -33,7 +33,7 @@ namespace RHI::Vulkan {
         VkPipelineDepthStencilStateCreateInfo dsInfo = {};
         dsInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         dsInfo.depthTestEnable = dsState.depthEnabled ? VK_TRUE : VK_FALSE;
-        dsInfo.depthWriteEnable = dsState.depthEnabled ? VK_TRUE : VK_FALSE;
+        dsInfo.depthWriteEnable = dsState.depthEnabled && dsState.depthWriteEnabled ? VK_TRUE : VK_FALSE;
         dsInfo.stencilTestEnable = dsState.stencilEnabled ? VK_TRUE : VK_FALSE;
         dsInfo.front = ConvertStencilOp(dsState.stencilFront, dsState.stencilReadMask, dsState.stencilWriteMask);
         dsInfo.back = ConvertStencilOp(dsState.stencilBack, dsState.stencilReadMask, dsState.stencilWriteMask);

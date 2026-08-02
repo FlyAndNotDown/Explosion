@@ -8,6 +8,16 @@
 #include <Render/RenderThread.h>
 
 namespace Render {
+    TEST(RenderGraphStateTest, MapsIndependentDepthStencilAccess)
+    {
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::depthStencil, true, true), RHI::TextureState::depthStencilReadonly);
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::depthStencil, true, false), RHI::TextureState::depthReadStencilWrite);
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::depthStencil, false, true), RHI::TextureState::depthWriteStencilRead);
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::depthStencil, false, false), RHI::TextureState::depthStencilWrite);
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::depth, false, true), RHI::TextureState::depthStencilWrite);
+        ASSERT_EQ(RHI::GetDepthStencilTextureState(RHI::TextureAspect::stencil, true, false), RHI::TextureState::depthStencilWrite);
+    }
+
     struct RenderGraphTest : testing::Test {
         void SetUp() override
         {
