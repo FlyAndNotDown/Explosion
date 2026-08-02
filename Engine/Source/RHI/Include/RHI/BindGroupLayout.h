@@ -52,7 +52,12 @@ namespace RHI {
         NonCopyable(BindGroupLayout)
         virtual ~BindGroupLayout();
 
+        uint8_t GetLayoutIndex() const;
+
     protected:
         explicit BindGroupLayout(const BindGroupLayoutCreateInfo& createInfo);
+
+    private:
+        uint8_t layoutIndex;
     };
 }

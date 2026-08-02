@@ -33,17 +33,11 @@ namespace RHI::DirectX12 {
 
     DX12BindGroupLayout::DX12BindGroupLayout(const BindGroupLayoutCreateInfo& inCreateInfo)
         : BindGroupLayout(inCreateInfo)
-        , layoutIndex(inCreateInfo.layoutIndex)
     {
         CreateNativeRootParameters(inCreateInfo);
     }
 
     DX12BindGroupLayout::~DX12BindGroupLayout() = default;
-
-    uint8_t DX12BindGroupLayout::GetLayoutIndex() const
-    {
-        return layoutIndex;
-    }
 
     const std::vector<RootParameterKeyInfo>& DX12BindGroupLayout::GetRootParameterKeyInfos() const
     {
@@ -66,10 +60,10 @@ namespace RHI::DirectX12 {
             nativeDescriptorRanges.emplace_back();
 
             const auto& hlslBinding = std::get<HlslBinding>(entry.binding.platformBinding);
-            nativeDescriptorRanges.back().Init(EnumCast<HlslBindingRangeType, D3D12_DESCRIPTOR_RANGE_TYPE>(hlslBinding.rangeType), 1, hlslBinding.index, inCreateInfo.layoutIndex);
+            nativeDescriptorRanges.back().Init(EnumCast<HlslBindingRangeType, D3D12_DESCRIPTOR_RANGE_TYPE>(hlslBinding.rangeType), 1, hlslBinding.index, GetLayoutIndex());
             nativeRootParameters.back().InitAsDescriptorTable(1, &nativeDescriptorRanges.back(), GetShaderVisibility(entry.shaderVisibility));
 
-            rootParameterKeyInfos.emplace_back(entry.binding.type, inCreateInfo.layoutIndex, hlslBinding, entry.shaderVisibility);
+            rootParameterKeyInfos.emplace_back(entry.binding.type, GetLayoutIndex(), hlslBinding, entry.shaderVisibility);
         }
     }
 }
