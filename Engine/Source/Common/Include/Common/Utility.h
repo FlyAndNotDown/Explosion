@@ -49,6 +49,9 @@ namespace Common {
     template <uint32_t A, CppIntegral T>
     T AlignUp(T value);
 
+    template <CppIntegral T>
+    T AlignUp(T value, T alignment);
+
     template <typename LHS, typename... RHS>
     struct IsAllSame {};
 
@@ -114,6 +117,14 @@ namespace Common {
     T AlignUp(T value)
     {
         return (value + (A - 1)) & ~(A - 1);
+    }
+
+    template <CppIntegral T>
+    T AlignUp(T value, T alignment)
+    {
+        Assert(alignment > 0);
+        const T remainder = value % alignment;
+        return remainder == 0 ? value : value + alignment - remainder;
     }
 
     template <typename LHS, typename RHS0, typename... RHS>

@@ -253,8 +253,15 @@ namespace Runtime {
                 }
             }
 
+            const auto bufferCopyOffsetAlignment = static_cast<size_t>(device->GetGpu().GetLimits().optimalBufferCopyOffsetAlignment);
+            Assert(bufferCopyOffsetAlignment > 0);
+
+            std::vector<size_t> copyOffsets;
+            copyOffsets.reserve(copyFootprints.size());
             size_t totalBytes = 0;
             for (const auto& copyFootprint : copyFootprints) {
+                totalBytes = Common::AlignUp(totalBytes, bufferCopyOffsetAlignment);
+                copyOffsets.emplace_back(totalBytes);
                 totalBytes += copyFootprint.totalBytes;
             }
 
@@ -267,13 +274,13 @@ namespace Runtime {
 
             const auto bytesPerPixel = RHI::GetBytesPerPixel(static_cast<RHI::PixelFormat>(format));
 
-            size_t dstSubResourceOffset = 0;
             auto* dstData = static_cast<uint8_t*>(stagingBuffer->Map(RHI::MapMode::write, 0, totalBytes));
             for (auto m = 0; m < mipLevels; m++) {
                 for (auto a = 0; a < arraySize; a++) {
                     const auto subResourceIndex = Internal::GetSubResourceIndex(m, a, arraySize);
                     const auto& srcPixels = subResourcePixelsData[subResourceIndex];
                     const auto& dstCopyFootprint = copyFootprints[subResourceIndex];
+                    const auto dstSubResourceOffset = copyOffsets[subResourceIndex];
 
                     const auto srcRowPitch = dstCopyFootprint.extent.x * bytesPerPixel;
                     const auto srcSlicePitch = srcRowPitch * dstCopyFootprint.extent.y;
@@ -284,7 +291,6 @@ namespace Runtime {
                             memcpy(dst, src, srcRowPitch);
                         }
                     }
-                    dstSubResourceOffset += dstCopyFootprint.totalBytes;
                 }
             }
             stagingBuffer->Unmap();
@@ -294,7 +300,6 @@ namespace Runtime {
             {
                 const auto passRecoder = recoder->BeginCopyPass();
                 {
-                    dstSubResourceOffset = 0;
                     for (auto m = 0; m < mipLevels; m++) {
                         for (auto a = 0; a < arraySize; a++) {
                             const auto subResourceIndex = Internal::GetSubResourceIndex(m, a, arraySize);
@@ -302,11 +307,10 @@ namespace Runtime {
                                 stagingBuffer.Get(),
                                 texturePtr,
                                 RHI::BufferTextureCopyInfo()
-                                    .SetBufferOffset(dstSubResourceOffset)
+                                    .SetBufferOffset(copyOffsets[subResourceIndex])
                                     .SetTextureSubResource(RHI::TextureSubResourceInfo(m, a, aspect))
                                     .SetTextureOrigin({ 0, 0, 0 })
                                     .SetCopyRegion(copyFootprints[subResourceIndex].extent));
-                            dstSubResourceOffset += copyFootprints[subResourceIndex].totalBytes;
                         }
                     }
                 }

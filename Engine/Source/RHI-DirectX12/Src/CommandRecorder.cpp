@@ -47,6 +47,7 @@ namespace RHI::DirectX12 {
 
     static CD3DX12_TEXTURE_COPY_LOCATION GetNativeBufferCopyLocationFromTextureLayout(DX12Device& device, const DX12Buffer& buffer, const DX12Texture& texture, const BufferTextureCopyInfo& copyInfo)
     {
+        Assert(copyInfo.bufferOffset % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT == 0);
         const auto aspectLayout = device.GetTextureSubResourceCopyFootprint(texture, copyInfo.textureSubResource); // NOLINT
 
         // The buffer is laid out as the full sub-resource footprint (so the slice stride is RowPitch * full height);
