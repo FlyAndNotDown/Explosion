@@ -93,7 +93,7 @@ namespace RHI {
         IndexFormat stripIndexFormat;
         FrontFace frontFace;
         CullMode cullMode;
-        bool depthClip = false;
+        bool depthClip = true;
 
         explicit PrimitiveState(
             PrimitiveTopologyType inTopologyType = PrimitiveTopologyType::triangle,
@@ -101,7 +101,7 @@ namespace RHI {
             IndexFormat inStripIndexFormat = IndexFormat::uint16,
             FrontFace inFrontFace = FrontFace::ccw,
             CullMode inCullMode = CullMode::back,
-            bool inDepthClip = false);
+            bool inDepthClip = true);
 
         PrimitiveState& SetTopologyType(PrimitiveTopologyType inTopologyType);
         PrimitiveState& SetFillMode(FillMode inFillMode);
