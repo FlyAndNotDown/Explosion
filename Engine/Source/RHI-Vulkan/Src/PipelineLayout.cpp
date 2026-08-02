@@ -35,10 +35,28 @@ namespace RHI::Vulkan {
 
     void VulkanPipelineLayout::CreateNativePipelineLayout(const PipelineLayoutCreateInfo& inCreateInfo)
     {
-        std::vector<VkDescriptorSetLayout> setLayouts(inCreateInfo.bindGroupLayouts.size());
-        for (uint32_t i = 0; i < inCreateInfo.bindGroupLayouts.size(); ++i) {
-            const auto* vulkanBindGroup = static_cast<const VulkanBindGroupLayout*>(inCreateInfo.bindGroupLayouts[i]);
-            setLayouts[i] = vulkanBindGroup->GetNative();
+        std::vector<VkDescriptorSetLayout> setLayouts;
+        for (const auto* bindGroupLayout : inCreateInfo.bindGroupLayouts) {
+            const auto layoutIndex = bindGroupLayout->GetLayoutIndex();
+            if (setLayouts.size() <= layoutIndex) {
+                setLayouts.resize(layoutIndex + 1, VK_NULL_HANDLE);
+            }
+
+            AssertWithReason(setLayouts[layoutIndex] == VK_NULL_HANDLE, "pipeline layouts cannot contain duplicate bind group layout indices");
+            setLayouts[layoutIndex] = static_cast<const VulkanBindGroupLayout*>(bindGroupLayout)->GetNative();
+        }
+
+        VkDescriptorSetLayout emptySetLayout = VK_NULL_HANDLE;
+        for (auto& setLayout : setLayouts) {
+            if (setLayout != VK_NULL_HANDLE) {
+                continue;
+            }
+            if (emptySetLayout == VK_NULL_HANDLE) {
+                VkDescriptorSetLayoutCreateInfo emptySetLayoutInfo = {};
+                emptySetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+                Assert(vkCreateDescriptorSetLayout(device.GetNative(), &emptySetLayoutInfo, nullptr, &emptySetLayout) == VK_SUCCESS);
+            }
+            setLayout = emptySetLayout;
         }
 
         pushConstantRanges.resize(inCreateInfo.pipelineConstantLayouts.size());
@@ -56,6 +74,10 @@ namespace RHI::Vulkan {
         pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
         pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
         Assert(vkCreatePipelineLayout(device.GetNative(), &pipelineLayoutInfo, nullptr, &nativePipelineLayout) == VK_SUCCESS);
+
+        if (emptySetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device.GetNative(), emptySetLayout, nullptr);
+        }
 
 #if BUILD_CONFIG_DEBUG
         if (!inCreateInfo.debugName.empty()) {

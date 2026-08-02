@@ -5,15 +5,20 @@
 #include <Runtime/Asset/Texture.h>
 
 namespace Runtime::Internal {
-    static RHI::TextureDimension GetTextureDimension(TextureType inType)
+    struct TextureTypeInfo {
+        RHI::TextureType rhiType;
+        RHI::TextureViewDimension rhiViewDimension;
+    };
+
+    static const TextureTypeInfo& GetTextureTypeInfo(TextureType inType)
     {
-        static std::unordered_map<TextureType, RHI::TextureDimension> map = {
-            { TextureType::t1D, RHI::TextureDimension::t1D },
-            { TextureType::t2D, RHI::TextureDimension::t2D },
-            { TextureType::t2DArray, RHI::TextureDimension::t2D },
-            { TextureType::tCube, RHI::TextureDimension::t2D },
-            { TextureType::tCubeArray, RHI::TextureDimension::t2D },
-            { TextureType::t3D, RHI::TextureDimension::t3D }
+        static std::unordered_map<TextureType, TextureTypeInfo> map = {
+            { TextureType::t1D, { RHI::TextureType::t1D, RHI::TextureViewDimension::tv1D } },
+            { TextureType::t2D, { RHI::TextureType::t2D, RHI::TextureViewDimension::tv2D } },
+            { TextureType::t2DArray, { RHI::TextureType::t2DArray, RHI::TextureViewDimension::tv2DArray } },
+            { TextureType::tCube, { RHI::TextureType::tCube, RHI::TextureViewDimension::tvCube } },
+            { TextureType::tCubeArray, { RHI::TextureType::tCubeArray, RHI::TextureViewDimension::tvCubeArray } },
+            { TextureType::t3D, { RHI::TextureType::t3D, RHI::TextureViewDimension::tv3D } }
         };
         return map.at(inType);
     }
@@ -208,7 +213,7 @@ namespace Runtime {
 
         texture = device->CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(Internal::GetTextureDimension(type))
+                .SetType(Internal::GetTextureTypeInfo(type).rhiType)
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetDepthOrArraySize(depthOrArraySize)
@@ -222,7 +227,7 @@ namespace Runtime {
         textureView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::textureBinding)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));
@@ -248,8 +253,15 @@ namespace Runtime {
                 }
             }
 
+            const auto bufferCopyOffsetAlignment = static_cast<size_t>(device->GetGpu().GetLimits().optimalBufferCopyOffsetAlignment);
+            Assert(bufferCopyOffsetAlignment > 0);
+
+            std::vector<size_t> copyOffsets;
+            copyOffsets.reserve(copyFootprints.size());
             size_t totalBytes = 0;
             for (const auto& copyFootprint : copyFootprints) {
+                totalBytes = Common::AlignUp(totalBytes, bufferCopyOffsetAlignment);
+                copyOffsets.emplace_back(totalBytes);
                 totalBytes += copyFootprint.totalBytes;
             }
 
@@ -262,13 +274,13 @@ namespace Runtime {
 
             const auto bytesPerPixel = RHI::GetBytesPerPixel(static_cast<RHI::PixelFormat>(format));
 
-            size_t dstSubResourceOffset = 0;
             auto* dstData = static_cast<uint8_t*>(stagingBuffer->Map(RHI::MapMode::write, 0, totalBytes));
             for (auto m = 0; m < mipLevels; m++) {
                 for (auto a = 0; a < arraySize; a++) {
                     const auto subResourceIndex = Internal::GetSubResourceIndex(m, a, arraySize);
                     const auto& srcPixels = subResourcePixelsData[subResourceIndex];
                     const auto& dstCopyFootprint = copyFootprints[subResourceIndex];
+                    const auto dstSubResourceOffset = copyOffsets[subResourceIndex];
 
                     const auto srcRowPitch = dstCopyFootprint.extent.x * bytesPerPixel;
                     const auto srcSlicePitch = srcRowPitch * dstCopyFootprint.extent.y;
@@ -279,7 +291,6 @@ namespace Runtime {
                             memcpy(dst, src, srcRowPitch);
                         }
                     }
-                    dstSubResourceOffset += dstCopyFootprint.totalBytes;
                 }
             }
             stagingBuffer->Unmap();
@@ -289,7 +300,6 @@ namespace Runtime {
             {
                 const auto passRecoder = recoder->BeginCopyPass();
                 {
-                    dstSubResourceOffset = 0;
                     for (auto m = 0; m < mipLevels; m++) {
                         for (auto a = 0; a < arraySize; a++) {
                             const auto subResourceIndex = Internal::GetSubResourceIndex(m, a, arraySize);
@@ -297,11 +307,10 @@ namespace Runtime {
                                 stagingBuffer.Get(),
                                 texturePtr,
                                 RHI::BufferTextureCopyInfo()
-                                    .SetBufferOffset(dstSubResourceOffset)
+                                    .SetBufferOffset(copyOffsets[subResourceIndex])
                                     .SetTextureSubResource(RHI::TextureSubResourceInfo(m, a, aspect))
                                     .SetTextureOrigin({ 0, 0, 0 })
                                     .SetCopyRegion(copyFootprints[subResourceIndex].extent));
-                            dstSubResourceOffset += copyFootprints[subResourceIndex].totalBytes;
                         }
                     }
                 }
@@ -438,7 +447,7 @@ namespace Runtime {
 
         texture = device->CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(Internal::GetTextureDimension(type))
+                .SetType(Internal::GetTextureTypeInfo(type).rhiType)
                 .SetWidth(width)
                 .SetHeight(height)
                 .SetDepthOrArraySize(depthOrArraySize)
@@ -452,7 +461,7 @@ namespace Runtime {
         renderTargetView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::colorAttachment)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));
@@ -460,7 +469,7 @@ namespace Runtime {
         shaderResourceView = texture->CreateTextureView(
             RHI::TextureViewCreateInfo()
                 .SetType(Internal::IsDepthOrStencilFormat(format) ? RHI::TextureViewType::depthStencil : RHI::TextureViewType::textureBinding)
-                .SetDimension(static_cast<RHI::TextureViewDimension>(type))
+                .SetDimension(Internal::GetTextureTypeInfo(type).rhiViewDimension)
                 .SetAspect(Internal::GetTextureAspect(format))
                 .SetMipLevels(0, mipLevels)
                 .SetArrayLayers(0, type == TextureType::t3D ? 1 : depthOrArraySize));

@@ -40,7 +40,15 @@ namespace RHI {
         return *this;
     }
 
-    BindGroupLayout::BindGroupLayout(const BindGroupLayoutCreateInfo&) {}
+    BindGroupLayout::BindGroupLayout(const BindGroupLayoutCreateInfo& inCreateInfo)
+        : layoutIndex(inCreateInfo.layoutIndex)
+    {
+    }
 
     BindGroupLayout::~BindGroupLayout() = default;
+
+    uint8_t BindGroupLayout::GetLayoutIndex() const
+    {
+        return layoutIndex;
+    }
 }

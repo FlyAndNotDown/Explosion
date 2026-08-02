@@ -13,6 +13,7 @@ namespace RHI::Dummy {
         explicit DummyTexture(const TextureCreateInfo& createInfo);
         ~DummyTexture() override;
 
-        Common::UniquePtr<TextureView> CreateTextureView(const TextureViewCreateInfo& createInfo) override;
+    private:
+        Common::UniquePtr<TextureView> CreateTextureViewInternal(const TextureViewCreateInfo& createInfo) override;
     };
 }

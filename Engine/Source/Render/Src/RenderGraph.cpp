@@ -1142,7 +1142,7 @@ namespace Render {
     {
         if (inDesc.depthStencilAttachment.has_value()) {
             const auto& dsa = inDesc.depthStencilAttachment.value();
-            TransitionTexture(inRecoder, dsa.view->GetTexture(), dsa.depthReadOnly ? RHI::TextureState::depthStencilReadonly : RHI::TextureState::depthStencilWrite);
+            TransitionTexture(inRecoder, dsa.view->GetTexture(), RHI::GetDepthStencilTextureState(dsa.view->GetDesc().aspect, dsa.depthReadOnly, dsa.stencilReadOnly));
         }
         for (const auto& ca : inDesc.colorAttachments) {
             TransitionTexture(inRecoder, ca.view->GetTexture(), RHI::TextureState::renderTarget);

@@ -21,23 +21,23 @@
 #include <RHI/Synchronous.h>
 
 namespace RHI::DirectX12 {
-    static D3D12_CLEAR_FLAGS GetDX12ClearFlags(const DepthStencilAttachment& depthStencilAttachment)
+    static D3D12_CLEAR_FLAGS GetDX12ClearFlags(const DepthStencilAttachment& depthStencilAttachment, const TextureAspect aspect)
     {
-        Assert(depthStencilAttachment.depthLoadOp == LoadOp::clear || depthStencilAttachment.stencilLoadOp == LoadOp::clear);
-
-        if (depthStencilAttachment.stencilLoadOp != LoadOp::clear) {
-            return D3D12_CLEAR_FLAG_DEPTH;
+        UINT flags = 0;
+        if ((aspect == TextureAspect::depth || aspect == TextureAspect::depthStencil) && depthStencilAttachment.depthLoadOp == LoadOp::clear) {
+            flags |= D3D12_CLEAR_FLAG_DEPTH;
         }
-        if (depthStencilAttachment.depthLoadOp != LoadOp::clear) {
-            return D3D12_CLEAR_FLAG_STENCIL;
+        if ((aspect == TextureAspect::stencil || aspect == TextureAspect::depthStencil) && depthStencilAttachment.stencilLoadOp == LoadOp::clear) {
+            flags |= D3D12_CLEAR_FLAG_STENCIL;
         }
-        return D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
+        Assert(flags != 0);
+        return static_cast<D3D12_CLEAR_FLAGS>(flags);
     }
 
     static size_t GetNativeSubResourceIndex(const DX12Texture& texture, const TextureSubResourceInfo& subResource)
     {
         const auto& createInfo = texture.GetCreateInfo();
-        return D3D12CalcSubresource(subResource.mipLevel, subResource.arrayLayer, 0, createInfo.mipLevels, createInfo.dimension == TextureDimension::t3D ? 1 : createInfo.depthOrArraySize);
+        return D3D12CalcSubresource(subResource.mipLevel, subResource.arrayLayer, 0, createInfo.mipLevels, createInfo.type == TextureType::t3D ? 1 : createInfo.depthOrArraySize);
     }
 
     static CD3DX12_TEXTURE_COPY_LOCATION GetNativeTextureCopyLocation(const DX12Texture& texture, const TextureSubResourceInfo& subResource)
@@ -47,6 +47,7 @@ namespace RHI::DirectX12 {
 
     static CD3DX12_TEXTURE_COPY_LOCATION GetNativeBufferCopyLocationFromTextureLayout(DX12Device& device, const DX12Buffer& buffer, const DX12Texture& texture, const BufferTextureCopyInfo& copyInfo)
     {
+        Assert(copyInfo.bufferOffset % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT == 0);
         const auto aspectLayout = device.GetTextureSubResourceCopyFootprint(texture, copyInfo.textureSubResource); // NOLINT
 
         // The buffer is laid out as the full sub-resource footprint (so the slice stride is RowPitch * full height);
@@ -264,10 +265,13 @@ namespace RHI::DirectX12 {
             rtvHandles[i] = view->GetNativeCpuDescriptorHandle();
         }
         std::optional<CD3DX12_CPU_DESCRIPTOR_HANDLE> dsvHandle;
+        std::optional<TextureAspect> dsvAspect;
         if (inBeginInfo.depthStencilAttachment.has_value()) {
             auto* view = static_cast<DX12TextureView*>(inBeginInfo.depthStencilAttachment->view);
             Assert(view);
-            dsvHandle = view->GetNativeCpuDescriptorHandle();
+            const auto& attachment = inBeginInfo.depthStencilAttachment.value();
+            dsvHandle = view->GetNativeDepthStencilCpuDescriptorHandle(attachment.depthReadOnly, attachment.stencilReadOnly);
+            dsvAspect = view->GetCreateInfo().aspect;
         }
         inCmdBuffer.GetNativeCmdList()->OMSetRenderTargets(rtvHandles.size(), rtvHandles.data(), false, dsvHandle.has_value() ? &dsvHandle.value() : nullptr);
 
@@ -282,10 +286,14 @@ namespace RHI::DirectX12 {
         }
         if (dsvHandle.has_value()) {
             const auto& depthStencilAttachment = *inBeginInfo.depthStencilAttachment;
-            if (depthStencilAttachment.depthLoadOp != LoadOp::clear && depthStencilAttachment.stencilLoadOp != LoadOp::clear) {
+            const bool clearDepth = (*dsvAspect == TextureAspect::depth || *dsvAspect == TextureAspect::depthStencil) && depthStencilAttachment.depthLoadOp == LoadOp::clear;
+            const bool clearStencil = (*dsvAspect == TextureAspect::stencil || *dsvAspect == TextureAspect::depthStencil) && depthStencilAttachment.stencilLoadOp == LoadOp::clear;
+            AssertWithReason(!clearDepth || !depthStencilAttachment.depthReadOnly, "read-only depth attachments cannot be cleared");
+            AssertWithReason(!clearStencil || !depthStencilAttachment.stencilReadOnly, "read-only stencil attachments cannot be cleared");
+            if (!clearDepth && !clearStencil) {
                 return;
             }
-            inCmdBuffer.GetNativeCmdList()->ClearDepthStencilView(dsvHandle.value(), GetDX12ClearFlags(depthStencilAttachment), depthStencilAttachment.depthClearValue, depthStencilAttachment.stencilClearValue, 0, nullptr);
+            inCmdBuffer.GetNativeCmdList()->ClearDepthStencilView(dsvHandle.value(), GetDX12ClearFlags(depthStencilAttachment, *dsvAspect), depthStencilAttachment.depthClearValue, depthStencilAttachment.stencilClearValue, 0, nullptr);
         }
     }
 
@@ -345,12 +353,14 @@ namespace RHI::DirectX12 {
     void DX12RasterPassCommandRecorder::SetIndexBuffer(BufferView* inBufferView)
     {
         const auto* bufferView = static_cast<DX12BufferView*>(inBufferView);
+        Assert(bufferView->GetCreateInfo().type == BufferViewType::index);
         commandBuffer.GetNativeCmdList()->IASetIndexBuffer(&bufferView->GetNativeIndexBufferView());
     }
 
     void DX12RasterPassCommandRecorder::SetVertexBuffer(const size_t inSlot, BufferView* inBufferView)
     {
         const auto* bufferView = static_cast<DX12BufferView*>(inBufferView);
+        Assert(bufferView->GetCreateInfo().type == BufferViewType::vertex);
         commandBuffer.GetNativeCmdList()->IASetVertexBuffers(inSlot, 1, &bufferView->GetNativeVertexBufferView());
     }
 

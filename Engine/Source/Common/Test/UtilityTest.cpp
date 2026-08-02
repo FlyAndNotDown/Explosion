@@ -12,4 +12,6 @@ TEST(UtilityTest, AlignUpTest)
     ASSERT_EQ(AlignUp<4>(3), 4);
     ASSERT_EQ(AlignUp<4>(7), 8);
     ASSERT_EQ(AlignUp<256>(258), 512);
+    ASSERT_EQ(AlignUp(768, 512), 1024);
+    ASSERT_EQ(AlignUp(1024, 512), 1024);
 }

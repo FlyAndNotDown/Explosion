@@ -93,7 +93,7 @@ namespace RHI {
         IndexFormat stripIndexFormat;
         FrontFace frontFace;
         CullMode cullMode;
-        bool depthClip = false;
+        bool depthClip = true;
 
         explicit PrimitiveState(
             PrimitiveTopologyType inTopologyType = PrimitiveTopologyType::triangle,
@@ -101,7 +101,7 @@ namespace RHI {
             IndexFormat inStripIndexFormat = IndexFormat::uint16,
             FrontFace inFrontFace = FrontFace::ccw,
             CullMode inCullMode = CullMode::back,
-            bool inDepthClip = false);
+            bool inDepthClip = true);
 
         PrimitiveState& SetTopologyType(PrimitiveTopologyType inTopologyType);
         PrimitiveState& SetFillMode(FillMode inFillMode);
@@ -126,6 +126,7 @@ namespace RHI {
 
     struct DepthStencilState {
         bool depthEnabled;
+        bool depthWriteEnabled;
         bool stencilEnabled;
         PixelFormat format;
         CompareFunc depthCompareFunc;
@@ -148,9 +149,11 @@ namespace RHI {
             const StencilFaceState& inStencilFront = StencilFaceState(),
             const StencilFaceState& inStencilBack = StencilFaceState(),
             uint8_t inStencilReadMask = 0,
-            uint8_t inStencilWriteMask = 0);
+            uint8_t inStencilWriteMask = 0,
+            bool inDepthWriteEnabled = true);
 
         DepthStencilState& SetDepthEnabled(bool inDepthEnabled);
+        DepthStencilState& SetDepthWriteEnabled(bool inDepthWriteEnabled);
         DepthStencilState& SetStencilEnabled(bool inStencilEnabled);
         DepthStencilState& SetFormat(PixelFormat inFormat);
         DepthStencilState& SetDepthCompareFunc(CompareFunc inFunc);

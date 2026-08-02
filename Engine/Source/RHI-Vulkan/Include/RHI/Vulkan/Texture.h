@@ -23,14 +23,12 @@ namespace RHI::Vulkan {
         VulkanTexture(VulkanDevice& inDevice, const TextureCreateInfo& inCreateInfo);
         ~VulkanTexture() override;
 
-        Common::UniquePtr<TextureView> CreateTextureView(const TextureViewCreateInfo& inCreateInfo) override;
-
         VkImage GetNative() const;
         VkImageSubresourceRange GetNativeSubResourceFullRange() const;
 
     private:
+        Common::UniquePtr<TextureView> CreateTextureViewInternal(const TextureViewCreateInfo& inCreateInfo) override;
         void CreateNativeImage(const TextureCreateInfo& inCreateInfo);
-        void GetAspect(const TextureCreateInfo& inCreateInfo);
         void TransitionToInitState(const TextureCreateInfo& inCreateInfo);
 
         VulkanDevice& device;

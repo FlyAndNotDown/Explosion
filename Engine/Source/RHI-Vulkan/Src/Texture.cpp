@@ -11,12 +11,19 @@
 #include <RHI/Vulkan/CommandRecorder.h>
 #include <RHI/Vulkan/Synchronous.h>
 
+namespace RHI::Vulkan::Internal {
+    static VkImageCreateFlags GetNativeImageCreateFlags(TextureType inType)
+    {
+        return inType == TextureType::tCube || inType == TextureType::tCubeArray ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+    }
+}
+
 namespace RHI::Vulkan {
     VulkanTexture::VulkanTexture(VulkanDevice& inDevice, const TextureCreateInfo& inCreateInfo, VkImage inNativeImage)
         : Texture(inCreateInfo)
         , device(inDevice)
         , nativeImage(inNativeImage)
-        , nativeAspect(VK_IMAGE_ASPECT_COLOR_BIT)
+        , nativeAspect(EnumCast<TextureAspect, VkImageAspectFlags>(GetTextureAspect(inCreateInfo.format)))
         , ownMemory(false)
     {
     }
@@ -25,7 +32,7 @@ namespace RHI::Vulkan {
         : Texture(inCreateInfo)
         , device(inDevice)
         , nativeImage(VK_NULL_HANDLE)
-        , nativeAspect(VK_IMAGE_ASPECT_COLOR_BIT)
+        , nativeAspect(EnumCast<TextureAspect, VkImageAspectFlags>(GetTextureAspect(inCreateInfo.format)))
         , ownMemory(true)
     {
         CreateNativeImage(inCreateInfo);
@@ -39,7 +46,7 @@ namespace RHI::Vulkan {
         }
     }
 
-    Common::UniquePtr<TextureView> VulkanTexture::CreateTextureView(const TextureViewCreateInfo& inCreateInfo)
+    Common::UniquePtr<TextureView> VulkanTexture::CreateTextureViewInternal(const TextureViewCreateInfo& inCreateInfo)
     {
         return Common::UniquePtr<TextureView>(new VulkanTextureView(*this, device, inCreateInfo));
     }
@@ -49,19 +56,9 @@ namespace RHI::Vulkan {
         return nativeImage;
     }
 
-    void VulkanTexture::GetAspect(const RHI::TextureCreateInfo& inCreateInfo)
-    {
-        if (inCreateInfo.usages & TextureUsageBits::depthStencilAttachment) {
-            nativeAspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-            if (inCreateInfo.format == PixelFormat::d32FloatS8Uint || inCreateInfo.format == PixelFormat::d24UnormS8Uint) {
-                nativeAspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-            }
-        }
-    }
-
     VkImageSubresourceRange VulkanTexture::GetNativeSubResourceFullRange() const
     {
-        if (createInfo.dimension == TextureDimension::t3D) {
+        if (createInfo.type == TextureType::t3D) {
             return { nativeAspect, 0, createInfo.mipLevels, 0, 1 };
         } else {
             return { nativeAspect, 0, createInfo.mipLevels, 0, createInfo.depthOrArraySize };
@@ -70,12 +67,11 @@ namespace RHI::Vulkan {
 
     void VulkanTexture::CreateNativeImage(const TextureCreateInfo& inCreateInfo)
     {
-        GetAspect(inCreateInfo);
-
         VkImageCreateInfo imageInfo = {};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.flags = Internal::GetNativeImageCreateFlags(inCreateInfo.type);
         imageInfo.mipLevels = inCreateInfo.mipLevels;
-        if (inCreateInfo.dimension == TextureDimension::t3D) {
+        if (inCreateInfo.type == TextureType::t3D) {
             imageInfo.extent = { inCreateInfo.width, inCreateInfo.height, inCreateInfo.depthOrArraySize };
             imageInfo.arrayLayers = 1;
         } else {
@@ -83,7 +79,7 @@ namespace RHI::Vulkan {
             imageInfo.arrayLayers = inCreateInfo.depthOrArraySize;
         }
         imageInfo.samples = static_cast<VkSampleCountFlagBits>(inCreateInfo.samples);
-        imageInfo.imageType = EnumCast<TextureDimension, VkImageType>(inCreateInfo.dimension);
+        imageInfo.imageType = EnumCast<TextureType, VkImageType>(inCreateInfo.type);
         imageInfo.format = EnumCast<PixelFormat, VkFormat>(inCreateInfo.format);
         imageInfo.usage = FlagsCast<TextureUsageFlags, VkImageUsageFlags>(inCreateInfo.usages);
 

@@ -14,7 +14,7 @@ namespace RHI {
     class Device;
 
     struct TextureCreateInfo {
-        TextureDimension dimension;
+        TextureType type;
         uint32_t width;
         uint32_t height;
         uint32_t depthOrArraySize;
@@ -26,7 +26,7 @@ namespace RHI {
         std::string debugName;
 
         TextureCreateInfo();
-        TextureCreateInfo& SetDimension(TextureDimension inDimension);
+        TextureCreateInfo& SetType(TextureType inType);
         TextureCreateInfo& SetWidth(uint32_t inWidth);
         TextureCreateInfo& SetHeight(uint32_t inHeight);
         TextureCreateInfo& SetDepthOrArraySize(uint32_t inDepthOrArraySize);
@@ -46,10 +46,11 @@ namespace RHI {
         virtual ~Texture();
 
         const TextureCreateInfo& GetCreateInfo() const;
-        virtual Common::UniquePtr<TextureView> CreateTextureView(const TextureViewCreateInfo& createInfo) = 0;
+        Common::UniquePtr<TextureView> CreateTextureView(const TextureViewCreateInfo& createInfo);
 
     protected:
         explicit Texture(const TextureCreateInfo& inCreateInfo);
+        virtual Common::UniquePtr<TextureView> CreateTextureViewInternal(const TextureViewCreateInfo& createInfo) = 0;
 
         TextureCreateInfo createInfo;
     };

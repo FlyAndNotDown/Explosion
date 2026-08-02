@@ -134,8 +134,10 @@ namespace RHI {
         const StencilFaceState& inStencilFront,
         const StencilFaceState& inStencilBack,
         const uint8_t inStencilReadMask,
-        const uint8_t inStencilWriteMask)
+        const uint8_t inStencilWriteMask,
+        const bool inDepthWriteEnabled)
         : depthEnabled(inDepthEnabled)
+        , depthWriteEnabled(inDepthWriteEnabled)
         , stencilEnabled(inStencilEnabled)
         , format(inFormat)
         , depthCompareFunc(inDepthCompareFunc)
@@ -152,6 +154,12 @@ namespace RHI {
     DepthStencilState& DepthStencilState::SetDepthEnabled(const bool inDepthEnabled)
     {
         depthEnabled = inDepthEnabled;
+        return *this;
+    }
+
+    DepthStencilState& DepthStencilState::SetDepthWriteEnabled(const bool inDepthWriteEnabled)
+    {
+        depthWriteEnabled = inDepthWriteEnabled;
         return *this;
     }
 

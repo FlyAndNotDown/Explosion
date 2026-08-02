@@ -16,17 +16,9 @@ namespace RHI::Vulkan {
         VulkanBufferView(VulkanBuffer& inBuffer, const BufferViewCreateInfo& inCreateInfo);
         ~VulkanBufferView() override;
 
-        size_t GetOffset() const;
-        size_t GetBufferSize() const;
-        IndexFormat GetIndexFormat() const;
         VulkanBuffer& GetBuffer() const;
 
     private:
-        void InitializeBufferAttrib(const BufferViewCreateInfo& inCreateInfo);
-
         VulkanBuffer& buffer;
-        size_t size;
-        size_t offset;
-        IndexFormat indexFormat;
     };
 }

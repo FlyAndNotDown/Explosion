@@ -18,6 +18,8 @@
 #include <RHI/Vulkan/QuerySet.h>
 #include <RHI/Synchronous.h>
 
+#include <algorithm>
+
 namespace RHI::Vulkan {
     static VkAccessFlags GetBufferMemoryBarrierAccessFlags(const BufferState inState)
     {
@@ -75,7 +77,9 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_ACCESS_SHADER_READ_BIT },
             { TextureState::rwStorage, VK_ACCESS_SHADER_WRITE_BIT },
             { TextureState::depthStencilReadonly, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT },
-            { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthReadStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthWriteStencilRead, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
+            { TextureState::depthStencilWrite, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT },
             { TextureState::present, VK_ACCESS_MEMORY_READ_BIT }
         };
         return map.at(inState);
@@ -92,6 +96,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthReadStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthWriteStencilRead, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
         };
@@ -109,6 +115,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::rwStorage, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT },
             { TextureState::depthStencilReadonly, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthReadStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
+            { TextureState::depthWriteStencilRead, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::depthStencilWrite, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT },
             { TextureState::present, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }
         };
@@ -126,6 +134,8 @@ namespace RHI::Vulkan {
             { TextureState::storage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::rwStorage, VK_IMAGE_LAYOUT_GENERAL },
             { TextureState::depthStencilReadonly, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
+            { TextureState::depthReadStencilWrite, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL },
+            { TextureState::depthWriteStencilRead, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL },
             { TextureState::depthStencilWrite, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
             { TextureState::present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
         };
@@ -428,9 +438,13 @@ namespace RHI::Vulkan {
         , activeOcclusionQueryIndex(0)
     {
         std::vector<VkRenderingAttachmentInfo> colorAttachmentInfos(inBeginInfo.colorAttachments.size());
+        const VulkanTextureView* referenceAttachmentView = nullptr;
         for (size_t i = 0; i < inBeginInfo.colorAttachments.size(); i++)
         {
-            auto* colorTextureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[i].view);
+            const auto* colorTextureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[i].view);
+            if (referenceAttachmentView == nullptr) {
+                referenceAttachmentView = colorTextureView;
+            }
             colorAttachmentInfos[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
             colorAttachmentInfos[i].imageView = colorTextureView->GetNative();
             colorAttachmentInfos[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -444,15 +458,10 @@ namespace RHI::Vulkan {
                     };
         }
 
-        auto* textureView = static_cast<VulkanTextureView*>(inBeginInfo.colorAttachments[0].view);
-        const auto& textureCreateInfo = textureView->GetTexture().GetCreateInfo();
-
         VkRenderingInfoKHR renderingInfo = {};
         renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
         renderingInfo.colorAttachmentCount = colorAttachmentInfos.size();
-        renderingInfo.pColorAttachments = colorAttachmentInfos.data();
-        renderingInfo.layerCount = textureView->GetArrayLayerNum();
-        renderingInfo.renderArea = {{0, 0}, {static_cast<uint32_t>(textureCreateInfo.width), static_cast<uint32_t>(textureCreateInfo.height)}};
+        renderingInfo.pColorAttachments = colorAttachmentInfos.empty() ? nullptr : colorAttachmentInfos.data();
         renderingInfo.viewMask = 0;
 
         VkRenderingAttachmentInfo depthAttachmentInfo = {};
@@ -461,31 +470,45 @@ namespace RHI::Vulkan {
         if (inBeginInfo.depthStencilAttachment.has_value())
         {
             const auto* depthStencilTextureView = static_cast<VulkanTextureView*>(inBeginInfo.depthStencilAttachment->view);
+            if (referenceAttachmentView == nullptr) {
+                referenceAttachmentView = depthStencilTextureView;
+            }
 
-            depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            depthAttachmentInfo.imageView = depthStencilTextureView->GetNative();
-            depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            depthAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(inBeginInfo.depthStencilAttachment->depthLoadOp);
-            depthAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(inBeginInfo.depthStencilAttachment->depthStoreOp);
-            depthAttachmentInfo.clearValue.depthStencil = {inBeginInfo.depthStencilAttachment->depthClearValue, inBeginInfo.depthStencilAttachment->stencilClearValue };
+            const auto& attachment = inBeginInfo.depthStencilAttachment.value();
+            const auto aspect = depthStencilTextureView->GetCreateInfo().aspect;
+            const bool hasDepth = aspect == TextureAspect::depth || aspect == TextureAspect::depthStencil;
+            const bool hasStencil = aspect == TextureAspect::stencil || aspect == TextureAspect::depthStencil;
+            const auto imageLayout = GetTextureLayout(GetDepthStencilTextureState(aspect, attachment.depthReadOnly, attachment.stencilReadOnly));
 
-            renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+            AssertWithReason(!hasDepth || !attachment.depthReadOnly || attachment.depthLoadOp != LoadOp::clear, "read-only depth attachments cannot be cleared");
+            AssertWithReason(!hasStencil || !attachment.stencilReadOnly || attachment.stencilLoadOp != LoadOp::clear, "read-only stencil attachments cannot be cleared");
 
-            // depth-only formats must not present a stencil attachment, otherwise validation requires the
-            // pipeline's (undefined) stencil format to match the view format
-            const auto depthStencilFormat = depthStencilTextureView->GetTexture().GetCreateInfo().format;
-            const bool hasStencil = depthStencilFormat == PixelFormat::d32FloatS8Uint || depthStencilFormat == PixelFormat::d24UnormS8Uint;
-            if (hasStencil && !inBeginInfo.depthStencilAttachment->depthReadOnly) {
+            if (hasDepth) {
+                depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+                depthAttachmentInfo.imageView = depthStencilTextureView->GetNative();
+                depthAttachmentInfo.imageLayout = imageLayout;
+                depthAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(attachment.depthLoadOp);
+                depthAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(attachment.depthStoreOp);
+                depthAttachmentInfo.clearValue.depthStencil = { attachment.depthClearValue, attachment.stencilClearValue };
+                renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+            }
+
+            if (hasStencil) {
                 stencilAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
                 stencilAttachmentInfo.imageView = depthStencilTextureView->GetNative();
-                stencilAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-                stencilAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(inBeginInfo.depthStencilAttachment->stencilLoadOp);
-                stencilAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(inBeginInfo.depthStencilAttachment->stencilStoreOp);
-                stencilAttachmentInfo.clearValue.depthStencil = {inBeginInfo.depthStencilAttachment->depthClearValue, inBeginInfo.depthStencilAttachment->stencilClearValue };
-
+                stencilAttachmentInfo.imageLayout = imageLayout;
+                stencilAttachmentInfo.loadOp = EnumCast<LoadOp, VkAttachmentLoadOp>(attachment.stencilLoadOp);
+                stencilAttachmentInfo.storeOp = EnumCast<StoreOp, VkAttachmentStoreOp>(attachment.stencilStoreOp);
+                stencilAttachmentInfo.clearValue.depthStencil = { attachment.depthClearValue, attachment.stencilClearValue };
                 renderingInfo.pStencilAttachment = &stencilAttachmentInfo;
             }
         }
+
+        AssertWithReason(referenceAttachmentView != nullptr, "raster passes must have at least one attachment");
+        const auto& textureCreateInfo = referenceAttachmentView->GetTexture().GetCreateInfo();
+        const auto& textureViewCreateInfo = referenceAttachmentView->GetCreateInfo();
+        renderingInfo.layerCount = textureViewCreateInfo.arrayLayerNum;
+        renderingInfo.renderArea = {{0, 0}, {std::max(textureCreateInfo.width >> textureViewCreateInfo.baseMipLevel, 1u), std::max(textureCreateInfo.height >> textureViewCreateInfo.baseMipLevel, 1u)}};
 
         auto* pfn = device.GetGpu().GetInstance().FindOrGetTypedDynamicFuncPointer<PFN_vkCmdBeginRenderingKHR>("vkCmdBeginRenderingKHR");
         pfn(commandBuffer.GetNative(), &renderingInfo);
@@ -534,20 +557,25 @@ namespace RHI::Vulkan {
 
     void VulkanRasterPassCommandRecorder::SetIndexBuffer(BufferView *inBufferView)
     {
-        const auto* mBufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto* bufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto& createInfo = bufferView->GetCreateInfo();
+        Assert(createInfo.type == BufferViewType::index);
 
-        const VkBuffer indexBuffer = mBufferView->GetBuffer().GetNative();
-        const auto vkFormat = EnumCast<IndexFormat, VkIndexType>(mBufferView->GetIndexFormat());
+        const VkBuffer indexBuffer = bufferView->GetBuffer().GetNative();
+        const auto indexFormat = std::get<IndexBufferViewInfo>(createInfo.extend).format;
+        const auto vkFormat = EnumCast<IndexFormat, VkIndexType>(indexFormat);
 
-        vkCmdBindIndexBuffer(commandBuffer.GetNative(), indexBuffer, 0, vkFormat);
+        vkCmdBindIndexBuffer(commandBuffer.GetNative(), indexBuffer, createInfo.offsetInBytes, vkFormat);
     }
 
     void VulkanRasterPassCommandRecorder::SetVertexBuffer(size_t inSlot, BufferView *inBufferView)
     {
-        const auto* mBufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto* bufferView = static_cast<VulkanBufferView*>(inBufferView);
+        const auto& createInfo = bufferView->GetCreateInfo();
+        Assert(createInfo.type == BufferViewType::vertex);
 
-        const VkBuffer vertexBuffer = mBufferView->GetBuffer().GetNative();
-        const VkDeviceSize offset[] = { mBufferView->GetOffset() };
+        const VkBuffer vertexBuffer = bufferView->GetBuffer().GetNative();
+        const VkDeviceSize offset[] = { createInfo.offsetInBytes };
         vkCmdBindVertexBuffers(commandBuffer.GetNative(), inSlot, 1, &vertexBuffer, offset);
     }
 
@@ -629,7 +657,8 @@ namespace RHI::Vulkan {
     {
         activeOcclusionQuerySet = static_cast<VulkanQuerySet*>(inQuerySet);
         activeOcclusionQueryIndex = inQueryIndex;
-        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, VK_QUERY_CONTROL_PRECISE_BIT);
+        const VkQueryControlFlags queryFlags = device.GetEnabledFeatures().occlusionQueryPrecise == VK_TRUE ? VK_QUERY_CONTROL_PRECISE_BIT : 0;
+        vkCmdBeginQuery(commandBuffer.GetNative(), activeOcclusionQuerySet->GetNative(), inQueryIndex, queryFlags);
     }
 
     void VulkanRasterPassCommandRecorder::EndOcclusionQuery()

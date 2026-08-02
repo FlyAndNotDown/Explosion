@@ -73,7 +73,7 @@ namespace RHI::DirectX12 {
     {
         CD3DX12_DEPTH_STENCIL_DESC desc(D3D12_DEFAULT);
         desc.DepthEnable = createInfo.depthStencilState.depthEnabled;
-        desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        desc.DepthWriteMask = createInfo.depthStencilState.depthEnabled && createInfo.depthStencilState.depthWriteEnabled ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
         desc.DepthFunc = EnumCast<CompareFunc, D3D12_COMPARISON_FUNC>(createInfo.depthStencilState.depthCompareFunc);
         desc.StencilEnable = createInfo.depthStencilState.stencilEnabled;
         desc.StencilReadMask = createInfo.depthStencilState.stencilReadMask;
@@ -129,6 +129,7 @@ namespace RHI::DirectX12 {
                 desc.Format = EnumCast<VertexFormat, DXGI_FORMAT>(attribute.format);
                 desc.InputSlot = i;
                 desc.InputSlotClass = EnumCast<VertexStepMode, D3D12_INPUT_CLASSIFICATION>(layout.stepMode);
+                desc.InstanceDataStepRate = layout.stepMode == VertexStepMode::perInstance ? 1 : 0;
                 desc.AlignedByteOffset = attribute.offset;
                 desc.SemanticName = vertexBinding.semanticName.c_str();
                 desc.SemanticIndex = vertexBinding.semanticIndex;

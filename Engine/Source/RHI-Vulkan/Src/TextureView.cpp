@@ -12,10 +12,6 @@ namespace RHI::Vulkan {
         : TextureView(inCreateInfo)
         , device(nDevice)
         , texture(inTexture)
-        , baseMipLevel(inCreateInfo.baseMipLevel)
-        , mipLevelNum(inCreateInfo.mipLevelNum)
-        , baseArrayLayer(inCreateInfo.baseArrayLayer)
-        , arrayLayerNum(inCreateInfo.arrayLayerNum)
     {
         CreateImageView(inCreateInfo);
     }
@@ -27,12 +23,16 @@ namespace RHI::Vulkan {
 
     void VulkanTextureView::CreateImageView(const TextureViewCreateInfo& inCreateInfo)
     {
+        if (inCreateInfo.dimension == TextureViewDimension::tvCubeArray) {
+            AssertWithReason(device.GetEnabledFeatures().imageCubeArray == VK_TRUE, "Vulkan image cube array feature is not supported");
+        }
+
         VkImageViewCreateInfo viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.format = EnumCast<PixelFormat, VkFormat>(texture.GetCreateInfo().format);
         viewInfo.image = texture.GetNative();
         viewInfo.viewType = EnumCast<TextureViewDimension, VkImageViewType>(inCreateInfo.dimension);
-        viewInfo.subresourceRange = { EnumCast<TextureAspect, VkImageAspectFlags>(inCreateInfo.aspect), baseMipLevel, mipLevelNum, baseArrayLayer, arrayLayerNum };
+        viewInfo.subresourceRange = { EnumCast<TextureAspect, VkImageAspectFlags>(inCreateInfo.aspect), inCreateInfo.baseMipLevel, inCreateInfo.mipLevelNum, inCreateInfo.baseArrayLayer, inCreateInfo.arrayLayerNum };
 
         Assert(vkCreateImageView(device.GetNative(), &viewInfo, nullptr, &nativeImageView) == VK_SUCCESS);
     }
@@ -52,10 +52,5 @@ namespace RHI::Vulkan {
     VulkanTexture& VulkanTextureView::GetTexture() const
     {
         return texture;
-    }
-
-    uint8_t VulkanTextureView::GetArrayLayerNum() const
-    {
-        return arrayLayerNum;
     }
 }

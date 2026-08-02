@@ -48,6 +48,8 @@
 #define ALIGN_AS_GPU alignas(16)
 
 namespace RHI {
+    constexpr uint8_t textureCubeFaceNum = 6;
+
     enum class RHIType : uint8_t {
         directX12,
         vulkan,
@@ -165,9 +167,12 @@ namespace RHI {
         max
     };
 
-    enum class TextureDimension : uint8_t {
+    enum class TextureType : uint8_t {
         t1D,
         t2D,
+        t2DArray,
+        tCube,
+        tCubeArray,
         t3D,
         max
     };
@@ -407,6 +412,8 @@ namespace RHI {
         storage,
         rwStorage,
         depthStencilReadonly,
+        depthReadStencilWrite,
+        depthWriteStencilRead,
         depthStencilWrite,
         present,
         max
@@ -480,7 +487,8 @@ namespace RHI {
         timestampQuery            = 0x4,
         multiDrawIndirect         = 0x8,
         drawIndirectFirstInstance = 0x10,
-        max                       = 0x20
+        textureCubeArray          = 0x20,
+        max                       = 0x40
     };
     using FeatureFlags = Common::Flags<FeatureBits>;
     DECLARE_FLAG_BITS_OP(FeatureFlags, FeatureBits)
@@ -488,4 +496,6 @@ namespace RHI {
 
 namespace RHI {
     size_t GetBytesPerPixel(PixelFormat format);
+    TextureAspect GetTextureAspect(PixelFormat format);
+    TextureState GetDepthStencilTextureState(TextureAspect aspect, bool depthReadOnly, bool stencilReadOnly);
 }

@@ -74,7 +74,7 @@ namespace Render {
         auto* backTextureView = rgBuilder.CreateTextureView(backTexture, RGTextureViewDesc(RHI::TextureViewType::colorAttachment, RHI::TextureViewDimension::tv2D));
         auto* depthTexture = rgBuilder.CreateTexture(
             RGTextureDesc()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(surfaceExtent.x)
                 .SetHeight(surfaceExtent.y)
                 .SetDepthOrArraySize(1)

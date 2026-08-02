@@ -131,7 +131,7 @@ namespace RHI::Vulkan {
         textureInfo.usages = TextureUsageBits::renderAttachment;
         textureInfo.mipLevels = 1;
         textureInfo.samples = 1;
-        textureInfo.dimension = TextureDimension::t2D;
+        textureInfo.type = TextureType::t2D;
         textureInfo.width = extent.width;
         textureInfo.height = extent.height;
         textureInfo.depthOrArraySize = 1;

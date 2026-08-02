@@ -236,7 +236,7 @@ namespace RHI::Vulkan {
     {
         const auto& createInfo = texture.GetCreateInfo();
         const auto mipLevel = subResourceInfo.mipLevel;
-        const auto baseDepth = createInfo.dimension == TextureDimension::t3D ? createInfo.depthOrArraySize : 1;
+        const auto baseDepth = createInfo.type == TextureType::t3D ? createInfo.depthOrArraySize : 1;
 
         TextureSubResourceCopyFootprint result {};
         result.extent = {
@@ -259,6 +259,11 @@ namespace RHI::Vulkan {
     const std::vector<uint32_t>& VulkanDevice::GetActiveQueueFamilyIndices() const
     {
         return activeQueueFamilyIndices;
+    }
+
+    const VkPhysicalDeviceFeatures& VulkanDevice::GetEnabledFeatures() const
+    {
+        return enabledFeatures;
     }
 
     void VulkanDevice::CreateNativeDevice(const DeviceCreateInfo& inCreateInfo)
@@ -324,28 +329,52 @@ namespace RHI::Vulkan {
             queueCreateInfos.emplace_back(queueCreateInfo);
         }
 
-        VkPhysicalDeviceFeatures deviceFeatures = {};
-        deviceFeatures.samplerAnisotropy = VK_TRUE;
-        deviceFeatures.occlusionQueryPrecise = VK_TRUE;
+        VkPhysicalDeviceDynamicRenderingFeatures supportedDynamicRenderingFeatures = {};
+        supportedDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+
+        VkPhysicalDeviceExtendedDynamicStateFeaturesEXT supportedExtendedDynamicStateFeatures = {};
+        supportedExtendedDynamicStateFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
+        supportedDynamicRenderingFeatures.pNext = &supportedExtendedDynamicStateFeatures;
+
+        VkPhysicalDeviceFeatures2 supportedFeatures = {};
+        supportedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        supportedFeatures.pNext = &supportedDynamicRenderingFeatures;
+        vkGetPhysicalDeviceFeatures2(gpu.GetNative(), &supportedFeatures);
+
+        if (supportedDynamicRenderingFeatures.dynamicRendering != VK_TRUE) {
+            QuickFailWithReason("required vulkan dynamic rendering feature is not supported");
+        }
+        if (supportedExtendedDynamicStateFeatures.extendedDynamicState != VK_TRUE) {
+            QuickFailWithReason("required vulkan extended dynamic state feature is not supported");
+        }
+
+        enabledFeatures = {};
+        enabledFeatures.independentBlend = supportedFeatures.features.independentBlend;
+        enabledFeatures.multiDrawIndirect = supportedFeatures.features.multiDrawIndirect;
+        enabledFeatures.drawIndirectFirstInstance = supportedFeatures.features.drawIndirectFirstInstance;
+        enabledFeatures.fillModeNonSolid = supportedFeatures.features.fillModeNonSolid;
+        enabledFeatures.depthClamp = supportedFeatures.features.depthClamp;
+        enabledFeatures.depthBiasClamp = supportedFeatures.features.depthBiasClamp;
+        enabledFeatures.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
+        enabledFeatures.textureCompressionBC = supportedFeatures.features.textureCompressionBC;
+        enabledFeatures.occlusionQueryPrecise = supportedFeatures.features.occlusionQueryPrecise;
+        enabledFeatures.imageCubeArray = supportedFeatures.features.imageCubeArray;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
         deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-        deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+        deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
 
         VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures = {};
         dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
         dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
         deviceCreateInfo.pNext = &dynamicRenderingFeatures;
 
-#if PLATFORM_MACOS
-        // MoltenVK not support use vkCmdSetPrimitiveTopology() directly current
         VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extendedDynamicStateFeatures = {};
         extendedDynamicStateFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
         extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
         dynamicRenderingFeatures.pNext = &extendedDynamicStateFeatures;
-#endif
 
         deviceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
         deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());

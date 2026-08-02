@@ -132,7 +132,7 @@ namespace RHI::DirectX12 {
             Assert(SUCCEEDED(nativeSwapChain->GetBuffer(i, IID_PPV_ARGS(&dx12Resource))));
 
             TextureCreateInfo textureCreateInfo = TextureCreateInfo()
-                .SetDimension(TextureDimension::t2D)
+                .SetType(TextureType::t2D)
                 .SetWidth(inCreateInfo.width)
                 .SetHeight(inCreateInfo.height)
                 .SetDepthOrArraySize(1)

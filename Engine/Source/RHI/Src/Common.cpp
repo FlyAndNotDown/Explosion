@@ -27,4 +27,40 @@ namespace RHI {
         }
         return Assert(false), 1;
     }
+
+    TextureAspect GetTextureAspect(const PixelFormat format)
+    {
+        switch (format) {
+            case PixelFormat::d16Unorm:
+            case PixelFormat::d32Float:
+                return TextureAspect::depth;
+            case PixelFormat::d24UnormS8Uint:
+            case PixelFormat::d32FloatS8Uint:
+                return TextureAspect::depthStencil;
+            default:
+                return TextureAspect::color;
+        }
+    }
+
+    TextureState GetDepthStencilTextureState(const TextureAspect aspect, const bool depthReadOnly, const bool stencilReadOnly)
+    {
+        if (aspect == TextureAspect::depth) {
+            return depthReadOnly ? TextureState::depthStencilReadonly : TextureState::depthStencilWrite;
+        }
+        if (aspect == TextureAspect::stencil) {
+            return stencilReadOnly ? TextureState::depthStencilReadonly : TextureState::depthStencilWrite;
+        }
+
+        Assert(aspect == TextureAspect::depthStencil);
+        if (depthReadOnly && stencilReadOnly) {
+            return TextureState::depthStencilReadonly;
+        }
+        if (depthReadOnly) {
+            return TextureState::depthReadStencilWrite;
+        }
+        if (stencilReadOnly) {
+            return TextureState::depthWriteStencilRead;
+        }
+        return TextureState::depthStencilWrite;
+    }
 }

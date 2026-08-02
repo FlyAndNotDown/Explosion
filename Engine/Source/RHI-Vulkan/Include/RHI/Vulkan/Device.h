@@ -49,6 +49,7 @@ namespace RHI::Vulkan {
         VkDevice GetNative() const;
         VmaAllocator& GetNativeAllocator();
         const std::vector<uint32_t>& GetActiveQueueFamilyIndices() const;
+        const VkPhysicalDeviceFeatures& GetEnabledFeatures() const;
 
 #if BUILD_CONFIG_DEBUG
         void SetObjectName(VkObjectType inObjectType, uint64_t inObjectHandle, const char* inObjectName) const;
@@ -67,6 +68,7 @@ namespace RHI::Vulkan {
         VulkanGpu& gpu;
         VkDevice nativeDevice;
         VmaAllocator nativeAllocator;
+        VkPhysicalDeviceFeatures enabledFeatures;
         std::vector<uint32_t> activeQueueFamilyIndices;
         std::unordered_map<QueueType, QueueFamilyMapping> queueFamilyMappings;
         std::unordered_map<QueueType, std::vector<Common::UniquePtr<VulkanQueue>>> queues;

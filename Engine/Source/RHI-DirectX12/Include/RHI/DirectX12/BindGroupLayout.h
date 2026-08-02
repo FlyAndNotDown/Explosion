@@ -28,14 +28,12 @@ namespace RHI::DirectX12 {
         explicit DX12BindGroupLayout(const BindGroupLayoutCreateInfo& inCreateInfo);
         ~DX12BindGroupLayout() override;
 
-        uint8_t GetLayoutIndex() const;
         [[nodiscard]] const std::vector<RootParameterKeyInfo>& GetRootParameterKeyInfos() const;
         [[nodiscard]] const std::vector<CD3DX12_ROOT_PARAMETER1>& GetNativeRootParameters() const;
 
     private:
         void CreateNativeRootParameters(const BindGroupLayoutCreateInfo& inCreateInfo);
 
-        uint8_t layoutIndex;
         std::vector<RootParameterKeyInfo> rootParameterKeyInfos;
         std::vector<CD3DX12_ROOT_PARAMETER1> nativeRootParameters;
         std::vector<CD3DX12_DESCRIPTOR_RANGE1> nativeDescriptorRanges;

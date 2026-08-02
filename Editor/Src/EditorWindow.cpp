@@ -361,8 +361,8 @@ namespace Editor {
         imguiPassParamsBufferView = imguiPassParamsBuffer->CreateBufferView(
             RHI::BufferViewCreateInfo()
                 .SetType(RHI::BufferViewType::uniformBinding)
-                .SetSize(sizeof(ImGuiPassParams))
-                .SetOffset(0));
+                .SetSizeInBytes(sizeof(ImGuiPassParams))
+                .SetOffsetInBytes(0));
 
         imguiBindGroupLayout = device.CreateBindGroupLayout(
             RHI::BindGroupLayoutCreateInfo(0, "imguiBindGroupLayout")
@@ -404,7 +404,7 @@ namespace Editor {
 
         imguiFontTexture = device.CreateTexture(
             RHI::TextureCreateInfo()
-                .SetDimension(RHI::TextureDimension::t2D)
+                .SetType(RHI::TextureType::t2D)
                 .SetWidth(static_cast<uint32_t>(width))
                 .SetHeight(static_cast<uint32_t>(height))
                 .SetDepthOrArraySize(1)
@@ -487,8 +487,8 @@ namespace Editor {
         imguiVertexBufferView = imguiVertexBuffer->CreateBufferView(
             RHI::BufferViewCreateInfo()
                 .SetType(RHI::BufferViewType::vertex)
-                .SetSize(vertexBufferSize)
-                .SetOffset(0)
+                .SetSizeInBytes(vertexBufferSize)
+                .SetOffsetInBytes(0)
                 .SetExtendVertex(sizeof(ImDrawVert)));
 
         const uint32_t indexBufferSize = static_cast<uint32_t>(imguiIndexBufferCapacity * sizeof(ImDrawIdx));
@@ -501,8 +501,8 @@ namespace Editor {
         imguiIndexBufferView = imguiIndexBuffer->CreateBufferView(
             RHI::BufferViewCreateInfo()
                 .SetType(RHI::BufferViewType::index)
-                .SetSize(indexBufferSize)
-                .SetOffset(0)
+                .SetSizeInBytes(indexBufferSize)
+                .SetOffsetInBytes(0)
                 .SetExtendIndex(Internal::imguiIndexFormat));
     }
 
