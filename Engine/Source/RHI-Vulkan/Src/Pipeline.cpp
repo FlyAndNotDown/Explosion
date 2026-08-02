@@ -54,23 +54,27 @@ namespace RHI::Vulkan {
         return assemblyInfo;
     }
 
-    static VkPipelineRasterizationStateCreateInfo ConstructRasterization(const RasterPipelineCreateInfo& createInfo)
+    static VkPipelineRasterizationStateCreateInfo ConstructRasterization(const VulkanDevice& device, const RasterPipelineCreateInfo& createInfo)
     {
-        VkPipelineRasterizationStateCreateInfo rasterState = {};
-        rasterState.polygonMode = EnumCast<FillMode, VkPolygonMode>(createInfo.primitiveState.fillMode);
-        rasterState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterState.cullMode = EnumCast<CullMode, VkCullModeFlagBits>(createInfo.primitiveState.cullMode);
-        rasterState.frontFace = createInfo.primitiveState.frontFace == FrontFace::cw ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        rasterState.depthBiasClamp = createInfo.depthStencilState.depthBiasClamp;
-        rasterState.depthBiasSlopeFactor = createInfo.depthStencilState.depthBiasSlopeScale;
-        rasterState.depthBiasEnable = createInfo.depthStencilState.depthBias == 0 ? VK_FALSE : VK_TRUE;
-        rasterState.depthBiasConstantFactor = static_cast<float>(createInfo.depthStencilState.depthBias);
-        rasterState.lineWidth = 1.0;
+        const auto& primitiveState = createInfo.primitiveState;
+        const auto& depthStencilState = createInfo.depthStencilState;
+        const bool depthClampEnabled = !primitiveState.depthClip;
+        const bool depthBiasEnabled = depthStencilState.depthBias != 0 || depthStencilState.depthBiasSlopeScale != 0.0f;
 
-        // TODO DepthClampEnable requires check depth clamping feature
-        rasterState.depthClampEnable = VK_FALSE;
-        // rasterState.setDepthClampEnable(createInfo.primitive.depthClip ? VK_FALSE : VK_TRUE);
-        // TODO DepthClipEnable requires VK_EXT_depth_clip_enable
+        AssertWithReason(!depthClampEnabled || device.GetEnabledFeatures().depthClamp == VK_TRUE, "Vulkan depth clamp feature is not supported");
+        AssertWithReason(!depthBiasEnabled || depthStencilState.depthBiasClamp == 0.0f || device.GetEnabledFeatures().depthBiasClamp == VK_TRUE, "Vulkan depth bias clamp feature is not supported");
+
+        VkPipelineRasterizationStateCreateInfo rasterState = {};
+        rasterState.polygonMode = EnumCast<FillMode, VkPolygonMode>(primitiveState.fillMode);
+        rasterState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterState.cullMode = EnumCast<CullMode, VkCullModeFlagBits>(primitiveState.cullMode);
+        rasterState.frontFace = primitiveState.frontFace == FrontFace::cw ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterState.depthClampEnable = depthClampEnabled ? VK_TRUE : VK_FALSE;
+        rasterState.depthBiasEnable = depthBiasEnabled ? VK_TRUE : VK_FALSE;
+        rasterState.depthBiasConstantFactor = static_cast<float>(depthStencilState.depthBias);
+        rasterState.depthBiasClamp = depthBiasEnabled ? depthStencilState.depthBiasClamp : 0.0f;
+        rasterState.depthBiasSlopeFactor = depthStencilState.depthBiasSlopeScale;
+        rasterState.lineWidth = 1.0;
 
         return rasterState;
     }
@@ -216,7 +220,7 @@ namespace RHI::Vulkan {
         VkPipelineMultisampleStateCreateInfo multiSampleInfo = ConstructMultiSampleState(inCreateInfo);
         VkPipelineDepthStencilStateCreateInfo dsInfo = ConstructDepthStencil(inCreateInfo);
         VkPipelineInputAssemblyStateCreateInfo assemblyInfo = ConstructInputAssembly(inCreateInfo);
-        VkPipelineRasterizationStateCreateInfo rasterState = ConstructRasterization(inCreateInfo);
+        VkPipelineRasterizationStateCreateInfo rasterState = ConstructRasterization(device, inCreateInfo);
         VkPipelineViewportStateCreateInfo viewportState = ConstructViewportInfo(inCreateInfo);
 
         std::vector<VkPipelineColorBlendAttachmentState> blendStates;

@@ -353,6 +353,8 @@ namespace RHI::Vulkan {
         enabledFeatures.multiDrawIndirect = supportedFeatures.features.multiDrawIndirect;
         enabledFeatures.drawIndirectFirstInstance = supportedFeatures.features.drawIndirectFirstInstance;
         enabledFeatures.fillModeNonSolid = supportedFeatures.features.fillModeNonSolid;
+        enabledFeatures.depthClamp = supportedFeatures.features.depthClamp;
+        enabledFeatures.depthBiasClamp = supportedFeatures.features.depthBiasClamp;
         enabledFeatures.samplerAnisotropy = supportedFeatures.features.samplerAnisotropy;
         enabledFeatures.textureCompressionBC = supportedFeatures.features.textureCompressionBC;
         enabledFeatures.occlusionQueryPrecise = supportedFeatures.features.occlusionQueryPrecise;
