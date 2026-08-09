@@ -3,6 +3,7 @@
 #include <random>
 #include <GLTFParser.h>
 #include <Application.h>
+#include <RenderTarget.h>
 #include <RHI/RHI.h>
 #include <Render/ShaderCompiler.h>
 #include <Render/RenderGraph.h>
@@ -141,15 +142,14 @@ protected:
         RenderWorkerThreads::Get().Start();
 
         CreateDevice();
-        CreateSurface();
+        renderTarget = CreateRenderTarget(*device);
 
         RenderThread::Get().EmplaceTask([this]() -> void {
             FetchShaderInstances();
-            CreateSwapChain();
+            renderTarget->Initialize();
             CreateVertexAndIndexBuffer();
             CreateQuadBuffer();
             CreateSamplers();
-            CreateSyncObjects();
             PrepareGBuffer();
             PrepareSSAOTextures();
             PrepareUniformBuffers();
@@ -164,8 +164,7 @@ protected:
         uboSceneParams.view = GetCamera().GetViewMatrix();
 
         RenderThread::Get().EmplaceTask([this]() -> void {
-            frameFence->Reset();
-            const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
+            const auto frame = renderTarget->Acquire();
 
             if (uniformBuffers.sceneParams) {
                 auto* uboData = uniformBuffers.sceneParams->Map(MapMode::write, 0, sizeof(UBOSceneParams));
@@ -175,7 +174,7 @@ protected:
 
             RGBuilder builder(*device);
 
-            auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
+            auto* backTexture = builder.ImportTexture(frame.texture, frame.initialState);
             auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
 
             auto* gBufferPos = builder.ImportTexture(gBufferPosTex.Get(), TextureState::shaderReadOnly);
@@ -372,7 +371,7 @@ protected:
                                     .AddAttribute(RVertexAttribute(RVertexBinding("TEXCOORD", 0), VertexFormat::float32X2, offsetof(QuadVertex, uv)))))
                     .SetFragmentState(
                         RFragmentState()
-                            .AddColorTarget(ColorTargetState(swapChainFormat, ColorWriteBits::all, false)))
+                            .AddColorTarget(ColorTargetState(renderTarget->GetFormat(), ColorWriteBits::all, false)))
                     .SetPrimitiveState(PrimitiveState(PrimitiveTopologyType::triangle, FillMode::solid, IndexFormat::uint32, FrontFace::ccw, CullMode::none)));
 
             auto* compositionBindGroup = builder.AllocateBindGroup(
@@ -401,19 +400,12 @@ protected:
                     recorder.DrawIndexed(6, 1, 0, 0, 0);
                 },
                 {},
-                [backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
-                    recorder.ResourceBarrier(Barrier::Transition(rg.GetRHI(backTexture), TextureState::renderTarget, TextureState::present));
+                [this, backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
+                    renderTarget->FinishRenderPass(rg, recorder, backTexture);
                 });
 
-            RGExecuteInfo executeInfo;
-            executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-            executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
-            executeInfo.inFenceToSignal = frameFence.Get();
-            builder.Execute(executeInfo);
-
-            swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
-            swapChainTextureStates[backTextureIndex] = TextureState::present;
-            frameFence->Wait();
+            renderTarget->PrepareForSubmit(builder, backTexture);
+            renderTarget->Execute(builder, frame);
 
             Core::ThreadContext::IncFrameNumber();
             BufferPool::Get(*device).Forfeit();
@@ -432,6 +424,7 @@ protected:
             device->GetQueue(QueueType::graphics, 0)->Flush(fence.Get());
             fence->Wait();
 
+            renderTarget = nullptr;
             DestroyDeviceResources(*device);
         });
         RenderThread::Get().Flush();
@@ -443,9 +436,6 @@ protected:
 private:
     static constexpr uint8_t ssaoKernelSize = 64;
     static constexpr uint8_t ssaoNoiseDim = 16;
-    static constexpr size_t backBufferCount = 2;
-
-    PixelFormat swapChainFormat = PixelFormat::max;
 
     // Shader instances
     ShaderInstance gBufferVS;
@@ -459,10 +449,7 @@ private:
 
     // Resources
     UniquePtr<Device> device;
-    UniquePtr<Surface> surface;
-    UniquePtr<SwapChain> swapChain;
-    std::array<Texture*, backBufferCount> swapChainTextures;
-    std::array<TextureState, backBufferCount> swapChainTextureStates;
+    UniquePtr<SampleRenderTarget> renderTarget;
 
     UniquePtr<Buffer> vertexBuffer;
     UniquePtr<Buffer> indexBuffer;
@@ -479,10 +466,6 @@ private:
 
     UniquePtr<RHI::Sampler> sampler;
     UniquePtr<RHI::Sampler> noiseSampler;
-
-    UniquePtr<Semaphore> imageReadySemaphore;
-    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
-    UniquePtr<Fence> frameFence;
 
     // Uniform buffers
     struct {
@@ -533,11 +516,6 @@ private:
                              .AddQueueRequest(QueueRequestInfo(QueueType::graphics, 1)));
     }
 
-    void CreateSurface()
-    {
-        surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
-    }
-
     void FetchShaderInstances()
     {
         ShaderArtifactRegistry::Get().PerformThreadCopy();
@@ -549,37 +527,6 @@ private:
         blurPS = ShaderMap::Get(*device).GetShaderInstance(BlurPS::Get(), {});
         compositionVS = ShaderMap::Get(*device).GetShaderInstance(CompositionVS::Get(), {});
         compositionPS = ShaderMap::Get(*device).GetShaderInstance(CompositionPS::Get(), {});
-    }
-
-    void CreateSwapChain()
-    {
-        static std::vector swapChainFormatQualifiers = {
-            PixelFormat::rgba8Unorm,
-            PixelFormat::bgra8Unorm
-        };
-
-        for (const auto format : swapChainFormatQualifiers) {
-            if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
-                swapChainFormat = format;
-                break;
-            }
-        }
-        Assert(swapChainFormat != PixelFormat::max);
-
-        swapChain = device->CreateSwapChain(
-            SwapChainCreateInfo()
-                .SetFormat(swapChainFormat)
-                .SetPresentMode(PresentMode::immediately)
-                .SetTextureNum(backBufferCount)
-                .SetWidth(GetWindowWidth())
-                .SetHeight(GetWindowHeight())
-                .SetSurface(surface.Get())
-                .SetPresentQueue(device->GetQueue(QueueType::graphics, 0)));
-
-        for (auto i = 0; i < backBufferCount; i++) {
-            swapChainTextures[i] = swapChain->GetTexture(i);
-            swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
-        }
     }
 
     void CreateVertexAndIndexBuffer()
@@ -661,15 +608,6 @@ private:
             SamplerCreateInfo()
                 .SetAddressModeU(AddressMode::repeat)
                 .SetAddressModeV(AddressMode::repeat));
-    }
-
-    void CreateSyncObjects()
-    {
-        imageReadySemaphore = device->CreateSemaphore();
-        for (auto i = 0; i < backBufferCount; i++) {
-            renderFinishedSemaphores[i] = device->CreateSemaphore();
-        }
-        frameFence = device->CreateFence(true);
     }
 
     void PrepareGBuffer()

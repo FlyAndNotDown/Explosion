@@ -3,6 +3,7 @@
 //
 
 #include <Application.h>
+#include <RenderTarget.h>
 #include <RHI/RHI.h>
 #include <Render/ShaderCompiler.h>
 #include <Render/RenderGraph.h>
@@ -57,35 +58,20 @@ public:
     void OnDestroy() override;
 
 private:
-    static constexpr size_t backBufferCount = 2;
-
     void CreateDevice();
     void CompileAllShaders() const;
     void FetchShaderInstances();
-    void CreateSurface();
-    void CreateSwapChain();
     void CreateTriangleVertexBuffer();
-    void CreateSyncObjects();
 
-    PixelFormat swapChainFormat;
     ShaderInstance triangleVS;
     ShaderInstance trianglePS;
     UniquePtr<Device> device;
-    UniquePtr<Surface> surface;
-    UniquePtr<SwapChain> swapChain;
-    std::array<Texture*, backBufferCount> swapChainTextures;
-    std::array<TextureState, backBufferCount> swapChainTextureStates;
+    UniquePtr<SampleRenderTarget> renderTarget;
     UniquePtr<Buffer> triangleVertexBuffer;
-    UniquePtr<Semaphore> imageReadySemaphore;
-    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
-    UniquePtr<Fence> frameFence;
 };
 
 TriangleApplication::TriangleApplication(const std::string& inName)
     : Application(inName)
-    , swapChainFormat(PixelFormat::max)
-    , swapChainTextures()
-    , swapChainTextureStates()
 {
 }
 
@@ -97,24 +83,20 @@ void TriangleApplication::OnCreate()
     RenderThread::Get().Start();
     RenderWorkerThreads::Get().Start();
 
-    // NOTICE: some platform surface need created on main thread, like NSView* in macOS
-    // so we create device and surface in main thread early
     CreateDevice();
-    CreateSurface();
+    renderTarget = CreateRenderTarget(*device);
 
     RenderThread::Get().EmplaceTask([this]() -> void {
         FetchShaderInstances();
-        CreateSwapChain();
+        renderTarget->Initialize();
         CreateTriangleVertexBuffer();
-        CreateSyncObjects();
     });
 }
 
 void TriangleApplication::OnDrawFrame()
 {
     RenderThread::Get().EmplaceTask([this]() -> void {
-        frameFence->Reset();
-        const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
+        const auto frame = renderTarget->Acquire();
 
         auto* pso = Render::PipelineCache::Get(*device).GetOrCreate(
             RasterPipelineStateDesc()
@@ -127,10 +109,10 @@ void TriangleApplication::OnDrawFrame()
                                 .AddAttribute(RVertexAttribute(RVertexBinding("POSITION", 0), VertexFormat::float32X3, offsetof(Vertex, position)))))
                 .SetFragmentState(
                     RFragmentState()
-                        .AddColorTarget(ColorTargetState(swapChainFormat, ColorWriteBits::all, false))));
+                        .AddColorTarget(ColorTargetState(renderTarget->GetFormat(), ColorWriteBits::all, false))));
 
         RGBuilder builder(*device);
-        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
+        auto* backTexture = builder.ImportTexture(frame.texture, frame.initialState);
         auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
         auto* vertexBuffer = builder.ImportBuffer(triangleVertexBuffer.Get(), BufferState::shaderReadOnly);
         auto* vertexBufferView = builder.CreateBufferView(vertexBuffer, RGBufferViewDesc(BufferViewType::vertex, vertexBuffer->GetDesc().size, 0, VertexBufferViewInfo(sizeof(Vertex))));
@@ -166,18 +148,12 @@ void TriangleApplication::OnDrawFrame()
                 recorder.Draw(3, 1, 0, 0);
             },
             {},
-            [backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
-                recorder.ResourceBarrier(Barrier::Transition(rg.GetRHI(backTexture), TextureState::renderTarget, TextureState::present));
+            [this, backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
+                renderTarget->FinishRenderPass(rg, recorder, backTexture);
             });
 
-        RGExecuteInfo executeInfo;
-        executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-        executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
-        executeInfo.inFenceToSignal = frameFence.Get();
-        builder.Execute(executeInfo);
-        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
-        swapChainTextureStates[backTextureIndex] = TextureState::present;
-        frameFence->Wait();
+        renderTarget->PrepareForSubmit(builder, backTexture);
+        renderTarget->Execute(builder, frame);
 
         Core::ThreadContext::IncFrameNumber();
         BufferPool::Get(*device).Forfeit();
@@ -197,6 +173,7 @@ void TriangleApplication::OnDestroy()
         device->GetQueue(QueueType::graphics, 0)->Flush(fence.Get());
         fence->Wait();
 
+        renderTarget = nullptr;
         DestroyDeviceResources(*device);
     });
     RenderThread::Get().Flush();
@@ -232,42 +209,6 @@ void TriangleApplication::FetchShaderInstances()
     trianglePS = ShaderMap::Get(*device).GetShaderInstance(TrianglePS::Get(), {});
 }
 
-void TriangleApplication::CreateSurface()
-{
-    surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
-}
-
-void TriangleApplication::CreateSwapChain()
-{
-    static std::vector swapChainFormatQualifiers = {
-        PixelFormat::rgba8Unorm,
-        PixelFormat::bgra8Unorm
-    };
-
-    for (const auto format : swapChainFormatQualifiers) {
-        if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
-            swapChainFormat = format;
-            break;
-        }
-    }
-    Assert(swapChainFormat != PixelFormat::max);
-
-    swapChain = device->CreateSwapChain(
-        SwapChainCreateInfo()
-            .SetFormat(swapChainFormat)
-            .SetPresentMode(PresentMode::immediately)
-            .SetTextureNum(backBufferCount)
-            .SetWidth(GetWindowWidth())
-            .SetHeight(GetWindowHeight())
-            .SetSurface(surface.Get())
-            .SetPresentQueue(device->GetQueue(QueueType::graphics, 0)));
-
-    for (auto i = 0; i < backBufferCount; i++) {
-        swapChainTextures[i] = swapChain->GetTexture(i);
-        swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
-    }
-}
-
 void TriangleApplication::CreateTriangleVertexBuffer()
 {
     const std::vector<Vertex> vertices = {
@@ -288,15 +229,6 @@ void TriangleApplication::CreateTriangleVertexBuffer()
         memcpy(data, vertices.data(), bufferCreateInfo.size);
         triangleVertexBuffer->Unmap();
     }
-}
-
-void TriangleApplication::CreateSyncObjects()
-{
-    imageReadySemaphore = device->CreateSemaphore();
-    for (auto i = 0; i < backBufferCount; i++) {
-        renderFinishedSemaphores[i] = device->CreateSemaphore();
-    }
-    frameFence = device->CreateFence(true);
 }
 
 int main(int argc, char* argv[])
