@@ -10,7 +10,7 @@
 #include <Runtime/Api.h>
 
 namespace Runtime {
-    struct RUNTIME_API EClass(comp) Name final {
+    struct RUNTIME_API EClass(comp, editorHide) Name final {
         EClassBody(Name)
 
         Name();
