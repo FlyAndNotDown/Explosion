@@ -414,7 +414,7 @@ namespace RHI::Vulkan {
                 if (queueMutex == nullptr) {
                     queueMutex = std::make_shared<std::mutex>();
                 }
-                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queue, queueMutex);
+                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queueFamilyIndex, queue, queueMutex);
             }
             queues[queueType] = std::move(tempQueues);
 

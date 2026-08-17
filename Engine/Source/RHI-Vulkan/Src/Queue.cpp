@@ -12,9 +12,10 @@
 #include <RHI/Vulkan/Gpu.h>
 
 namespace RHI::Vulkan {
-    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex)
+    VulkanQueue::VulkanQueue(VulkanDevice& inDevice, const QueueType inType, const uint32_t inFamilyIndex, const VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex)
         : Queue(inType)
         , device(inDevice)
+        , familyIndex(inFamilyIndex)
         , nativeQueue(inNativeQueue)
         , nativeQueueMutex(std::move(inNativeQueueMutex))
     {
@@ -81,6 +82,11 @@ namespace RHI::Vulkan {
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(device.GetGpu().GetNative(), &properties);
         return properties.limits.timestampPeriod;
+    }
+
+    uint32_t VulkanQueue::GetFamilyIndex() const
+    {
+        return familyIndex;
     }
 
     VkQueue VulkanQueue::GetNative() const

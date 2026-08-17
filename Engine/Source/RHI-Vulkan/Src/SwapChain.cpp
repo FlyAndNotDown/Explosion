@@ -82,6 +82,10 @@ namespace RHI::Vulkan {
         Assert(vkSurface);
         const auto surface = vkSurface->GetNative();
 
+        VkBool32 presentSupported = VK_FALSE;
+        Assert(vkGetPhysicalDeviceSurfaceSupportKHR(device.GetGpu().GetNative(), queue.GetFamilyIndex(), surface, &presentSupported) == VK_SUCCESS);
+        AssertWithReason(presentSupported == VK_TRUE, "the requested vulkan present queue does not support the swap chain surface");
+
         VkSurfaceCapabilitiesKHR surfaceCap;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.GetGpu().GetNative(), surface, &surfaceCap);
 
