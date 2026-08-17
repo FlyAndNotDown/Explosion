@@ -44,6 +44,8 @@ namespace RHI::Vulkan {
         if (features.multiDrawIndirect) { result = result | FeatureBits::multiDrawIndirect; }
         if (features.drawIndirectFirstInstance) { result = result | FeatureBits::drawIndirectFirstInstance; }
         if (features.imageCubeArray) { result = result | FeatureBits::textureCubeArray; }
+        if (features.geometryShader) { result = result | FeatureBits::geometryShader; }
+        if (features.tessellationShader) { result = result | FeatureBits::tessellationShader; }
         return result;
     }
 

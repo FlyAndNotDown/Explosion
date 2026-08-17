@@ -491,7 +491,9 @@ namespace RHI {
         multiDrawIndirect         = 0x8,
         drawIndirectFirstInstance = 0x10,
         textureCubeArray          = 0x20,
-        max                       = 0x40
+        geometryShader            = 0x40,
+        tessellationShader        = 0x80,
+        max                       = 0x100
     };
     using FeatureFlags = Common::Flags<FeatureBits>;
     DECLARE_FLAG_BITS_OP(FeatureFlags, FeatureBits)

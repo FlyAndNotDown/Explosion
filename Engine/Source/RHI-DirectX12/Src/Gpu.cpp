@@ -34,7 +34,9 @@ namespace RHI::DirectX12 {
             | FeatureBits::timestampQuery
             | FeatureBits::multiDrawIndirect
             | FeatureBits::drawIndirectFirstInstance
-            | FeatureBits::textureCubeArray;
+            | FeatureBits::textureCubeArray
+            | FeatureBits::geometryShader
+            | FeatureBits::tessellationShader;
     }
 
     GpuLimits DX12Gpu::GetLimits()
