@@ -64,7 +64,12 @@ namespace RHI::Internal {
 }
 
 namespace RHI {
-    BufferCreateInfo::BufferCreateInfo() = default;
+    BufferCreateInfo::BufferCreateInfo()
+        : size(0)
+        , usages(BufferUsageFlags::null)
+        , initialState(BufferState::max)
+    {
+    }
 
     BufferCreateInfo::BufferCreateInfo(const uint32_t inSize, const BufferUsageFlags inUsages, const BufferState inInitialState, std::string inDebugName)
         : size(inSize)
