@@ -23,7 +23,6 @@ namespace RHI::Vulkan {
         RHIType GetRHIType() override;
         uint32_t GetGpuNum() override;
         Gpu* GetGpu(uint32_t inIndex) override;
-        void Destroy() override;
 
         VkInstance GetNative() const;
 

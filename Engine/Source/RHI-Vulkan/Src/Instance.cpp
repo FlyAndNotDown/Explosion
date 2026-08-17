@@ -240,8 +240,4 @@ namespace RHI::Vulkan {
     }
 #endif
 
-    void VulkanInstance::Destroy()
-    {
-        delete this;
-    }
 }

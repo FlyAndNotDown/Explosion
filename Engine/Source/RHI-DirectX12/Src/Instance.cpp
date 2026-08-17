@@ -127,8 +127,4 @@ namespace RHI::DirectX12 {
         return gpus[index].Get();
     }
 
-    void DX12Instance::Destroy()
-    {
-        delete this;
-    }
 }

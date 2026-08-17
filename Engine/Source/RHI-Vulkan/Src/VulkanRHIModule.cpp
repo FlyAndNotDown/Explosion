@@ -17,7 +17,9 @@ namespace RHI::Vulkan {
 
     void VulkanRHIModule::OnUnload()
     {
-        delete gInstance;
+        auto* instance = gInstance;
+        gInstance = nullptr;
+        delete instance;
     }
 
     Core::ModuleType VulkanRHIModule::Type() const
