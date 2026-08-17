@@ -131,7 +131,7 @@ namespace RHI::Dummy {
     {
     }
 
-    void DummyRasterPassCommandRecorder::DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, size_t baseVertex, size_t firstInstance)
+    void DummyRasterPassCommandRecorder::DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, int32_t baseVertex, size_t firstInstance)
     {
     }
 

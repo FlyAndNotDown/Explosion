@@ -258,7 +258,7 @@ namespace RHI {
         virtual void SetIndexBuffer(BufferView* bufferView) = 0;
         virtual void SetVertexBuffer(size_t slot, BufferView* bufferView) = 0;
         virtual void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) = 0;
-        virtual void DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, size_t baseVertex, size_t firstInstance) = 0;
+        virtual void DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, int32_t baseVertex, size_t firstInstance) = 0;
         virtual void SetViewport(float topLeftX, float topLeftY, float width, float height, float minDepth, float maxDepth) = 0;
         virtual void SetScissor(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) = 0;
         virtual void SetPrimitiveTopology(PrimitiveTopology primitiveTopology) = 0;

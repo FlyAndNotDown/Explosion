@@ -369,7 +369,7 @@ namespace RHI::DirectX12 {
         commandBuffer.GetNativeCmdList()->DrawInstanced(inVertexCount, inInstanceCount, inFirstVertex, inFirstInstance);
     }
 
-    void DX12RasterPassCommandRecorder::DrawIndexed(const size_t inIndexCount, const size_t inInstanceCount, const size_t inFirstIndex, const size_t inBaseVertex, const size_t inFirstInstance)
+    void DX12RasterPassCommandRecorder::DrawIndexed(const size_t inIndexCount, const size_t inInstanceCount, const size_t inFirstIndex, const int32_t inBaseVertex, const size_t inFirstInstance)
     {
         commandBuffer.GetNativeCmdList()->DrawIndexedInstanced(inIndexCount, inInstanceCount, inFirstIndex, inBaseVertex, inFirstInstance);
     }
