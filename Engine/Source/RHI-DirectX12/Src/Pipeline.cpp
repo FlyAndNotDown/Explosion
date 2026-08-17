@@ -228,6 +228,7 @@ namespace RHI::DirectX12 {
         desc.SampleMask = GetDX12SampleMask(inCreateInfo);
         desc.SampleDesc = GetDX12SampleDesc(inCreateInfo);
         desc.PrimitiveTopologyType = EnumCast<PrimitiveTopologyType, D3D12_PRIMITIVE_TOPOLOGY_TYPE>(inCreateInfo.primitiveState.topologyType);
+        desc.IBStripCutValue = EnumCast<IndexFormat, D3D12_INDEX_BUFFER_STRIP_CUT_VALUE>(inCreateInfo.primitiveState.stripIndexFormat);
         UpdateDX12RenderTargetsDesc(desc, inCreateInfo);
         UpdateDX12DepthStencilTargetDesc(desc, inCreateInfo);
         auto inputElements = GetDX12InputElements(inCreateInfo);

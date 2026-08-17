@@ -46,10 +46,18 @@ namespace RHI::Vulkan {
 
     static VkPipelineInputAssemblyStateCreateInfo ConstructInputAssembly(const RasterPipelineCreateInfo& createInfo)
     {
+        const auto topologyType = createInfo.primitiveState.topologyType;
+        const bool stripTopology = topologyType == PrimitiveTopologyType::line || topologyType == PrimitiveTopologyType::triangle;
+        const bool primitiveRestartEnabled = stripTopology && createInfo.primitiveState.stripIndexFormat != IndexFormat::max;
+
         VkPipelineInputAssemblyStateCreateInfo assemblyInfo = {};
         assemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        assemblyInfo.topology = EnumCast<PrimitiveTopologyType, VkPrimitiveTopology>(createInfo.primitiveState.topologyType);
-        assemblyInfo.primitiveRestartEnable = VK_FALSE;
+        assemblyInfo.topology = EnumCast<PrimitiveTopologyType, VkPrimitiveTopology>(topologyType);
+        assemblyInfo.primitiveRestartEnable = primitiveRestartEnabled ? VK_TRUE : VK_FALSE;
+        if (primitiveRestartEnabled) {
+            // Vulkan validates primitive restart against this value even when the topology is dynamic.
+            assemblyInfo.topology = topologyType == PrimitiveTopologyType::line ? VK_PRIMITIVE_TOPOLOGY_LINE_STRIP : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+        }
 
         return assemblyInfo;
     }
