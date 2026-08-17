@@ -308,6 +308,8 @@ namespace Runtime {
                                 texturePtr,
                                 RHI::BufferTextureCopyInfo()
                                     .SetBufferOffset(copyOffsets[subResourceIndex])
+                                    .SetBufferRowPitch(copyFootprints[subResourceIndex].rowPitch)
+                                    .SetBufferSlicePitch(copyFootprints[subResourceIndex].slicePitch)
                                     .SetTextureSubResource(RHI::TextureSubResourceInfo(m, a, aspect))
                                     .SetTextureOrigin({ 0, 0, 0 })
                                     .SetCopyRegion(copyFootprints[subResourceIndex].extent));

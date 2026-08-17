@@ -780,19 +780,6 @@ private:
             randomVec = FVec4(rndDist(rndEngine) * 2.0f - 1.0f, rndDist(rndEngine) * 2.0f - 1.0f, 0.0f, 0.0f);
         }
 
-        const BufferCreateInfo bufferInfo = BufferCreateInfo()
-                                                .SetSize(ssaoNoise.size() * sizeof(FVec4))
-                                                .SetUsages(BufferUsageBits::mapWrite | BufferUsageBits::copySrc)
-                                                .SetInitialState(BufferState::staging)
-                                                .SetDebugName("noiseStaging");
-
-        const UniquePtr<Buffer> stagingBuffer = device->CreateBuffer(bufferInfo);
-        if (stagingBuffer != nullptr) {
-            auto* data = stagingBuffer->Map(MapMode::write, 0, bufferInfo.size);
-            memcpy(data, ssaoNoise.data(), bufferInfo.size);
-            stagingBuffer->Unmap();
-        }
-
         noiseTex = device->CreateTexture(
             TextureCreateInfo()
                 .SetFormat(PixelFormat::rgba32Float)
@@ -805,6 +792,23 @@ private:
                 .SetUsages(TextureUsageBits::copyDst | TextureUsageBits::textureBinding)
                 .SetInitialState(TextureState::undefined));
 
+        const auto copyFootprint = device->GetTextureSubResourceCopyFootprint(*noiseTex, TextureSubResourceInfo());
+        const BufferCreateInfo bufferInfo = BufferCreateInfo()
+                                                .SetSize(copyFootprint.totalBytes)
+                                                .SetUsages(BufferUsageBits::mapWrite | BufferUsageBits::copySrc)
+                                                .SetInitialState(BufferState::staging)
+                                                .SetDebugName("noiseStaging");
+
+        const UniquePtr<Buffer> stagingBuffer = device->CreateBuffer(bufferInfo);
+        if (stagingBuffer != nullptr) {
+            auto* data = static_cast<uint8_t*>(stagingBuffer->Map(MapMode::write, 0, bufferInfo.size));
+            const auto srcRowPitch = ssaoNoiseDim * sizeof(FVec4);
+            for (auto y = 0u; y < ssaoNoiseDim; y++) {
+                memcpy(data + y * copyFootprint.rowPitch, ssaoNoise.data() + y * ssaoNoiseDim, srcRowPitch);
+            }
+            stagingBuffer->Unmap();
+        }
+
         // Copy data
         auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
         const UniquePtr<CommandRecorder> commandRecorder = copyCmdBuffer->Begin();
@@ -815,7 +819,13 @@ private:
                 copyRecorder->CopyBufferToTexture(
                     stagingBuffer.Get(),
                     noiseTex.Get(),
-                    BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, UVec3(ssaoNoiseDim, ssaoNoiseDim, 1)));
+                    BufferTextureCopyInfo(
+                        0,
+                        TextureSubResourceInfo(),
+                        UVec3Consts::zero,
+                        UVec3(ssaoNoiseDim, ssaoNoiseDim, 1),
+                        copyFootprint.rowPitch,
+                        copyFootprint.slicePitch));
                 copyRecorder->ResourceBarrier(Barrier::Transition(noiseTex.Get(), TextureState::copyDst, TextureState::shaderReadOnly));
             }
             copyRecorder->EndPass();
@@ -878,7 +888,13 @@ private:
                         copyRecorder->CopyBufferToTexture(
                             stagingBuffer.Get(),
                             diffuseTex.Get(),
-                            BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, UVec3(texData->width, texData->height, 1)));
+                            BufferTextureCopyInfo(
+                                0,
+                                TextureSubResourceInfo(),
+                                UVec3Consts::zero,
+                                UVec3(texData->width, texData->height, 1),
+                                copyFootprint.rowPitch,
+                                copyFootprint.slicePitch));
                         copyRecorder->ResourceBarrier(Barrier::Transition(diffuseTex.Get(), TextureState::copyDst, TextureState::shaderReadOnly));
                     }
                     copyRecorder->EndPass();

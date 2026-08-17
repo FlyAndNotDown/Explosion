@@ -459,7 +459,9 @@ namespace Editor {
                     0,
                     RHI::TextureSubResourceInfo(),
                     Common::UVec3Consts::zero,
-                    Common::UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1)));
+                    Common::UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1),
+                    copyFootprint.rowPitch,
+                    copyFootprint.slicePitch));
             copyRecorder->ResourceBarrier(RHI::Barrier::Transition(imguiFontTexture.Get(), RHI::TextureState::copyDst, RHI::TextureState::shaderReadOnly));
             copyRecorder->EndPass();
         }

@@ -31,10 +31,12 @@ namespace RHI::Dummy {
 
     void DummyCopyPassCommandRecorder::CopyBufferToTexture(Buffer* src, Texture* dst, const BufferTextureCopyInfo& copyInfo)
     {
+        RHI::Internal::ValidateBufferTextureCopy(*src, *dst, copyInfo);
     }
 
     void DummyCopyPassCommandRecorder::CopyTextureToBuffer(Texture* src, Buffer* dst, const BufferTextureCopyInfo& copyInfo)
     {
+        RHI::Internal::ValidateBufferTextureCopy(*dst, *src, copyInfo);
     }
 
     void DummyCopyPassCommandRecorder::CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyInfo& copyInfo)

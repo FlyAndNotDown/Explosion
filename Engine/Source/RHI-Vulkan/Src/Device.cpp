@@ -232,18 +232,22 @@ namespace RHI::Vulkan {
         return iter != surfaceFormats.end();
     }
 
-    TextureSubResourceCopyFootprint VulkanDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
+    TextureSubResourceCopyFootprint VulkanDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion)
     {
         const auto& createInfo = texture.GetCreateInfo();
         const auto mipLevel = subResourceInfo.mipLevel;
         const auto baseDepth = createInfo.type == TextureType::t3D ? createInfo.depthOrArraySize : 1;
-
-        TextureSubResourceCopyFootprint result {};
-        result.extent = {
+        const Common::UVec3 subResourceExtent = {
             std::max(createInfo.width >> mipLevel, 1u),
             std::max(createInfo.height >> mipLevel, 1u),
             std::max(baseDepth >> mipLevel, 1u)
         };
+        const auto useFullSubResource = copyRegion == Common::UVec3Consts::zero;
+        const auto extent = useFullSubResource ? subResourceExtent : copyRegion;
+        Assert(extent.x <= subResourceExtent.x && extent.y <= subResourceExtent.y && extent.z <= subResourceExtent.z);
+
+        TextureSubResourceCopyFootprint result {};
+        result.extent = extent;
         result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
         result.rowPitch = result.bytesPerPixel * result.extent.x;
         result.slicePitch = result.rowPitch * result.extent.y;

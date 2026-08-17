@@ -315,7 +315,13 @@ void BaseTexApp::CreateTextureAndSampler()
             copyRecorder->CopyBufferToTexture(
                 imageBuffer.Get(),
                 texture.Get(),
-                BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1)));
+                BufferTextureCopyInfo(
+                    0,
+                    TextureSubResourceInfo(),
+                    UVec3Consts::zero,
+                    UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1),
+                    copyFootprint.rowPitch,
+                    copyFootprint.slicePitch));
             copyRecorder->ResourceBarrier(Barrier::Transition(texture.Get(), TextureState::copyDst, TextureState::shaderReadOnly));
         }
         copyRecorder->EndPass();

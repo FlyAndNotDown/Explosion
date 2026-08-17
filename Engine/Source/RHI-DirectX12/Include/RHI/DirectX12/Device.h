@@ -94,7 +94,7 @@ namespace RHI::DirectX12 {
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& inCreateInfo) override;
 
         bool CheckSwapChainFormatSupport(Surface* inSurface, PixelFormat inFormat, ColorSpace inColorSpace) override;
-        TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
+        TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion) override;
 
         ID3D12Device* GetNative() const;
         ID3D12CommandSignature* GetDrawIndirectCommandSignature() const;

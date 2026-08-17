@@ -78,21 +78,25 @@ namespace RHI {
 
     struct BufferTextureCopyInfo {
         size_t bufferOffset;
+        size_t bufferRowPitch;
+        size_t bufferSlicePitch;
         TextureSubResourceInfo textureSubResource;
         Common::UVec3 textureOrigin;
         Common::UVec3 copyRegion;
 
-        explicit BufferTextureCopyInfo(
-            size_t inBufferOffset = 0,
-            const TextureSubResourceInfo& inTextureSubResource = TextureSubResourceInfo(),
-            const Common::UVec3& inTextureOrigin = Common::UVec3Consts::zero,
-            const Common::UVec3& inCopyRegion = Common::UVec3Consts::zero);
+        explicit BufferTextureCopyInfo(size_t inBufferOffset = 0, const TextureSubResourceInfo& inTextureSubResource = TextureSubResourceInfo(), const Common::UVec3& inTextureOrigin = Common::UVec3Consts::zero, const Common::UVec3& inCopyRegion = Common::UVec3Consts::zero, size_t inBufferRowPitch = 0, size_t inBufferSlicePitch = 0);
 
         BufferTextureCopyInfo& SetBufferOffset(size_t inBufferOffset);
+        BufferTextureCopyInfo& SetBufferRowPitch(size_t inBufferRowPitch);
+        BufferTextureCopyInfo& SetBufferSlicePitch(size_t inBufferSlicePitch);
         BufferTextureCopyInfo& SetTextureSubResource(const TextureSubResourceInfo& inTextureSubResource);
         BufferTextureCopyInfo& SetTextureOrigin(const Common::UVec3& inTextureOrigin);
         BufferTextureCopyInfo& SetCopyRegion(const Common::UVec3& inCopyRegion);
     };
+
+    namespace Internal {
+        void ValidateBufferTextureCopy(const Buffer& buffer, const Texture& texture, const BufferTextureCopyInfo& copyInfo);
+    }
 
     struct DrawIndirectArguments {
         uint32_t vertexCount = 0;
@@ -217,7 +221,7 @@ namespace RHI {
         ~CopyPassCommandRecorder() override;
 
         virtual void CopyBufferToBuffer(Buffer* src, Buffer* dst, const BufferCopyInfo& copyInfo) = 0;
-        // NOTICE: CopyBufferToTexture/CopyTextureToBuffer treat buffer contains copy region (sub-image) data from offset
+        // The buffer layout starts at bufferOffset and is described explicitly by bufferRowPitch and bufferSlicePitch.
         virtual void CopyBufferToTexture(Buffer* src, Texture* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToBuffer(Texture* src, Buffer* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyInfo& copyInfo) = 0;

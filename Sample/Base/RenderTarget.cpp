@@ -184,8 +184,8 @@ void HeadlessRenderTarget::PrepareForSubmit(RGBuilder& builder, const RGTextureR
     builder.AddCopyPass(
         "ReadbackOutput",
         copyDesc,
-        [outputTexture, readback, copyRegion = UVec3(width, height, 1)](const RGBuilder& rg, CopyPassCommandRecorder& recorder) -> void {
-            recorder.CopyTextureToBuffer(rg.GetRHI(outputTexture), rg.GetRHI(readback), BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, copyRegion));
+        [outputTexture, readback, copyRegion = UVec3(width, height, 1), rowPitch = copyFootprint.rowPitch, slicePitch = copyFootprint.slicePitch](const RGBuilder& rg, CopyPassCommandRecorder& recorder) -> void {
+            recorder.CopyTextureToBuffer(rg.GetRHI(outputTexture), rg.GetRHI(readback), BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, copyRegion, rowPitch, slicePitch));
         });
 }
 

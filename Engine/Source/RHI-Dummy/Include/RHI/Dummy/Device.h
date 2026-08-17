@@ -37,7 +37,7 @@ namespace RHI::Dummy {
         Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) override;
 
         bool CheckSwapChainFormatSupport(Surface *surface, PixelFormat format, ColorSpace colorSpace) override;
-        TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) override;
+        TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion) override;
 
     private:
         DummyGpu& gpu;

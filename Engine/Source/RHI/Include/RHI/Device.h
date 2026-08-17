@@ -88,7 +88,7 @@ namespace RHI {
         virtual Common::UniquePtr<QuerySet> CreateQuerySet(const QuerySetCreateInfo& createInfo) = 0;
 
         virtual bool CheckSwapChainFormatSupport(Surface* surface, PixelFormat format, ColorSpace colorSpace) = 0;
-        virtual TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo) = 0;
+        virtual TextureSubResourceCopyFootprint GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion = Common::UVec3Consts::zero) = 0;
 
     protected:
         explicit Device(const DeviceCreateInfo& createInfo);

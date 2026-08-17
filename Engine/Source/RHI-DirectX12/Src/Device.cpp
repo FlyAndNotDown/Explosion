@@ -280,7 +280,7 @@ namespace RHI::DirectX12 {
         return iter != supportedFormats.end() && iter->second.contains(inFormat);
     }
 
-    TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
+    TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion)
     {
         const auto& dx12Texture = static_cast<const DX12Texture&>(texture);
         const auto createInfo = texture.GetCreateInfo();
@@ -292,12 +292,17 @@ namespace RHI::DirectX12 {
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
         nativeDevice->GetCopyableFootprints(&nativeResourceDesc, nativeSubResourceIndex, 1, 0, &footprint, nullptr, nullptr, nullptr);
 
+        const Common::UVec3 subResourceExtent = { footprint.Footprint.Width, footprint.Footprint.Height, footprint.Footprint.Depth };
+        const auto useFullSubResource = copyRegion == Common::UVec3Consts::zero;
+        const auto extent = useFullSubResource ? subResourceExtent : copyRegion;
+        Assert(extent.x <= subResourceExtent.x && extent.y <= subResourceExtent.y && extent.z <= subResourceExtent.z);
+
         TextureSubResourceCopyFootprint result {};
-        result.extent = { footprint.Footprint.Width, footprint.Footprint.Height, footprint.Footprint.Depth };
+        result.extent = extent;
         result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
-        result.rowPitch = footprint.Footprint.RowPitch;
-        result.slicePitch = footprint.Footprint.RowPitch * footprint.Footprint.Height;
-        result.totalBytes = footprint.Footprint.RowPitch * footprint.Footprint.Height * footprint.Footprint.Depth;
+        result.rowPitch = Common::AlignUp(result.bytesPerPixel * result.extent.x, static_cast<size_t>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+        result.slicePitch = result.rowPitch * result.extent.y;
+        result.totalBytes = result.slicePitch * result.extent.z;
         return result;
     }
 
