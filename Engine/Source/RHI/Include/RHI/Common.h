@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -498,6 +499,8 @@ namespace RHI {
 
 namespace RHI {
     size_t GetBytesPerPixel(PixelFormat format);
+    size_t GetTextureAspectBytesPerPixel(PixelFormat format, TextureAspect aspect);
     TextureAspect GetTextureAspect(PixelFormat format);
+    std::span<const TextureAspect> GetTextureAspectComponents(TextureAspect aspect);
     TextureState GetDepthStencilTextureState(TextureAspect aspect, bool depthReadOnly, bool stencilReadOnly);
 }

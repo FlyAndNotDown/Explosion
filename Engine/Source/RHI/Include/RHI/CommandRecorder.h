@@ -38,6 +38,8 @@ namespace RHI {
 
     struct TextureSubResourceCopyFootprint {
         Common::UVec3 extent;
+        // For depthStencil this is the larger per-plane element size. The layout contains depth followed by stencil,
+        // with both planes using rowPitch and slicePitch; totalBytes covers all planes.
         size_t bytesPerPixel;
         size_t rowPitch;
         size_t slicePitch;
@@ -222,6 +224,8 @@ namespace RHI {
 
         virtual void CopyBufferToBuffer(Buffer* src, Buffer* dst, const BufferCopyInfo& copyInfo) = 0;
         // The buffer layout starts at bufferOffset and is described explicitly by bufferRowPitch and bufferSlicePitch.
+        // A combined depth-stencil copy stores the depth plane first and the stencil plane second. Each plane occupies
+        // bufferSlicePitch * copyRegion.z bytes and uses the same row and slice pitches.
         virtual void CopyBufferToTexture(Buffer* src, Texture* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToBuffer(Texture* src, Buffer* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyInfo& copyInfo) = 0;

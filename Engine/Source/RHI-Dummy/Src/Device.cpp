@@ -149,10 +149,14 @@ namespace RHI::Dummy {
 
         TextureSubResourceCopyFootprint result {};
         result.extent = extent;
-        result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
+        const auto aspects = GetTextureAspectComponents(subResourceInfo.aspect);
+        result.bytesPerPixel = 0;
+        for (const auto aspect : aspects) {
+            result.bytesPerPixel = std::max(result.bytesPerPixel, GetTextureAspectBytesPerPixel(createInfo.format, aspect));
+        }
         result.rowPitch = result.bytesPerPixel * result.extent.x;
         result.slicePitch = result.rowPitch * result.extent.y;
-        result.totalBytes = result.slicePitch * result.extent.z;
+        result.totalBytes = result.slicePitch * result.extent.z * aspects.size();
         return result;
     }
 }

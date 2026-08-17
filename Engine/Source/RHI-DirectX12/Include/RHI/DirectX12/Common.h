@@ -18,6 +18,8 @@ namespace RHI::DirectX12 {
     DECLARE_EC_FUNC()
     DECLARE_FC_FUNC()
 
+    uint32_t GetDX12TexturePlaneSlice(TextureAspect aspect);
+
     ECIMPL_BEGIN(QueueType, D3D12_COMMAND_LIST_TYPE)
         ECIMPL_ITEM(QueueType::graphics, D3D12_COMMAND_LIST_TYPE_DIRECT)
         ECIMPL_ITEM(QueueType::compute, D3D12_COMMAND_LIST_TYPE_COMPUTE)

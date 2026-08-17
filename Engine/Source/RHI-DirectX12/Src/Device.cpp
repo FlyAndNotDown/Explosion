@@ -2,6 +2,7 @@
 // Created by johnk on 15/1/2022.
 //
 
+#include <algorithm>
 #include <iostream>
 #include <unordered_set>
 
@@ -287,7 +288,8 @@ namespace RHI::DirectX12 {
         const auto nativeResourceDesc = dx12Texture.GetNative()->GetDesc();
 
         const auto arraySize = createInfo.type == TextureType::t3D ? 1 : createInfo.depthOrArraySize;
-        const size_t nativeSubResourceIndex = D3D12CalcSubresource(subResourceInfo.mipLevel, subResourceInfo.arrayLayer, 0, createInfo.mipLevels, arraySize);
+        const auto aspects = GetTextureAspectComponents(subResourceInfo.aspect);
+        const size_t nativeSubResourceIndex = D3D12CalcSubresource(subResourceInfo.mipLevel, subResourceInfo.arrayLayer, GetDX12TexturePlaneSlice(aspects.front()), createInfo.mipLevels, arraySize);
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
         nativeDevice->GetCopyableFootprints(&nativeResourceDesc, nativeSubResourceIndex, 1, 0, &footprint, nullptr, nullptr, nullptr);
@@ -299,10 +301,16 @@ namespace RHI::DirectX12 {
 
         TextureSubResourceCopyFootprint result {};
         result.extent = extent;
-        result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
+        result.bytesPerPixel = 0;
+        for (const auto aspect : aspects) {
+            result.bytesPerPixel = std::max(result.bytesPerPixel, GetTextureAspectBytesPerPixel(createInfo.format, aspect));
+        }
         result.rowPitch = Common::AlignUp(result.bytesPerPixel * result.extent.x, static_cast<size_t>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
         result.slicePitch = result.rowPitch * result.extent.y;
-        result.totalBytes = result.slicePitch * result.extent.z;
+        if (aspects.size() > 1 && result.slicePitch % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT != 0) {
+            result.slicePitch += result.rowPitch;
+        }
+        result.totalBytes = result.slicePitch * result.extent.z * aspects.size();
         return result;
     }
 
