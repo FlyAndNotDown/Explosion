@@ -32,7 +32,7 @@ public:
     };
 
     struct ShaderCompileOutput {
-        std::vector<uint8_t> byteCode;
+        RHI::ShaderByteCodeRef byteCode;
         Render::ShaderReflectionData reflectionData;
     };
 

@@ -321,8 +321,8 @@ namespace Render {
         output.success = true;
         const auto* codeStart = static_cast<const uint8_t*>(codeBlob->GetBufferPointer());
         const auto* codeEnd = codeStart + codeBlob->GetBufferSize();
+        std::vector<uint8_t> byteCode(codeStart, codeEnd);
         output.entryPoint = input.entryPoint;
-        output.byteCode = std::vector(codeStart, codeEnd);
 
         if (options.byteCodeType == ShaderByteCodeType::dxil) {
 #if PLATFORM_WINDOWS
@@ -339,9 +339,11 @@ namespace Render {
             BuildHlslReflectionData(shaderReflection, output.reflectionData);
 #endif
         } else {
-            const spirv_cross::Compiler sprivCrossCompiler(reinterpret_cast<const uint32_t*>(output.byteCode.data()), output.byteCode.size() * sizeof(uint8_t) / sizeof(uint32_t));
+            const spirv_cross::Compiler sprivCrossCompiler(reinterpret_cast<const uint32_t*>(byteCode.data()), byteCode.size() * sizeof(uint8_t) / sizeof(uint32_t));
             BuildGlslReflectionData(sprivCrossCompiler, output.reflectionData);
         }
+
+        output.byteCode = Common::MakeShared<const RHI::ShaderByteCode>(std::move(byteCode));
     }
 }
 
