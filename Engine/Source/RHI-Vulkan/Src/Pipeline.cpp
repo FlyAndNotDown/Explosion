@@ -203,7 +203,13 @@ namespace RHI::Vulkan {
             stages.emplace_back(stageInfo);
         };
         setStage(inCreateInfo.vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
+        setStage(inCreateInfo.hullShader, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
+        setStage(inCreateInfo.domainShader, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT);
+        setStage(inCreateInfo.geometryShader, VK_SHADER_STAGE_GEOMETRY_BIT);
         setStage(inCreateInfo.pixelShader, VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        AssertWithReason(inCreateInfo.geometryShader == nullptr || device.GetEnabledFeatures().geometryShader == VK_TRUE, "Vulkan geometry shader feature is not supported");
+        AssertWithReason(inCreateInfo.hullShader == nullptr || device.GetEnabledFeatures().tessellationShader == VK_TRUE, "Vulkan tessellation shader feature is not supported");
 
         const std::array dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -220,6 +226,9 @@ namespace RHI::Vulkan {
         VkPipelineMultisampleStateCreateInfo multiSampleInfo = ConstructMultiSampleState(inCreateInfo);
         VkPipelineDepthStencilStateCreateInfo dsInfo = ConstructDepthStencil(inCreateInfo);
         VkPipelineInputAssemblyStateCreateInfo assemblyInfo = ConstructInputAssembly(inCreateInfo);
+        VkPipelineTessellationStateCreateInfo tessellationInfo = {};
+        tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+        tessellationInfo.patchControlPoints = inCreateInfo.primitiveState.patchControlPoints;
         VkPipelineRasterizationStateCreateInfo rasterState = ConstructRasterization(device, inCreateInfo);
         VkPipelineViewportStateCreateInfo viewportState = ConstructViewportInfo(inCreateInfo);
 
@@ -257,7 +266,7 @@ namespace RHI::Vulkan {
         pipelineCreateInfo.pInputAssemblyState = &assemblyInfo;
         pipelineCreateInfo.pRasterizationState = &rasterState;
         pipelineCreateInfo.pViewportState = &viewportState;
-        pipelineCreateInfo.pTessellationState = nullptr;
+        pipelineCreateInfo.pTessellationState = inCreateInfo.hullShader != nullptr ? &tessellationInfo : nullptr;
         pipelineCreateInfo.pColorBlendState = &colorInfo;
         pipelineCreateInfo.pVertexInputState = &vtxInput;
         pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;

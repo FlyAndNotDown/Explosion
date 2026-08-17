@@ -394,6 +394,14 @@ namespace RHI::DirectX12 {
 
     void DX12RasterPassCommandRecorder::SetPrimitiveTopology(PrimitiveTopology inPrimitiveTopology)
     {
+        if (inPrimitiveTopology == PrimitiveTopology::patchList) {
+            AssertWithReason(rasterPipeline != nullptr, "a raster pipeline must be bound before setting patch-list topology");
+            const uint32_t patchControlPoints = rasterPipeline->GetPrimitiveState().patchControlPoints;
+            AssertWithReason(patchControlPoints >= 1 && patchControlPoints <= 32, "patch-list topology requires a tessellation pipeline");
+            const auto nativeTopology = static_cast<D3D_PRIMITIVE_TOPOLOGY>(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + patchControlPoints - 1);
+            commandBuffer.GetNativeCmdList()->IASetPrimitiveTopology(nativeTopology);
+            return;
+        }
         commandBuffer.GetNativeCmdList()->IASetPrimitiveTopology(EnumCast<PrimitiveTopology, D3D_PRIMITIVE_TOPOLOGY>(inPrimitiveTopology));
     }
 

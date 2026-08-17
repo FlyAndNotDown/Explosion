@@ -93,7 +93,8 @@ namespace RHI {
         IndexFormat stripIndexFormat;
         FrontFace frontFace;
         CullMode cullMode;
-        bool depthClip = true;
+        bool depthClip;
+        uint32_t patchControlPoints;
 
         explicit PrimitiveState(
             PrimitiveTopologyType inTopologyType = PrimitiveTopologyType::triangle,
@@ -101,7 +102,8 @@ namespace RHI {
             IndexFormat inStripIndexFormat = IndexFormat::uint16,
             FrontFace inFrontFace = FrontFace::ccw,
             CullMode inCullMode = CullMode::back,
-            bool inDepthClip = true);
+            bool inDepthClip = true,
+            uint32_t inPatchControlPoints = 0);
 
         PrimitiveState& SetTopologyType(PrimitiveTopologyType inTopologyType);
         PrimitiveState& SetFillMode(FillMode inFillMode);
@@ -109,6 +111,7 @@ namespace RHI {
         PrimitiveState& SetFrontFace(FrontFace inFrontFace);
         PrimitiveState& SetCullMode(CullMode inCullMode);
         PrimitiveState& SetDepthClip(bool inDepthClip);
+        PrimitiveState& SetPatchControlPoints(uint32_t inPatchControlPoints);
     };
 
     struct StencilFaceState {
@@ -288,8 +291,13 @@ namespace RHI {
         NonCopyable(RasterPipeline)
         ~RasterPipeline() override;
 
+        const PrimitiveState& GetPrimitiveState() const;
+
     protected:
         explicit RasterPipeline(const RasterPipelineCreateInfo& createInfo);
+
+    private:
+        PrimitiveState primitiveState;
     };
 }
 

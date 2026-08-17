@@ -211,11 +211,17 @@ namespace RHI::DirectX12 {
     {
         auto* vertexShader = static_cast<DX12ShaderModule*>(inCreateInfo.vertexShader);
         auto* fragmentShader = static_cast<DX12ShaderModule*>(inCreateInfo.pixelShader);
+        auto* geometryShader = static_cast<DX12ShaderModule*>(inCreateInfo.geometryShader);
+        auto* hullShader = static_cast<DX12ShaderModule*>(inCreateInfo.hullShader);
+        auto* domainShader = static_cast<DX12ShaderModule*>(inCreateInfo.domainShader);
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC desc {};
         desc.pRootSignature = pipelineLayout->GetNative();
         desc.VS = vertexShader->GetNative();
         desc.PS = fragmentShader->GetNative();
+        desc.GS = geometryShader != nullptr ? geometryShader->GetNative() : D3D12_SHADER_BYTECODE {};
+        desc.HS = hullShader != nullptr ? hullShader->GetNative() : D3D12_SHADER_BYTECODE {};
+        desc.DS = domainShader != nullptr ? domainShader->GetNative() : D3D12_SHADER_BYTECODE {};
         desc.RasterizerState = GetDX12RasterizerDesc(inCreateInfo);
         desc.BlendState = GetDX12BlendDesc(inCreateInfo);
         desc.DepthStencilState = GetDX12DepthStencilDesc(inCreateInfo);

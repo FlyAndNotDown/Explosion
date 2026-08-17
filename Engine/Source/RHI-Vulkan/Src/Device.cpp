@@ -363,6 +363,8 @@ namespace RHI::Vulkan {
         enabledFeatures.textureCompressionBC = supportedFeatures.features.textureCompressionBC;
         enabledFeatures.occlusionQueryPrecise = supportedFeatures.features.occlusionQueryPrecise;
         enabledFeatures.imageCubeArray = supportedFeatures.features.imageCubeArray;
+        enabledFeatures.geometryShader = supportedFeatures.features.geometryShader;
+        enabledFeatures.tessellationShader = supportedFeatures.features.tessellationShader;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

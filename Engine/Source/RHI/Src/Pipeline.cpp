@@ -65,13 +65,15 @@ namespace RHI {
         const IndexFormat inStripIndexFormat,
         const FrontFace inFrontFace,
         const CullMode inCullMode,
-        const bool inDepthClip)
+        const bool inDepthClip,
+        const uint32_t inPatchControlPoints)
         : topologyType(inTopologyType)
         , fillMode(inFillMode)
         , stripIndexFormat(inStripIndexFormat)
         , frontFace(inFrontFace)
         , cullMode(inCullMode)
         , depthClip(inDepthClip)
+        , patchControlPoints(inPatchControlPoints)
     {
     }
 
@@ -108,6 +110,12 @@ namespace RHI {
     PrimitiveState& PrimitiveState::SetDepthClip(const bool inDepthClip)
     {
         depthClip = inDepthClip;
+        return *this;
+    }
+
+    PrimitiveState& PrimitiveState::SetPatchControlPoints(const uint32_t inPatchControlPoints)
+    {
+        patchControlPoints = inPatchControlPoints;
         return *this;
     }
 
@@ -433,7 +441,22 @@ namespace RHI {
 
     ComputePipeline::~ComputePipeline() = default;
 
-    RasterPipeline::RasterPipeline(const RasterPipelineCreateInfo&) {}
+    RasterPipeline::RasterPipeline(const RasterPipelineCreateInfo& createInfo)
+        : primitiveState(createInfo.primitiveState)
+    {
+        const bool hasHullShader = createInfo.hullShader != nullptr;
+        const bool hasDomainShader = createInfo.domainShader != nullptr;
+        const bool hasTessellationShaders = hasHullShader && hasDomainShader;
+        AssertWithReason(hasHullShader == hasDomainShader, "hull and domain shaders must be provided together");
+        AssertWithReason(hasTessellationShaders == (primitiveState.topologyType == PrimitiveTopologyType::patch), "patch topology requires hull and domain shaders");
+        AssertWithReason(!hasTessellationShaders || (primitiveState.patchControlPoints >= 1 && primitiveState.patchControlPoints <= 32), "tessellation patch control point count must be between 1 and 32");
+        AssertWithReason(hasTessellationShaders || primitiveState.patchControlPoints == 0, "patch control points require hull and domain shaders");
+    }
+
+    const PrimitiveState& RasterPipeline::GetPrimitiveState() const
+    {
+        return primitiveState;
+    }
 
     RasterPipeline::~RasterPipeline() = default;
 }

@@ -283,6 +283,7 @@ namespace RHI {
         point,
         line,
         triangle,
+        patch,
         max
     };
 
@@ -296,6 +297,7 @@ namespace RHI {
         lineStripAdj,
         triangleListAdj,
         triangleStripAdj,
+        patchList,
         max
     };
 
