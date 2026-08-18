@@ -84,3 +84,41 @@ add_sample(
     MODEL
         Rendering-SSAO/Model/Voyager.gltf
 )
+
+if (BUILD_TEST AND BUILD_SAMPLE)
+    exp_add_executable(
+        NAME RenderingSample.Test
+        FOLDER Test
+        SRC Test/RenderingSampleTest.cpp
+        LIB cimg::cimg stb::stb
+        DEP_TARGET RenderingSample-Triangle RenderingSample-BaseTexture RenderingSample-SSAO
+        PRIVATE_COMPILE_DEF cimg_display=0 CI=$<BOOL:${CI}>
+        NOT_INSTALL
+    )
+
+    function(exp_add_rendering_sample_test)
+        set(options "")
+        set(singleValueArgs SAMPLE BASELINE RHI)
+        set(multiValueArgs "")
+        cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
+
+        set(test_name "${arg_SAMPLE}.${arg_RHI}.Test")
+        add_test(
+            NAME ${test_name}
+            COMMAND RenderingSample.Test
+                --sample $<TARGET_FILE:${arg_SAMPLE}>
+                --rhi ${arg_RHI}
+                --baseline ${CMAKE_CURRENT_SOURCE_DIR}/Test/Baseline/${arg_BASELINE}.png
+                --output ${CMAKE_BINARY_DIR}/Test/Generated/RenderingSample/${arg_BASELINE}-${arg_RHI}.png
+        )
+        set_tests_properties(${test_name} PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:RenderingSample.Test>)
+    endfunction()
+
+    set(rendering_sample_names RenderingSample-Triangle RenderingSample-BaseTexture RenderingSample-SSAO)
+    foreach(sample ${rendering_sample_names})
+        exp_add_rendering_sample_test(SAMPLE ${sample} BASELINE ${sample} RHI vulkan)
+        if (WIN32)
+            exp_add_rendering_sample_test(SAMPLE ${sample} BASELINE ${sample} RHI dx12)
+        endif ()
+    endforeach()
+endif ()

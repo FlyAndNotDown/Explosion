@@ -3,6 +3,7 @@ include(CMakePackageConfigHelpers)
 
 option(BUILD_TEST "Build unit tests" ON)
 option(BUILD_BENCHMARK "Build benchmarks" ON)
+option(CI "Build for continuous integration" OFF)
 
 set(GENERATED_DIR ${CMAKE_BINARY_DIR}/Generated)
 set(GENERATED_API_HEADER_DIR ${GENERATED_DIR}/Api)
