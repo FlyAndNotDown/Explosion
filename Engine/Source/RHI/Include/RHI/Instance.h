@@ -16,6 +16,8 @@ namespace RHI {
     struct InstanceCreateInfo {
         InstanceCreateInfo();
 
+        bool useSoftwareGpu;
+
 #if BUILD_CONFIG_DEBUG
         bool gpuDebug;
 #endif

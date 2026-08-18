@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include <Common/Utility.h>
 #include <RHI/Common.h>
@@ -15,8 +16,13 @@ namespace RHI {
     struct DeviceCreateInfo;
 
     struct GpuProperty {
+        std::string name;
         uint32_t vendorId;
         uint32_t deviceId;
+        uint32_t driverVersion;
+        uint32_t apiVersion;
+        uint64_t dedicatedVideoMemorySize;
+        uint64_t sharedSystemMemorySize;
         GpuType type;
     };
 

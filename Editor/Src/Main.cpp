@@ -19,6 +19,10 @@ static Core::CmdlineArgValue<bool> caGpuDebug(
     "gpuDebug", "-gpuDebug", false,
     "enable GPU validation layers");
 
+static Core::CmdlineArgValue<bool> caSoftwareGpu(
+    "softwareGpu", "-softwareGpu", false,
+    "prefer a software GPU, falling back to hardware when unavailable");
+
 static Editor::EditorApplicationMode GetAppMode()
 {
     return caProjectRoot.GetValue().empty()
@@ -35,6 +39,7 @@ static void InitializeEngine()
     params.gameRoot = caProjectRoot.GetValue();
     params.rhiType = caRhiType.GetValue();
     params.gpuDebug = caGpuDebug.GetValue();
+    params.useSoftwareGpu = caSoftwareGpu.GetValue();
     Runtime::EngineHolder::Load("Editor", params);
 }
 
@@ -47,6 +52,7 @@ int main(int argc, char* argv[])
         .mode = GetAppMode(),
         .rhiType = caRhiType.GetValue(),
         .gpuDebug = caGpuDebug.GetValue(),
+        .softwareGpu = caSoftwareGpu.GetValue(),
         .projectRoot = caProjectRoot.GetValue()
     };
     int result = 0;

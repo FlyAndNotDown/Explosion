@@ -7,8 +7,9 @@
 
 namespace RHI {
     InstanceCreateInfo::InstanceCreateInfo()
+        : useSoftwareGpu(false)
 #if BUILD_CONFIG_DEBUG
-        : gpuDebug(false)
+        , gpuDebug(false)
 #endif
     {
     }
@@ -76,6 +77,7 @@ namespace RHI {
         if (instance == nullptr) {
             instance = module->CreateRHIInstance(inCreateInfo);
         } else {
+            Assert(instance->GetCreateInfo().useSoftwareGpu == inCreateInfo.useSoftwareGpu);
 #if BUILD_CONFIG_DEBUG
             Assert(instance->GetCreateInfo().gpuDebug == inCreateInfo.gpuDebug);
 #endif

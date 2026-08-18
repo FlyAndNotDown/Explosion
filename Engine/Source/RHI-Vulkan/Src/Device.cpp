@@ -36,7 +36,6 @@ namespace RHI::Vulkan {
         "VK_KHR_depth_stencil_resolve",
         "VK_KHR_create_renderpass2",
 #if PLATFORM_MACOS
-        "VK_KHR_portability_subset",
         "VK_EXT_extended_dynamic_state"
 #endif
     };
@@ -386,8 +385,21 @@ namespace RHI::Vulkan {
         extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
         dynamicRenderingFeatures.pNext = &extendedDynamicStateFeatures;
 
-        deviceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
-        deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        std::vector<const char*> enabledExtensions = requiredExtensions;
+#if PLATFORM_MACOS
+        constexpr std::string_view portabilitySubsetExtensionName = "VK_KHR_portability_subset";
+        uint32_t extensionCount = 0;
+        vkEnumerateDeviceExtensionProperties(gpu.GetNative(), nullptr, &extensionCount, nullptr);
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(gpu.GetNative(), nullptr, &extensionCount, extensions.data());
+    if (std::ranges::find_if(extensions, [portabilitySubsetExtensionName](const VkExtensionProperties& inExtension) -> bool {
+                return std::string_view(inExtension.extensionName) == portabilitySubsetExtensionName;
+            }) != extensions.end()) {
+            enabledExtensions.emplace_back(portabilitySubsetExtensionName.data());
+        }
+#endif
+        deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+        deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
 
         Assert(vkCreateDevice(gpu.GetNative(), &deviceCreateInfo, nullptr, &nativeDevice) == VK_SUCCESS);
     }

@@ -509,8 +509,7 @@ private:
 
     void CreateDevice()
     {
-        device = GetRHIInstance()
-                     ->GetGpu(0)
+        device = GetGpu()
                      ->RequestDevice(
                          DeviceCreateInfo()
                              .AddQueueRequest(QueueRequestInfo(QueueType::graphics, 1)));

@@ -34,5 +34,6 @@ class ExplosionConan(ConanFile):
         self.requires("assimp/6.0.2-exp")
         self.requires("clipp/1.2.3-exp")
         self.requires("dxc/1.8.2505.1-exp")
+        self.requires("swiftshader/2026.8.10-exp")
         if self.settings.os == "Macos":
             self.requires("molten-vk/1.4.1-exp")

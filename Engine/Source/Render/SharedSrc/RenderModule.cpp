@@ -40,7 +40,9 @@ namespace Render {
         RenderWorkerThreads::Get().Start();
 
         rhiInstance = RHI::Instance::GetByType(inParams.rhiType, inParams.instanceCreateInfo);
-        rhiDevice = rhiInstance->GetGpu(0)->RequestDevice(
+        AssertWithReason(rhiInstance->GetGpuNum() > 0, "no compatible GPU was found");
+        RHI::Gpu* gpu = rhiInstance->GetGpu(0);
+        rhiDevice = gpu->RequestDevice(
             RHI::DeviceCreateInfo()
                 .AddQueueRequest(RHI::QueueRequestInfo(RHI::QueueType::graphics, 1))
                 .AddQueueRequest(RHI::QueueRequestInfo(RHI::QueueType::compute, 1))

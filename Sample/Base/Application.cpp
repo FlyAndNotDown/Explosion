@@ -26,6 +26,7 @@ Application::Application(std::string n)
     , windowExtent(1024, 768)
     , rhiType(RHI::RHIType::vulkan)
     , instance(nullptr)
+    , gpu(nullptr)
     , headless(false)
     , outputPath()
     , mousePos(FVec2Consts::zero)
@@ -47,6 +48,7 @@ bool Application::Initialize(int argc, char* argv[])
     Core::Cli::Get().Parse(argc, argv);
 
     std::string rhiString;
+    bool softwareGpu = false;
 #if BUILD_CONFIG_DEBUG
     bool gpuDebug = false;
 #endif
@@ -54,6 +56,7 @@ bool Application::Initialize(int argc, char* argv[])
             clipp::option("-w").doc("window width, 1024 by default") & clipp::value("width", windowExtent.x),
             clipp::option("-h").doc("window height, 768 by default") & clipp::value("height", windowExtent.y),
             clipp::option("-headless", "--headless").set(headless).doc("render one frame without creating a window"),
+            clipp::option("-softwareGpu", "--software-gpu").set(softwareGpu).doc("use the software GPU driver"),
             clipp::option("-output", "--output").doc("headless output image path, including extension") & clipp::value("path", outputPath),
 #if BUILD_CONFIG_DEBUG
             clipp::option("-gpuDebug").set(gpuDebug).doc("enable GPU validation layers"),
@@ -76,10 +79,18 @@ bool Application::Initialize(int argc, char* argv[])
 
     rhiType = RHI::GetRHITypeByAbbrString(rhiString);
     RHI::InstanceCreateInfo instanceCreateInfo;
+    instanceCreateInfo.useSoftwareGpu = softwareGpu;
 #if BUILD_CONFIG_DEBUG
     instanceCreateInfo.gpuDebug = gpuDebug;
 #endif
     instance = RHI::Instance::GetByType(rhiType, instanceCreateInfo);
+    if (instance->GetGpuNum() == 0) {
+        std::cerr << "no compatible GPU was found" << std::endl;
+        return false;
+    }
+    gpu = instance->GetGpu(0);
+    const auto gpuProperty = gpu->GetProperty();
+    std::cout << "Selected GPU: " << gpuProperty.name << " (" << (gpuProperty.type == RHI::GpuType::software ? "software" : "hardware") << ")" << std::endl;
 
     return true;
 }
@@ -115,7 +126,7 @@ int Application::RunLoop()
     }
 
     if (headless) {
-        currentTimeSeconds = lastTimeSeconds;
+        currentTimeSeconds = 0.0;
         deltaTimeSeconds = 0.0f;
         OnDrawFrame();
     }
@@ -290,6 +301,11 @@ RHI::RHIType Application::GetRHIType() const
 RHI::Instance* Application::GetRHIInstance() const
 {
     return instance;
+}
+
+RHI::Gpu* Application::GetGpu() const
+{
+    return gpu;
 }
 
 void Application::SetCamera(Camera* inCamera)

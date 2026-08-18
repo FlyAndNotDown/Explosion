@@ -80,8 +80,13 @@ namespace RHI::Vulkan {
 #endif
         , nativeInstance(VK_NULL_HANDLE)
     {
+        if (GetCreateInfo().useSoftwareGpu) {
+            Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", Internal::GetRuntimeManifestPath("vk_swiftshader_icd.json"));
+        }
 #if PLATFORM_MACOS
-        Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", Internal::GetRuntimeManifestPath("MoltenVK_icd.json"));
+        else {
+            Common::PlatformUtils::SetEnvVar("VK_DRIVER_FILES", Internal::GetRuntimeManifestPath("MoltenVK_icd.json"));
+        }
 #endif
 
 #if BUILD_CONFIG_DEBUG

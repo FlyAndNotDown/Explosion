@@ -18,7 +18,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_OTHER,          GpuType::software)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, GpuType::hardware)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,   GpuType::hardware)
-        ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,    GpuType::software)
+        ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,    GpuType::hardware)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_CPU,            GpuType::software)
     ECIMPL_END(GpuType)
 

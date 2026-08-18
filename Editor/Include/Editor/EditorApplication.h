@@ -21,6 +21,7 @@ namespace Editor {
         EditorApplicationMode mode;
         std::string rhiType;
         bool gpuDebug;
+        bool softwareGpu;
         std::string projectRoot;
     };
 

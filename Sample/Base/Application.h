@@ -63,6 +63,7 @@ protected:
     const std::string& GetOutputPath() const;
     RHI::RHIType GetRHIType() const;
     RHI::Instance* GetRHIInstance() const;
+    RHI::Gpu* GetGpu() const;
     Camera& GetCamera() const;
     UniquePtr<SampleRenderTarget> CreateRenderTarget(RHI::Device& device) const;
     ShaderCompileOutput CompileShader(const std::string& fileName, const std::string& entryPoint, RHI::ShaderStageBits shaderStage, std::vector<std::string> includePaths = {}) const;
@@ -73,6 +74,7 @@ private:
     UVec2 windowExtent;
     RHI::RHIType rhiType;
     RHI::Instance* instance;
+    RHI::Gpu* gpu;
     bool headless;
     std::string outputPath;
     UniquePtr<Camera> camera;

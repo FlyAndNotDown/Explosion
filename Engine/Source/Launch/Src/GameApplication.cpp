@@ -17,6 +17,10 @@ namespace Launch {
         "rhiType", "-rhi", RHI::GetPlatformDefaultRHIAbbrString(),
         "rhi abbr string, can be 'dx12' or 'vulkan'");
 
+    static Core::CmdlineArgValue<bool> caSoftwareGpu(
+        "softwareGpu", "-softwareGpu", false,
+        "prefer a software GPU, falling back to hardware when unavailable");
+
     GameApplication::GameApplication(int argc, char* argv[])
         : lastFrameTimeSeconds(Common::TimePoint::Now().ToSeconds())
         , thisFrameTimeSeconds(Common::TimePoint::Now().ToSeconds())
@@ -28,6 +32,7 @@ namespace Launch {
         engineInitParams.logToFile = true;
         engineInitParams.gpuDebug = false;
         engineInitParams.rhiType = caRhiType.GetValue();
+        engineInitParams.useSoftwareGpu = caSoftwareGpu.GetValue();
         Runtime::EngineHolder::Load(gameModuleName, engineInitParams);
 
         engine = &Runtime::EngineHolder::Get();
