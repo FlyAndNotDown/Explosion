@@ -1,5 +1,6 @@
 #include <vector>
 #include <array>
+#include <ctime>
 #include <random>
 #include <GLTFParser.h>
 #include <Application.h>
@@ -496,6 +497,16 @@ private:
     std::vector<RenderMaterial> materials;
 
     // Helper methods
+    uint32_t GetRandomSeed() const
+    {
+        return IsHeadless() ? 0x5a17u : static_cast<uint32_t>(std::time(nullptr));
+    }
+
+    static float GenerateRandomFloat(std::mt19937& randomEngine)
+    {
+        return static_cast<float>(static_cast<double>(randomEngine()) / (static_cast<double>(std::mt19937::max()) + 1.0));
+    }
+
     void CompileAllShaders() const
     {
         ShaderCompileOptions options;
@@ -737,8 +748,7 @@ private:
         }
 
         // SSAO kernel
-        std::default_random_engine rndEngine(static_cast<unsigned>(time(nullptr)));
-        std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+        std::mt19937 randomEngine(GetRandomSeed());
         std::vector<FVec4> ssaoKernel(ssaoKernelSize);
 
         auto lerp = [](float a, float b, float f) ->float {
@@ -746,9 +756,9 @@ private:
         };
 
         for (uint32_t i = 0; i < ssaoKernelSize; ++i) {
-            FVec3 sample(rndDist(rndEngine) * 2.0 - 1.0, rndDist(rndEngine) * 2.0 - 1.0, rndDist(rndEngine));
+            FVec3 sample(GenerateRandomFloat(randomEngine) * 2.0 - 1.0, GenerateRandomFloat(randomEngine) * 2.0 - 1.0, GenerateRandomFloat(randomEngine));
             sample.Normalize();
-            sample *= rndDist(rndEngine);
+            sample *= GenerateRandomFloat(randomEngine);
             float scale = static_cast<float>(i) / static_cast<float>(ssaoKernelSize);
             scale = lerp(0.1f, 1.0f, scale * scale);
             sample = sample * scale;
@@ -771,12 +781,11 @@ private:
 
     void GenerateNoiseTexture()
     {
-        std::default_random_engine rndEngine(static_cast<unsigned>(time(nullptr)));
-        std::uniform_real_distribution<float> rndDist(0.0f, 1.0f);
+        std::mt19937 randomEngine(GetRandomSeed());
 
         std::vector<FVec4> ssaoNoise(ssaoNoiseDim * ssaoNoiseDim);
         for (auto& randomVec : ssaoNoise) {
-            randomVec = FVec4(rndDist(rndEngine) * 2.0f - 1.0f, rndDist(rndEngine) * 2.0f - 1.0f, 0.0f, 0.0f);
+            randomVec = FVec4(GenerateRandomFloat(randomEngine) * 2.0f - 1.0f, GenerateRandomFloat(randomEngine) * 2.0f - 1.0f, 0.0f, 0.0f);
         }
 
         noiseTex = device->CreateTexture(

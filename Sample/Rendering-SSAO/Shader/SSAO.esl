@@ -65,9 +65,9 @@ float PSMain(VSOutput input) : SV_TARGET
 		float4 offset = float4(sampleposition, 1.0f);
 		offset = mul(projection, offset);
 		offset.xyz /= offset.w;
-		offset.xyz = offset.xyz * 0.5f + 0.2f;
+		offset.xy = offset.xy * float2(0.5f, -0.5f) + 0.5f;
 
-		float sampleDepth = -posDepthTex.Sample(texSampler, offset.xy).w;
+		float sampleDepth = posDepthTex.Sample(texSampler, offset.xy).z;
 
 		float rangeCheck = smoothstep(0.0f, 1.0f, 0.5 / abs(fragposition.z - sampleDepth));
 		occlusion += (sampleDepth >= sampleposition.z ? 1.0f : 0.0f) * rangeCheck;

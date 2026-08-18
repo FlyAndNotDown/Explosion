@@ -1,10 +1,11 @@
-#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <CImg.h>
+#include <Common/Process.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -40,11 +41,6 @@ namespace Sample::Test {
         return !outParams.samplePath.empty() && !outParams.rhi.empty() && !outParams.baselinePath.empty() && !outParams.outputDirectory.empty();
     }
 
-    static std::string Quote(const std::string& value)
-    {
-        return '"' + value + '"';
-    }
-
     static bool RunSample(const Params& params)
     {
         const std::filesystem::path outputDirectory(params.outputDirectory);
@@ -56,12 +52,22 @@ namespace Sample::Test {
         std::filesystem::remove(diffPath);
         std::filesystem::copy_file(params.baselinePath, baselinePath, std::filesystem::copy_options::overwrite_existing);
 
-        std::string command = Quote(params.samplePath) + " -headless -rhi " + params.rhi + " -output " + Quote(actualPath.string());
+        std::vector<std::string> arguments = {"-headless", "-rhi", params.rhi, "-output", actualPath.string()};
 #if CI
-        command += " -softwareGpu";
+        arguments.emplace_back("-softwareGpu");
 #endif
-        std::cout << "Running: " << command << std::endl;
-        return std::system(command.c_str()) == 0;
+        std::cout << "Running: " << params.samplePath;
+        for (const auto& argument : arguments) {
+            std::cout << ' ' << argument;
+        }
+        std::cout << std::endl;
+
+        const auto exitCode = Common::Process::Run(params.samplePath, arguments);
+        if (!exitCode.has_value()) {
+            std::cerr << "Failed to launch rendering sample" << std::endl;
+            return false;
+        }
+        return exitCode.value() == 0;
     }
 
     static cimg_library::CImg<unsigned char> LoadImage(const std::string& path)

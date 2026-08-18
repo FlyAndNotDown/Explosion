@@ -90,7 +90,7 @@ if (BUILD_TEST AND BUILD_SAMPLE)
         NAME RenderingSample.Test
         FOLDER Test
         SRC Test/RenderingSampleTest.cpp
-        LIB cimg::cimg stb::stb
+        LIB Common cimg::cimg stb::stb
         DEP_TARGET RenderingSample-Triangle RenderingSample-BaseTexture RenderingSample-SSAO
         PRIVATE_COMPILE_DEF cimg_display=0 CI=$<BOOL:${CI}>
         NOT_INSTALL
