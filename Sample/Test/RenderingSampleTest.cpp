@@ -14,7 +14,7 @@ namespace Sample::Test {
         std::string samplePath;
         std::string rhi;
         std::string baselinePath;
-        std::string outputPath;
+        std::string outputDirectory;
     };
 
     static bool ParseParams(const int argc, char* argv[], Params& outParams)
@@ -31,13 +31,13 @@ namespace Sample::Test {
                 outParams.rhi = value;
             } else if (argument == "--baseline") {
                 outParams.baselinePath = value;
-            } else if (argument == "--output") {
-                outParams.outputPath = value;
+            } else if (argument == "--output-dir") {
+                outParams.outputDirectory = value;
             } else {
                 return false;
             }
         }
-        return !outParams.samplePath.empty() && !outParams.rhi.empty() && !outParams.baselinePath.empty() && !outParams.outputPath.empty();
+        return !outParams.samplePath.empty() && !outParams.rhi.empty() && !outParams.baselinePath.empty() && !outParams.outputDirectory.empty();
     }
 
     static std::string Quote(const std::string& value)
@@ -47,10 +47,16 @@ namespace Sample::Test {
 
     static bool RunSample(const Params& params)
     {
-        const std::filesystem::path outputPath(params.outputPath);
-        std::filesystem::create_directories(outputPath.parent_path());
+        const std::filesystem::path outputDirectory(params.outputDirectory);
+        const auto baselinePath = outputDirectory / "baseline.png";
+        const auto actualPath = outputDirectory / "actual.png";
+        const auto diffPath = outputDirectory / "diff.bmp";
+        std::filesystem::create_directories(outputDirectory);
+        std::filesystem::remove(actualPath);
+        std::filesystem::remove(diffPath);
+        std::filesystem::copy_file(params.baselinePath, baselinePath, std::filesystem::copy_options::overwrite_existing);
 
-        std::string command = Quote(params.samplePath) + " -headless -rhi " + params.rhi + " -output " + Quote(params.outputPath);
+        std::string command = Quote(params.samplePath) + " -headless -rhi " + params.rhi + " -output " + Quote(actualPath.string());
 #if CI
         command += " -softwareGpu";
 #endif
@@ -80,8 +86,9 @@ namespace Sample::Test {
     static bool CompareImages(const Params& params)
     {
         using Image = cimg_library::CImg<unsigned char>;
-        const Image baseline = LoadImage(params.baselinePath);
-        const Image output = LoadImage(params.outputPath);
+        const auto outputDirectory = std::filesystem::path(params.outputDirectory);
+        const Image baseline = LoadImage((outputDirectory / "baseline.png").string());
+        const Image output = LoadImage((outputDirectory / "actual.png").string());
         if (!baseline.is_sameXYZC(output)) {
             std::cerr << "Image dimensions differ: baseline=" << baseline.width() << 'x' << baseline.height() << 'x' << baseline.spectrum()
                       << ", output=" << output.width() << 'x' << output.height() << 'x' << output.spectrum() << std::endl;
@@ -96,7 +103,7 @@ namespace Sample::Test {
             return true;
         }
 
-        const auto diffPath = std::filesystem::path(params.outputPath).replace_extension(".diff.bmp");
+        const auto diffPath = outputDirectory / "diff.bmp";
         cimg_library::CImg<float> diff(baseline);
         diff -= output;
         diff.abs().normalize(0, 255).save_bmp(diffPath.string().c_str());
@@ -110,7 +117,7 @@ int main(const int argc, char* argv[])
     try {
         Sample::Test::Params params;
         if (!Sample::Test::ParseParams(argc, argv, params)) {
-            std::cerr << "Usage: RenderingSample.Test --sample <path> --rhi <name> --baseline <path> --output <path>" << std::endl;
+            std::cerr << "Usage: RenderingSample.Test --sample <path> --rhi <name> --baseline <path> --output-dir <path>" << std::endl;
             return 1;
         }
         if (!Sample::Test::RunSample(params)) {

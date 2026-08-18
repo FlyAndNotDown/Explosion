@@ -95,6 +95,15 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: ctest -C ${{env.BUILD_TYPE}} --extra-verbose
 
+      - name: Upload Rendering Test Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-test-${{runner.os}}-${{runner.arch}}
+          path: ${{github.workspace}}/build/Test/Generated/RenderingSample
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Install
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target install -j ${{env.MAKE_THREAD_NUM}}
 

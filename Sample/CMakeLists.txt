@@ -108,8 +108,8 @@ if (BUILD_TEST AND BUILD_SAMPLE)
             COMMAND RenderingSample.Test
                 --sample $<TARGET_FILE:${arg_SAMPLE}>
                 --rhi ${arg_RHI}
-                --baseline ${CMAKE_CURRENT_SOURCE_DIR}/Test/Baseline/${arg_BASELINE}.png
-                --output ${CMAKE_BINARY_DIR}/Test/Generated/RenderingSample/${arg_BASELINE}-${arg_RHI}.png
+                --baseline ${CMAKE_CURRENT_SOURCE_DIR}/Test/Baseline/${arg_BASELINE}/baseline.png
+                --output-dir ${CMAKE_BINARY_DIR}/Test/Generated/RenderingSample/${arg_SAMPLE}/${arg_RHI}
         )
         set_tests_properties(${test_name} PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:RenderingSample.Test>)
     endfunction()
