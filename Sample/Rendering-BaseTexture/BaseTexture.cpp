@@ -302,7 +302,10 @@ void BaseTexApp::CreateTextureAndSampler()
     }
     stbi_image_free(imgData);
 
-    sampler = device->CreateSampler(SamplerCreateInfo());
+    sampler = device->CreateSampler(
+        SamplerCreateInfo()
+            .SetMagFilter(FilterMode::linear)
+            .SetMinFilter(FilterMode::linear));
 
     // perform buffer->texture copy
     auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
