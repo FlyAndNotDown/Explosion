@@ -14,7 +14,7 @@
 namespace Runtime {
     class World;
 
-    struct EngineInitParams {
+    struct RUNTIME_API EngineInitParams {
         EngineInitParams();
 
         bool logToFile;
