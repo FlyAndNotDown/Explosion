@@ -63,10 +63,8 @@ namespace Common {
 
     private:
         bool stop;
-        bool flush;
         std::mutex mutex;
         std::condition_variable taskCondition;
-        std::condition_variable flushCondition;
         NamedThread thread;
         std::queue<std::function<void()>> tasks;
     };

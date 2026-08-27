@@ -71,36 +71,25 @@ namespace Common {
 
     WorkerThread::WorkerThread(const std::string& name)
         : stop(false)
-        , flush(false)
     {
         thread = NamedThread(name, [this]() -> void {
             while (true) {
-                bool needNotifyMainThread = false;
                 std::vector<std::function<void()>> tasksToExecute;
                 {
                     std::unique_lock lock(mutex);
-                    taskCondition.wait(lock, [this]() -> bool { return stop || flush || !tasks.empty(); });
+                    taskCondition.wait(lock, [this]() -> bool { return stop || !tasks.empty(); });
                     if (stop && tasks.empty()) {
                         return;
                     }
-                    if (flush) {
-                        tasksToExecute.reserve(tasks.size());
-                        while (!tasks.empty()) {
-                            tasksToExecute.emplace_back(std::move(tasks.front()));
-                            tasks.pop();
-                        }
-                        flush = false;
-                        needNotifyMainThread = true;
-                    } else {
+
+                    tasksToExecute.reserve(tasks.size());
+                    while (!tasks.empty()) {
                         tasksToExecute.emplace_back(std::move(tasks.front()));
                         tasks.pop();
                     }
                 }
                 for (auto& task : tasksToExecute) {
                     task();
-                }
-                if (needNotifyMainThread) {
-                    flushCondition.notify_one();
                 }
             }
         });
@@ -118,14 +107,7 @@ namespace Common {
 
     void WorkerThread::Flush()
     {
-        {
-            std::unique_lock lock(mutex);
-            flush = true;
-        }
-        taskCondition.notify_one();
-        {
-            std::unique_lock lock(mutex);
-            flushCondition.wait(lock);
-        }
+        auto completion = EmplaceTask([]() -> void {});
+        completion.wait();
     }
 }
