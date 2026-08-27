@@ -453,6 +453,27 @@ function(exp_get_runtime_output_dir)
     endif ()
 endfunction()
 
+function(exp_set_runtime_rpath)
+    set(options "")
+    set(singleValueArgs NAME)
+    set(multiValueArgs "")
+    cmake_parse_arguments(arg "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if (APPLE)
+        set(runtime_origin "@executable_path")
+    elseif (UNIX)
+        set(runtime_origin "$ORIGIN")
+    else ()
+        return()
+    endif ()
+
+    set_target_properties(
+        ${arg_NAME} PROPERTIES
+        BUILD_RPATH "${runtime_origin}"
+        INSTALL_RPATH "${runtime_origin}"
+    )
+endfunction()
+
 function(exp_add_executable)
     set(options NOT_INSTALL)
     set(singleValueArgs NAME FOLDER)
@@ -492,13 +513,7 @@ function(exp_add_executable)
         ${arg_NAME} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${runtime_output_dir}
     )
-    if (APPLE)
-        set_target_properties(
-            ${arg_NAME} PROPERTIES
-            BUILD_RPATH "@executable_path"
-            INSTALL_RPATH "@executable_path"
-        )
-    endif ()
+    exp_set_runtime_rpath(NAME ${arg_NAME})
 
     target_include_directories(
         ${arg_NAME}
@@ -619,6 +634,8 @@ function(exp_add_library)
     )
 
     if ("${arg_TYPE}" STREQUAL "SHARED")
+        exp_set_runtime_rpath(NAME ${arg_NAME})
+
         exp_get_runtime_output_dir(OUTPUT dist_dir)
         add_custom_command(
             TARGET ${arg_NAME} POST_BUILD
