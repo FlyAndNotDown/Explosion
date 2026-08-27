@@ -125,6 +125,7 @@ Thanks all those following projects:
 * [Conan](https://github.com/conan-io/conan)
 * [DirectX-Headers](https://github.com/microsoft/DirectX-Headers)
 * [Vulkan](https://www.vulkan.org/)
+* [SwiftShader](https://github.com/google/swiftshader)
 * [DirectXShaderCompiler](https://github.com/microsoft/DirectXShaderCompiler)
 * [GLFW](https://www.glfw.org/)
 * [Dear ImGui](https://github.com/ocornut/imgui)
