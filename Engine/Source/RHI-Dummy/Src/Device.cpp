@@ -2,6 +2,8 @@
 // Created by johnk on 2023/3/21.
 //
 
+#include <algorithm>
+
 #include <RHI/Dummy/Device.h>
 #include <RHI/Dummy/Queue.h>
 #include <RHI/Dummy/SwapChain.h>
@@ -132,8 +134,29 @@ namespace RHI::Dummy {
         return true;
     }
 
-    TextureSubResourceCopyFootprint DummyDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
+    TextureSubResourceCopyFootprint DummyDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion)
     {
-        return {};
+        const auto& createInfo = texture.GetCreateInfo();
+        const auto mipLevel = subResourceInfo.mipLevel;
+        const auto baseDepth = createInfo.type == TextureType::t3D ? createInfo.depthOrArraySize : 1;
+        const Common::UVec3 subResourceExtent = {
+            std::max(createInfo.width >> mipLevel, 1u),
+            std::max(createInfo.height >> mipLevel, 1u),
+            std::max(baseDepth >> mipLevel, 1u)
+        };
+        const auto extent = copyRegion == Common::UVec3Consts::zero ? subResourceExtent : copyRegion;
+        Assert(extent.x <= subResourceExtent.x && extent.y <= subResourceExtent.y && extent.z <= subResourceExtent.z);
+
+        TextureSubResourceCopyFootprint result {};
+        result.extent = extent;
+        const auto aspects = GetTextureAspectComponents(subResourceInfo.aspect);
+        result.bytesPerPixel = 0;
+        for (const auto aspect : aspects) {
+            result.bytesPerPixel = std::max(result.bytesPerPixel, GetTextureAspectBytesPerPixel(createInfo.format, aspect));
+        }
+        result.rowPitch = result.bytesPerPixel * result.extent.x;
+        result.slicePitch = result.rowPitch * result.extent.y;
+        result.totalBytes = result.slicePitch * result.extent.z * aspects.size();
+        return result;
     }
 }

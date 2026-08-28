@@ -33,6 +33,11 @@ namespace Editor::Internal {
             : qualifiedName.substr(namespaceSeparator + 2);
     }
 
+    static bool IsComponentVisibleInDetails(const Mirror::Class& inClass)
+    {
+        return !inClass.HasMeta(Runtime::MetaPresets::editorHide);
+    }
+
     static std::string EntityDisplayName(const Runtime::ECRegistry& inRegistry, Runtime::Entity inEntity)
     {
         const auto* name = inRegistry.Find<Runtime::Name>(inEntity);
@@ -69,7 +74,9 @@ namespace Editor {
             .log = true
         }
     {
-        std::erase_if(componentClasses, [](Runtime::CompClass clazz) -> bool { return !clazz->HasMeta("comp"); });
+        std::erase_if(componentClasses, [](Runtime::CompClass clazz) -> bool {
+            return !clazz->HasMeta("comp") || !Internal::IsComponentVisibleInDetails(*clazz);
+        });
         std::ranges::sort(componentClasses, [](Runtime::CompClass lhs, Runtime::CompClass rhs) -> bool {
             return lhs->GetName() < rhs->GetName();
         });
@@ -253,6 +260,9 @@ namespace Editor {
 
         Runtime::CompClass componentToRemove = nullptr;
         inRegistry.CompEach(selectedEntity, [&](Runtime::CompClass compClass) -> void {
+            if (!Internal::IsComponentVisibleInDetails(*compClass)) {
+                return;
+            }
             ImGui::PushID(compClass->GetName().c_str());
             const std::string componentName = Internal::ComponentDisplayName(*compClass);
             const std::string componentLabel = Widgets::Label(Icons::Tabler::boxMultiple, componentName);
@@ -277,6 +287,9 @@ namespace Editor {
             ImGui::PopID();
         });
         inRegistry.TagEach(selectedEntity, [&](Runtime::TagClass tagClass) -> void {
+            if (!Internal::IsComponentVisibleInDetails(*tagClass)) {
+                return;
+            }
             ImGui::PushID(tagClass->GetName().c_str());
             const std::string tagName = Internal::ComponentDisplayName(*tagClass);
             const std::string tagLabel = Widgets::Label(Icons::Tabler::box, tagName);

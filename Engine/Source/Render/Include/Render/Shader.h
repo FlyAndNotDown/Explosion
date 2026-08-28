@@ -306,7 +306,7 @@ namespace Render {
 
     struct ShaderVariantArtifact {
         std::string entryPoint;
-        std::vector<uint8_t> byteCode;
+        RHI::ShaderByteCodeRef byteCode;
         ShaderReflectionData reflectionData;
     };
 

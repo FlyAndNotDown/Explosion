@@ -56,6 +56,36 @@ namespace Runtime::Internal {
     {
         return inMipLevel * inTotalArrayLayer + inArrayLayer; // NOLINT
     }
+
+    static void CopyDepthStencilSubResourceToStaging(const TextureFormat format, const std::vector<uint8_t>& srcPixels, uint8_t* dstData, const RHI::TextureSubResourceCopyFootprint& footprint)
+    {
+        Assert(IsDepthAndStencilFormat(format));
+        const auto srcBytesPerPixel = RHI::GetBytesPerPixel(static_cast<RHI::PixelFormat>(format));
+        const auto srcRowPitch = footprint.extent.x * srcBytesPerPixel;
+        const auto srcSlicePitch = srcRowPitch * footprint.extent.y;
+        const auto planeBytes = footprint.slicePitch * footprint.extent.z;
+        auto* dstStencilPlane = dstData + planeBytes;
+
+        for (auto z = 0u; z < footprint.extent.z; z++) {
+            for (auto y = 0u; y < footprint.extent.y; y++) {
+                const auto* srcRow = srcPixels.data() + srcSlicePitch * z + srcRowPitch * y;
+                auto* dstDepthRow = dstData + footprint.slicePitch * z + footprint.rowPitch * y;
+                auto* dstStencilRow = dstStencilPlane + footprint.slicePitch * z + footprint.rowPitch * y;
+                for (auto x = 0u; x < footprint.extent.x; x++) {
+                    const auto* srcPixel = srcRow + srcBytesPerPixel * x;
+                    auto* dstDepthPixel = dstDepthRow + 4 * x;
+                    if (format == TextureFormat::d24UnormS8Uint) {
+                        memcpy(dstDepthPixel, srcPixel, 3);
+                        dstDepthPixel[3] = 0;
+                        dstStencilRow[x] = srcPixel[3];
+                    } else {
+                        memcpy(dstDepthPixel, srcPixel, 4);
+                        dstStencilRow[x] = srcPixel[4];
+                    }
+                }
+            }
+        }
+    }
 }
 
 namespace Runtime {
@@ -282,6 +312,11 @@ namespace Runtime {
                     const auto& dstCopyFootprint = copyFootprints[subResourceIndex];
                     const auto dstSubResourceOffset = copyOffsets[subResourceIndex];
 
+                    if (Internal::IsDepthAndStencilFormat(format)) {
+                        Internal::CopyDepthStencilSubResourceToStaging(format, srcPixels, dstData + dstSubResourceOffset, dstCopyFootprint);
+                        continue;
+                    }
+
                     const auto srcRowPitch = dstCopyFootprint.extent.x * bytesPerPixel;
                     const auto srcSlicePitch = srcRowPitch * dstCopyFootprint.extent.y;
                     for (auto z = 0u; z < dstCopyFootprint.extent.z; z++) {
@@ -308,6 +343,8 @@ namespace Runtime {
                                 texturePtr,
                                 RHI::BufferTextureCopyInfo()
                                     .SetBufferOffset(copyOffsets[subResourceIndex])
+                                    .SetBufferRowPitch(copyFootprints[subResourceIndex].rowPitch)
+                                    .SetBufferSlicePitch(copyFootprints[subResourceIndex].slicePitch)
                                     .SetTextureSubResource(RHI::TextureSubResourceInfo(m, a, aspect))
                                     .SetTextureOrigin({ 0, 0, 0 })
                                     .SetCopyRegion(copyFootprints[subResourceIndex].extent));

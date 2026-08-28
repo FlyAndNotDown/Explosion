@@ -9,6 +9,7 @@
 
 namespace Runtime {
     struct RUNTIME_API MetaPresets {
+        static constexpr const auto* editorHide = "editorHide";
         static constexpr const auto* globalComp = "globalComp";
         static constexpr const auto* gameReadOnly = "gameReadOnly";
         static constexpr const auto* tag = "tag";

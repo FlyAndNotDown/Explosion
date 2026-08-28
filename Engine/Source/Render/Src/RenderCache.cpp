@@ -43,6 +43,19 @@ namespace Render::Internal {
         });
     }
 
+    static uint64_t HashRhiState(const RHI::PrimitiveState& state)
+    {
+        return CombineHashes({
+            static_cast<uint64_t>(state.topologyType),
+            static_cast<uint64_t>(state.fillMode),
+            static_cast<uint64_t>(state.stripIndexFormat),
+            static_cast<uint64_t>(state.frontFace),
+            static_cast<uint64_t>(state.cullMode),
+            static_cast<uint64_t>(state.depthClip),
+            static_cast<uint64_t>(state.patchControlPoints)
+        });
+    }
+
     static uint64_t HashRhiState(const RHI::DepthStencilState& state)
     {
         return CombineHashes({

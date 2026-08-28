@@ -33,8 +33,4 @@ namespace RHI::Dummy {
         return dummyGpu.Get();
     }
 
-    void DummyInstance::Destroy()
-    {
-        delete this;
-    }
 }

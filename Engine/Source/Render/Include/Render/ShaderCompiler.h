@@ -35,7 +35,7 @@ namespace Render {
     struct ShaderCompileOutput {
         bool success;
         std::string entryPoint;
-        std::vector<uint8_t> byteCode;
+        RHI::ShaderByteCodeRef byteCode;
         ShaderReflectionData reflectionData;
         std::string errorInfo;
     };

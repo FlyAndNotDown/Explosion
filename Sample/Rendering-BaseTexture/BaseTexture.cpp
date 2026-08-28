@@ -3,6 +3,7 @@
 //
 
 #include <Application.h>
+#include <RenderTarget.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <RHI/RHI.h>
@@ -60,42 +61,27 @@ public:
     void OnDestroy() override;
 
 private:
-    static constexpr size_t backBufferCount = 2;
-
     void CreateDevice();
-    void CreateSurface();
     void CompileAllShaders() const;
     void FetchShaderInstances();
-    void CreateSwapChain();
     void CreateVertexAndIndexBuffer();
     void CreateTextureAndSampler();
-    void CreateSyncObjects();
 
-    PixelFormat swapChainFormat;
     ShaderInstance vs;
     ShaderInstance ps;
     UniquePtr<Device> device;
-    UniquePtr<Surface> surface;
-    UniquePtr<SwapChain> swapChain;
+    UniquePtr<SampleRenderTarget> renderTarget;
     UniquePtr<RHI::Sampler> sampler;
     UniquePtr<Buffer> vertexBuffer;
     UniquePtr<Buffer> indexBuffer;
     UniquePtr<Buffer> uniformBuffer;
     UniquePtr<Texture> texture;
     UniquePtr<Buffer> imageBuffer;
-    std::array<Texture*, backBufferCount> swapChainTextures;
-    std::array<TextureState, backBufferCount> swapChainTextureStates;
     UniquePtr<RasterPipeline> pipeline;
-    UniquePtr<Semaphore> imageReadySemaphore;
-    std::array<UniquePtr<Semaphore>, backBufferCount> renderFinishedSemaphores;
-    UniquePtr<Fence> frameFence;
 };
 
 BaseTexApp::BaseTexApp(const std::string& inName)
     : Application(inName)
-    , swapChainFormat(PixelFormat::max)
-    , swapChainTextures()
-    , swapChainTextureStates()
 {
 }
 
@@ -108,22 +94,20 @@ void BaseTexApp::OnCreate()
     RenderWorkerThreads::Get().Start();
 
     CreateDevice();
-    CreateSurface();
+    renderTarget = CreateRenderTarget(*device);
 
     RenderThread::Get().EmplaceTask([this]() -> void {
         FetchShaderInstances();
-        CreateSwapChain();
+        renderTarget->Initialize();
         CreateVertexAndIndexBuffer();
         CreateTextureAndSampler();
-        CreateSyncObjects();
     });
 }
 
 void BaseTexApp::OnDrawFrame()
 {
     RenderThread::Get().EmplaceTask([this]() -> void {
-        frameFence->Reset();
-        const auto backTextureIndex = swapChain->AcquireBackTexture(imageReadySemaphore.Get());
+        const auto frame = renderTarget->Acquire();
 
         auto* pso = Render::PipelineCache::Get(*device).GetOrCreate(
             RasterPipelineStateDesc()
@@ -137,11 +121,11 @@ void BaseTexApp::OnDrawFrame()
                                 .AddAttribute(RVertexAttribute(RVertexBinding("TEXCOORD", 0), VertexFormat::float32X2, offsetof(Vertex, uv)))))
                 .SetFragmentState(
                     RFragmentState()
-                        .AddColorTarget(ColorTargetState(swapChainFormat, ColorWriteBits::all, false)))
+                        .AddColorTarget(ColorTargetState(renderTarget->GetFormat(), ColorWriteBits::all, false)))
                 .SetPrimitiveState(PrimitiveState(PrimitiveTopologyType::triangle, FillMode::solid, IndexFormat::uint16, FrontFace::ccw, CullMode::none)));
 
         RGBuilder builder(*device);
-        auto* backTexture = builder.ImportTexture(swapChainTextures[backTextureIndex], swapChainTextureStates[backTextureIndex]);
+        auto* backTexture = builder.ImportTexture(frame.texture, frame.initialState);
         auto* backTextureView = builder.CreateTextureView(backTexture, RGTextureViewDesc(TextureViewType::colorAttachment, TextureViewDimension::tv2D));
         auto* vBuffer = builder.ImportBuffer(vertexBuffer.Get(), BufferState::shaderReadOnly);
         auto* vBufferView = builder.CreateBufferView(vBuffer, RGBufferViewDesc(BufferViewType::vertex, vBuffer->GetDesc().size, 0, VertexBufferViewInfo(sizeof(Vertex))));
@@ -181,18 +165,12 @@ void BaseTexApp::OnDrawFrame()
                 recorder.DrawIndexed(6, 1, 0, 0, 0);
             },
             {},
-            [backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
-                recorder.ResourceBarrier(Barrier::Transition(rg.GetRHI(backTexture), TextureState::renderTarget, TextureState::present));
+            [this, backTexture](const RGBuilder& rg, CommandRecorder& recorder) -> void {
+                renderTarget->FinishRenderPass(rg, recorder, backTexture);
             });
 
-        RGExecuteInfo executeInfo;
-        executeInfo.semaphoresToWait = { imageReadySemaphore.Get() };
-        executeInfo.semaphoresToSignal = { renderFinishedSemaphores[backTextureIndex].Get() };
-        executeInfo.inFenceToSignal = frameFence.Get();
-        builder.Execute(executeInfo);
-        swapChain->Present(renderFinishedSemaphores[backTextureIndex].Get());
-        swapChainTextureStates[backTextureIndex] = TextureState::present;
-        frameFence->Wait();
+        renderTarget->PrepareForSubmit(builder, backTexture);
+        renderTarget->Execute(builder, frame);
 
         Core::ThreadContext::IncFrameNumber();
         BufferPool::Get(*device).Forfeit();
@@ -212,6 +190,7 @@ void BaseTexApp::OnDestroy()
         device->GetQueue(QueueType::graphics, 0)->Flush(fence.Get());
         fence->Wait();
 
+        renderTarget = nullptr;
         DestroyDeviceResources(*device);
     });
     RenderThread::Get().Flush();
@@ -222,16 +201,10 @@ void BaseTexApp::OnDestroy()
 
 void BaseTexApp::CreateDevice()
 {
-    device = GetRHIInstance()
-                 ->GetGpu(0)
+    device = GetGpu()
                  ->RequestDevice(
                      DeviceCreateInfo()
                          .AddQueueRequest(QueueRequestInfo(QueueType::graphics, 1)));
-}
-
-void BaseTexApp::CreateSurface()
-{
-    surface = device->CreateSurface(SurfaceCreateInfo(GetPlatformWindow()));
 }
 
 void BaseTexApp::CompileAllShaders() const
@@ -250,37 +223,6 @@ void BaseTexApp::FetchShaderInstances()
     ShaderArtifactRegistry::Get().PerformThreadCopy();
     vs = ShaderMap::Get(*device).GetShaderInstance(BaseTexVS::Get(), {});
     ps = ShaderMap::Get(*device).GetShaderInstance(BaseTexPS::Get(), {});
-}
-
-void BaseTexApp::CreateSwapChain()
-{
-    static std::vector swapChainFormatQualifiers = {
-        PixelFormat::rgba8Unorm,
-        PixelFormat::bgra8Unorm
-    };
-
-    for (const auto format : swapChainFormatQualifiers) {
-        if (device->CheckSwapChainFormatSupport(surface.Get(), format, ColorSpace::srgbNonLinear)) {
-            swapChainFormat = format;
-            break;
-        }
-    }
-    Assert(swapChainFormat != PixelFormat::max);
-
-    swapChain = device->CreateSwapChain(
-        SwapChainCreateInfo()
-            .SetFormat(swapChainFormat)
-            .SetPresentMode(PresentMode::immediately)
-            .SetTextureNum(backBufferCount)
-            .SetWidth(GetWindowWidth())
-            .SetHeight(GetWindowHeight())
-            .SetSurface(surface.Get())
-            .SetPresentQueue(device->GetQueue(QueueType::graphics, 0)));
-
-    for (auto i = 0; i < backBufferCount; i++) {
-        swapChainTextures[i] = swapChain->GetTexture(i);
-        swapChainTextureStates[i] = swapChainTextures[i]->GetCreateInfo().initialState;
-    }
 }
 
 void BaseTexApp::CreateVertexAndIndexBuffer()
@@ -360,7 +302,10 @@ void BaseTexApp::CreateTextureAndSampler()
     }
     stbi_image_free(imgData);
 
-    sampler = device->CreateSampler(SamplerCreateInfo());
+    sampler = device->CreateSampler(
+        SamplerCreateInfo()
+            .SetMagFilter(FilterMode::linear)
+            .SetMinFilter(FilterMode::linear));
 
     // perform buffer->texture copy
     auto copyCmdBuffer = device->CreateCommandBuffer(QueueType::graphics);
@@ -372,7 +317,13 @@ void BaseTexApp::CreateTextureAndSampler()
             copyRecorder->CopyBufferToTexture(
                 imageBuffer.Get(),
                 texture.Get(),
-                BufferTextureCopyInfo(0, TextureSubResourceInfo(), UVec3Consts::zero, UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1)));
+                BufferTextureCopyInfo(
+                    0,
+                    TextureSubResourceInfo(),
+                    UVec3Consts::zero,
+                    UVec3(static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1),
+                    copyFootprint.rowPitch,
+                    copyFootprint.slicePitch));
             copyRecorder->ResourceBarrier(Barrier::Transition(texture.Get(), TextureState::copyDst, TextureState::shaderReadOnly));
         }
         copyRecorder->EndPass();
@@ -384,15 +335,6 @@ void BaseTexApp::CreateTextureAndSampler()
     submitInfo.signalFence = fence.Get();
     device->GetQueue(QueueType::graphics, 0)->Submit(copyCmdBuffer.Get(), submitInfo);
     fence->Wait();
-}
-
-void BaseTexApp::CreateSyncObjects()
-{
-    imageReadySemaphore = device->CreateSemaphore();
-    for (auto i = 0; i < backBufferCount; i++) {
-        renderFinishedSemaphores[i] = device->CreateSemaphore();
-    }
-    frameFence = device->CreateFence(true);
 }
 
 int main(int argc, char* argv[])

@@ -19,7 +19,6 @@ namespace RHI::Dummy {
         RHIType GetRHIType() override;
         uint32_t GetGpuNum() override;
         Gpu* GetGpu(uint32_t index) override;
-        void Destroy() override;
 
     private:
         Common::UniquePtr<DummyGpu> dummyGpu;

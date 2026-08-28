@@ -6,6 +6,8 @@
 #include <RHI/DirectX12/Gpu.h>
 #include <RHI/DirectX12/Device.h>
 
+#include <Common/String.h>
+
 namespace RHI::DirectX12 {
     DX12Gpu::DX12Gpu(DX12Instance& inInstance, ComPtr<IDXGIAdapter1>&& inNativeAdapter)
         : instance(inInstance)
@@ -21,8 +23,11 @@ namespace RHI::DirectX12 {
         Assert(SUCCEEDED(nativeAdapter->GetDesc1(&desc)));
 
         GpuProperty property {};
+        property.name = Common::StringUtils::ToByteString(desc.Description);
         property.vendorId = desc.VendorId;
         property.deviceId = desc.DeviceId;
+        property.dedicatedVideoMemorySize = desc.DedicatedVideoMemory;
+        property.sharedSystemMemorySize = desc.SharedSystemMemory;
         property.type = desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE ? GpuType::software : GpuType::hardware;
         return property;
     }
@@ -34,7 +39,9 @@ namespace RHI::DirectX12 {
             | FeatureBits::timestampQuery
             | FeatureBits::multiDrawIndirect
             | FeatureBits::drawIndirectFirstInstance
-            | FeatureBits::textureCubeArray;
+            | FeatureBits::textureCubeArray
+            | FeatureBits::geometryShader
+            | FeatureBits::tessellationShader;
     }
 
     GpuLimits DX12Gpu::GetLimits()

@@ -28,6 +28,18 @@ namespace RHI {
         return Assert(false), 1;
     }
 
+    size_t GetTextureAspectBytesPerPixel(const PixelFormat format, const TextureAspect aspect)
+    {
+        const auto textureAspect = GetTextureAspect(format);
+        if (textureAspect == TextureAspect::depthStencil) {
+            Assert(aspect == TextureAspect::depth || aspect == TextureAspect::stencil);
+            return aspect == TextureAspect::depth ? 4 : 1;
+        }
+
+        Assert(aspect == textureAspect);
+        return GetBytesPerPixel(format);
+    }
+
     TextureAspect GetTextureAspect(const PixelFormat format)
     {
         switch (format) {
@@ -39,6 +51,27 @@ namespace RHI {
                 return TextureAspect::depthStencil;
             default:
                 return TextureAspect::color;
+        }
+    }
+
+    std::span<const TextureAspect> GetTextureAspectComponents(const TextureAspect aspect)
+    {
+        static constexpr TextureAspect color[] = { TextureAspect::color };
+        static constexpr TextureAspect depth[] = { TextureAspect::depth };
+        static constexpr TextureAspect stencil[] = { TextureAspect::stencil };
+        static constexpr TextureAspect depthStencil[] = { TextureAspect::depth, TextureAspect::stencil };
+
+        switch (aspect) {
+            case TextureAspect::color:
+                return color;
+            case TextureAspect::depth:
+                return depth;
+            case TextureAspect::stencil:
+                return stencil;
+            case TextureAspect::depthStencil:
+                return depthStencil;
+            default:
+                return Assert(false), std::span<const TextureAspect>();
         }
     }
 

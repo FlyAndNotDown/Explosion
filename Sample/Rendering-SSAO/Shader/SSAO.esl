@@ -50,11 +50,15 @@ float PSMain(VSOutput input) : SV_TARGET
 	float3 randomVec = ssaoNoiseTex.Sample(ssaoNoiseSampler, noiseuv).xyz * 2.0 - 1.0;
 
 	// Create TBN matrix
-	float3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
+	float3 tangentVector = randomVec - normal * dot(randomVec, normal);
+	float3 tangent = tangentVector * rsqrt(max(dot(tangentVector, tangentVector), 1e-8f));
 	float3 bitangent = cross(tangent, normal);
 	float3x3 TBN = transpose(float3x3(tangent, bitangent, normal));
 
 	// Calculate occlusion value
+	const float projectionEpsilon = 1e-6f;
+	const float depthEpsilon = 1e-6f;
+	const float depthTransition = 1e-3f;
 	float occlusion = 0.0f;
 	for(int i = 0; i < 64; i++)
 	{
@@ -64,13 +68,18 @@ float PSMain(VSOutput input) : SV_TARGET
 		// project
 		float4 offset = float4(sampleposition, 1.0f);
 		offset = mul(projection, offset);
+		if (offset.w <= projectionEpsilon) {
+			continue;
+		}
 		offset.xyz /= offset.w;
-		offset.xyz = offset.xyz * 0.5f + 0.2f;
+		offset.xy = offset.xy * float2(0.5f, -0.5f) + 0.5f;
 
-		float sampleDepth = -posDepthTex.Sample(texSampler, offset.xy).w;
+		float sampleDepth = posDepthTex.Sample(texSampler, offset.xy).z;
 
-		float rangeCheck = smoothstep(0.0f, 1.0f, 0.5 / abs(fragposition.z - sampleDepth));
-		occlusion += (sampleDepth >= sampleposition.z ? 1.0f : 0.0f) * rangeCheck;
+		float depthDelta = sampleDepth - sampleposition.z;
+		float rangeCheck = smoothstep(0.0f, 1.0f, 0.5f / max(abs(fragposition.z - sampleDepth), depthEpsilon));
+		float occlusionWeight = smoothstep(-depthTransition, depthTransition, depthDelta);
+		occlusion += occlusionWeight * rangeCheck;
 	}
 	occlusion = 1.0 - (occlusion / 64.0);
 	return occlusion;

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -283,6 +284,7 @@ namespace RHI {
         point,
         line,
         triangle,
+        patch,
         max
     };
 
@@ -296,6 +298,7 @@ namespace RHI {
         lineStripAdj,
         triangleListAdj,
         triangleStripAdj,
+        patchList,
         max
     };
 
@@ -488,7 +491,9 @@ namespace RHI {
         multiDrawIndirect         = 0x8,
         drawIndirectFirstInstance = 0x10,
         textureCubeArray          = 0x20,
-        max                       = 0x40
+        geometryShader            = 0x40,
+        tessellationShader        = 0x80,
+        max                       = 0x100
     };
     using FeatureFlags = Common::Flags<FeatureBits>;
     DECLARE_FLAG_BITS_OP(FeatureFlags, FeatureBits)
@@ -496,6 +501,8 @@ namespace RHI {
 
 namespace RHI {
     size_t GetBytesPerPixel(PixelFormat format);
+    size_t GetTextureAspectBytesPerPixel(PixelFormat format, TextureAspect aspect);
     TextureAspect GetTextureAspect(PixelFormat format);
+    std::span<const TextureAspect> GetTextureAspectComponents(TextureAspect aspect);
     TextureState GetDepthStencilTextureState(TextureAspect aspect, bool depthReadOnly, bool stencilReadOnly);
 }

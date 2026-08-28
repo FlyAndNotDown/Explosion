@@ -17,7 +17,9 @@ namespace RHI::DirectX12 {
 
     void DX12RHIModule::OnUnload()
     {
-        delete gInstance;
+        auto* instance = gInstance;
+        gInstance = nullptr;
+        delete instance;
     }
 
     Core::ModuleType DX12RHIModule::Type() const

@@ -37,10 +37,12 @@ namespace RHI::Vulkan {
 
     void VulkanShaderModule::CreateNativeShaderModule(const ShaderModuleCreateInfo& createInfo)
     {
+        Assert(createInfo.byteCode != nullptr);
+
         VkShaderModuleCreateInfo moduleCreateInfo = {};
         moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        moduleCreateInfo.codeSize = createInfo.size;
-        moduleCreateInfo.pCode = static_cast<const uint32_t*>(createInfo.byteCode);
+        moduleCreateInfo.codeSize = createInfo.byteCode->GetSize();
+        moduleCreateInfo.pCode = static_cast<const uint32_t*>(createInfo.byteCode->GetData());
 
         Assert(vkCreateShaderModule(device.GetNative(), &moduleCreateInfo, nullptr, &nativeShaderModule) == VK_SUCCESS);
     }

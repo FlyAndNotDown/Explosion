@@ -18,12 +18,13 @@ namespace RHI::Vulkan {
     class VulkanQueue final : public Queue {
     public:
         NonCopyable(VulkanQueue)
-        VulkanQueue(VulkanDevice& inDevice, QueueType inType, VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex);
+        VulkanQueue(VulkanDevice& inDevice, QueueType inType, uint32_t inFamilyIndex, VkQueue inNativeQueue, std::shared_ptr<std::mutex> inNativeQueueMutex);
         ~VulkanQueue() override;
 
         void Flush(Fence* inFenceToSignal) override;
         float GetTimestampPeriod() override;
 
+        uint32_t GetFamilyIndex() const;
         VkQueue GetNative() const;
         VkResult Present(const VkPresentInfoKHR& inPresentInfo) const;
         void WaitIdle() const;
@@ -32,6 +33,7 @@ namespace RHI::Vulkan {
         void SubmitInternal(CommandBuffer* inCmdBuffer, const QueueSubmitInfo& inSubmitInfo) override;
 
         VulkanDevice& device;
+        uint32_t familyIndex;
         VkQueue nativeQueue;
         std::shared_ptr<std::mutex> nativeQueueMutex;
     };

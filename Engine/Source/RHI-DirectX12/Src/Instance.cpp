@@ -110,9 +110,22 @@ namespace RHI::DirectX12 {
 
     void DX12Instance::EnumerateAdapters()
     {
+        if (GetCreateInfo().useSoftwareGpu) {
+            ComPtr<IDXGIAdapter> nativeWarpAdapter;
+            Assert(SUCCEEDED(nativeFactory->EnumWarpAdapter(IID_PPV_ARGS(&nativeWarpAdapter))));
+            ComPtr<IDXGIAdapter1> nativeWarpAdapter1;
+            Assert(SUCCEEDED(nativeWarpAdapter.As(&nativeWarpAdapter1)));
+            gpus.emplace_back(Common::MakeUnique<DX12Gpu>(*this, std::move(nativeWarpAdapter1)));
+            return;
+        }
+
         ComPtr<IDXGIAdapter1> tempAdapter;
         for (uint32_t i = 0; SUCCEEDED(nativeFactory->EnumAdapters1(i, &tempAdapter)); i++) {
-            gpus.emplace_back(Common::MakeUnique<DX12Gpu>(*this, std::move(tempAdapter)));
+            DXGI_ADAPTER_DESC1 desc;
+            Assert(SUCCEEDED(tempAdapter->GetDesc1(&desc)));
+            if ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0) {
+                gpus.emplace_back(Common::MakeUnique<DX12Gpu>(*this, std::move(tempAdapter)));
+            }
             tempAdapter = nullptr;
         }
     }
@@ -127,8 +140,4 @@ namespace RHI::DirectX12 {
         return gpus[index].Get();
     }
 
-    void DX12Instance::Destroy()
-    {
-        delete this;
-    }
 }

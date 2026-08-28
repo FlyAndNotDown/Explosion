@@ -14,11 +14,14 @@
 namespace Runtime {
     class World;
 
-    struct EngineInitParams {
+    struct RUNTIME_API EngineInitParams {
+        EngineInitParams();
+
         bool logToFile;
         bool gpuDebug;
         std::string gameRoot;
         std::string rhiType;
+        bool useSoftwareGpu;
     };
 
     class RUNTIME_API Engine { // NOLINT
@@ -36,7 +39,7 @@ namespace Runtime {
         explicit Engine(const EngineInitParams& inParams);
 
         void AttachLogFile() const;
-        void InitRender(const std::string& inRhiTypeStr, bool inGpuDebug);
+        void InitRender(const std::string& inRhiTypeStr, bool inGpuDebug, bool inUseSoftwareGpu);
         void LoadPlugins() const;
         void LoadConfigs() const;
 

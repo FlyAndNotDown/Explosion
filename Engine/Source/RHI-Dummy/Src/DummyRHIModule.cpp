@@ -17,7 +17,9 @@ namespace RHI::Dummy {
 
     void DummyRHIModule::OnUnload()
     {
-        delete gInstance;
+        auto* instance = gInstance;
+        gInstance = nullptr;
+        delete instance;
     }
 
     Core::ModuleType DummyRHIModule::Type() const

@@ -45,7 +45,6 @@ VSOutput VSMain(VSInput input)
 
 #if VULKAN
     output.position.y = -output.position.y;
-    output.normal.y = -output.normal.y;
 #endif
 
 	output.color = input.color;

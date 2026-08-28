@@ -17,10 +17,10 @@ namespace RHI::DirectX12 {
 
         const std::string& GetEntryPoint() override;
 
-        const D3D12_SHADER_BYTECODE& GetNative() const;
+        D3D12_SHADER_BYTECODE GetNative() const;
 
     private:
-        CD3DX12_SHADER_BYTECODE nativeShaderBytecode;
+        ShaderByteCodeRef byteCode;
         std::string entryPoint;
     };
 }

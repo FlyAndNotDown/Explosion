@@ -7,9 +7,10 @@
 namespace RHI::DirectX12 {
     DX12ShaderModule::DX12ShaderModule(const ShaderModuleCreateInfo& inCreateInfo)
         : ShaderModule(inCreateInfo)
-        , nativeShaderBytecode(inCreateInfo.byteCode, inCreateInfo.size)
+        , byteCode(inCreateInfo.byteCode)
         , entryPoint(inCreateInfo.entryPoint)
     {
+        Assert(byteCode != nullptr);
     }
 
     DX12ShaderModule::~DX12ShaderModule() = default;
@@ -19,8 +20,8 @@ namespace RHI::DirectX12 {
         return entryPoint;
     }
 
-    const D3D12_SHADER_BYTECODE& DX12ShaderModule::GetNative() const
+    D3D12_SHADER_BYTECODE DX12ShaderModule::GetNative() const
     {
-        return nativeShaderBytecode;
+        return CD3DX12_SHADER_BYTECODE(byteCode->GetData(), byteCode->GetSize());
     }
 }

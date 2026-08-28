@@ -9,6 +9,7 @@ class ExplosionConan(ConanFile):
 
     def requirements(self):
         self.requires("stb/cci.20230920")
+        self.requires("cimg/3.3.2")
         self.requires("cityhash/1.0.1")
         self.requires("gtest/1.17.0")
         self.requires("benchmark/1.9.5")
@@ -34,5 +35,6 @@ class ExplosionConan(ConanFile):
         self.requires("assimp/6.0.2-exp")
         self.requires("clipp/1.2.3-exp")
         self.requires("dxc/1.8.2505.1-exp")
+        self.requires("swiftshader/2026.8.10-exp")
         if self.settings.os == "Macos":
             self.requires("molten-vk/1.4.1-exp")

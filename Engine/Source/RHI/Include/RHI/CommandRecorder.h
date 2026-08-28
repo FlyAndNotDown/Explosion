@@ -38,6 +38,8 @@ namespace RHI {
 
     struct TextureSubResourceCopyFootprint {
         Common::UVec3 extent;
+        // For depthStencil this is the larger per-plane element size. The layout contains depth followed by stencil,
+        // with both planes using rowPitch and slicePitch; totalBytes covers all planes.
         size_t bytesPerPixel;
         size_t rowPitch;
         size_t slicePitch;
@@ -78,21 +80,25 @@ namespace RHI {
 
     struct BufferTextureCopyInfo {
         size_t bufferOffset;
+        size_t bufferRowPitch;
+        size_t bufferSlicePitch;
         TextureSubResourceInfo textureSubResource;
         Common::UVec3 textureOrigin;
         Common::UVec3 copyRegion;
 
-        explicit BufferTextureCopyInfo(
-            size_t inBufferOffset = 0,
-            const TextureSubResourceInfo& inTextureSubResource = TextureSubResourceInfo(),
-            const Common::UVec3& inTextureOrigin = Common::UVec3Consts::zero,
-            const Common::UVec3& inCopyRegion = Common::UVec3Consts::zero);
+        explicit BufferTextureCopyInfo(size_t inBufferOffset = 0, const TextureSubResourceInfo& inTextureSubResource = TextureSubResourceInfo(), const Common::UVec3& inTextureOrigin = Common::UVec3Consts::zero, const Common::UVec3& inCopyRegion = Common::UVec3Consts::zero, size_t inBufferRowPitch = 0, size_t inBufferSlicePitch = 0);
 
         BufferTextureCopyInfo& SetBufferOffset(size_t inBufferOffset);
+        BufferTextureCopyInfo& SetBufferRowPitch(size_t inBufferRowPitch);
+        BufferTextureCopyInfo& SetBufferSlicePitch(size_t inBufferSlicePitch);
         BufferTextureCopyInfo& SetTextureSubResource(const TextureSubResourceInfo& inTextureSubResource);
         BufferTextureCopyInfo& SetTextureOrigin(const Common::UVec3& inTextureOrigin);
         BufferTextureCopyInfo& SetCopyRegion(const Common::UVec3& inCopyRegion);
     };
+
+    namespace Internal {
+        void ValidateBufferTextureCopy(const Buffer& buffer, const Texture& texture, const BufferTextureCopyInfo& copyInfo);
+    }
 
     struct DrawIndirectArguments {
         uint32_t vertexCount = 0;
@@ -217,7 +223,9 @@ namespace RHI {
         ~CopyPassCommandRecorder() override;
 
         virtual void CopyBufferToBuffer(Buffer* src, Buffer* dst, const BufferCopyInfo& copyInfo) = 0;
-        // NOTICE: CopyBufferToTexture/CopyTextureToBuffer treat buffer contains copy region (sub-image) data from offset
+        // The buffer layout starts at bufferOffset and is described explicitly by bufferRowPitch and bufferSlicePitch.
+        // A combined depth-stencil copy stores the depth plane first and the stencil plane second. Each plane occupies
+        // bufferSlicePitch * copyRegion.z bytes and uses the same row and slice pitches.
         virtual void CopyBufferToTexture(Buffer* src, Texture* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToBuffer(Texture* src, Buffer* dst, const BufferTextureCopyInfo& copyInfo) = 0;
         virtual void CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyInfo& copyInfo) = 0;
@@ -254,7 +262,7 @@ namespace RHI {
         virtual void SetIndexBuffer(BufferView* bufferView) = 0;
         virtual void SetVertexBuffer(size_t slot, BufferView* bufferView) = 0;
         virtual void Draw(size_t vertexCount, size_t instanceCount, size_t firstVertex, size_t firstInstance) = 0;
-        virtual void DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, size_t baseVertex, size_t firstInstance) = 0;
+        virtual void DrawIndexed(size_t indexCount, size_t instanceCount, size_t firstIndex, int32_t baseVertex, size_t firstInstance) = 0;
         virtual void SetViewport(float topLeftX, float topLeftY, float width, float height, float minDepth, float maxDepth) = 0;
         virtual void SetScissor(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) = 0;
         virtual void SetPrimitiveTopology(PrimitiveTopology primitiveTopology) = 0;

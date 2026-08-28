@@ -20,6 +20,8 @@
 #include <Render/ShaderCompiler.h>
 #include <Camera.h>
 
+class SampleRenderTarget;
+
 class Application {
 public:
     enum class MouseButton : uint8_t {
@@ -30,7 +32,7 @@ public:
     };
 
     struct ShaderCompileOutput {
-        std::vector<uint8_t> byteCode;
+        RHI::ShaderByteCodeRef byteCode;
         Render::ShaderReflectionData reflectionData;
     };
 
@@ -57,9 +59,13 @@ protected:
     void* GetPlatformWindow() const;
     uint32_t GetWindowWidth() const;
     uint32_t GetWindowHeight() const;
+    bool IsHeadless() const;
+    const std::string& GetOutputPath() const;
     RHI::RHIType GetRHIType() const;
     RHI::Instance* GetRHIInstance() const;
+    RHI::Gpu* GetGpu() const;
     Camera& GetCamera() const;
+    UniquePtr<SampleRenderTarget> CreateRenderTarget(RHI::Device& device) const;
     ShaderCompileOutput CompileShader(const std::string& fileName, const std::string& entryPoint, RHI::ShaderStageBits shaderStage, std::vector<std::string> includePaths = {}) const;
 
 private:
@@ -68,6 +74,9 @@ private:
     UVec2 windowExtent;
     RHI::RHIType rhiType;
     RHI::Instance* instance;
+    RHI::Gpu* gpu;
+    bool headless;
+    std::string outputPath;
     UniquePtr<Camera> camera;
     FVec2 mousePos;
     std::array<bool, static_cast<size_t>(MouseButton::max)> mouseButtonsStatus;

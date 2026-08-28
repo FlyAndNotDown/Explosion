@@ -36,7 +36,6 @@ namespace RHI::Vulkan {
         "VK_KHR_depth_stencil_resolve",
         "VK_KHR_create_renderpass2",
 #if PLATFORM_MACOS
-        "VK_KHR_portability_subset",
         "VK_EXT_extended_dynamic_state"
 #endif
     };
@@ -232,22 +231,30 @@ namespace RHI::Vulkan {
         return iter != surfaceFormats.end();
     }
 
-    TextureSubResourceCopyFootprint VulkanDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
+    TextureSubResourceCopyFootprint VulkanDevice::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion)
     {
         const auto& createInfo = texture.GetCreateInfo();
         const auto mipLevel = subResourceInfo.mipLevel;
         const auto baseDepth = createInfo.type == TextureType::t3D ? createInfo.depthOrArraySize : 1;
-
-        TextureSubResourceCopyFootprint result {};
-        result.extent = {
+        const Common::UVec3 subResourceExtent = {
             std::max(createInfo.width >> mipLevel, 1u),
             std::max(createInfo.height >> mipLevel, 1u),
             std::max(baseDepth >> mipLevel, 1u)
         };
-        result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
+        const auto useFullSubResource = copyRegion == Common::UVec3Consts::zero;
+        const auto extent = useFullSubResource ? subResourceExtent : copyRegion;
+        Assert(extent.x <= subResourceExtent.x && extent.y <= subResourceExtent.y && extent.z <= subResourceExtent.z);
+
+        TextureSubResourceCopyFootprint result {};
+        result.extent = extent;
+        const auto aspects = GetTextureAspectComponents(subResourceInfo.aspect);
+        result.bytesPerPixel = 0;
+        for (const auto aspect : aspects) {
+            result.bytesPerPixel = std::max(result.bytesPerPixel, GetTextureAspectBytesPerPixel(createInfo.format, aspect));
+        }
         result.rowPitch = result.bytesPerPixel * result.extent.x;
         result.slicePitch = result.rowPitch * result.extent.y;
-        result.totalBytes = result.slicePitch * result.extent.z;
+        result.totalBytes = result.slicePitch * result.extent.z * aspects.size();
         return result;
     }
 
@@ -359,6 +366,8 @@ namespace RHI::Vulkan {
         enabledFeatures.textureCompressionBC = supportedFeatures.features.textureCompressionBC;
         enabledFeatures.occlusionQueryPrecise = supportedFeatures.features.occlusionQueryPrecise;
         enabledFeatures.imageCubeArray = supportedFeatures.features.imageCubeArray;
+        enabledFeatures.geometryShader = supportedFeatures.features.geometryShader;
+        enabledFeatures.tessellationShader = supportedFeatures.features.tessellationShader;
 
         VkDeviceCreateInfo deviceCreateInfo = {};
         deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -376,8 +385,21 @@ namespace RHI::Vulkan {
         extendedDynamicStateFeatures.extendedDynamicState = VK_TRUE;
         dynamicRenderingFeatures.pNext = &extendedDynamicStateFeatures;
 
-        deviceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
-        deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+        std::vector<const char*> enabledExtensions = requiredExtensions;
+#if PLATFORM_MACOS
+        constexpr std::string_view portabilitySubsetExtensionName = "VK_KHR_portability_subset";
+        uint32_t extensionCount = 0;
+        vkEnumerateDeviceExtensionProperties(gpu.GetNative(), nullptr, &extensionCount, nullptr);
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(gpu.GetNative(), nullptr, &extensionCount, extensions.data());
+    if (std::ranges::find_if(extensions, [portabilitySubsetExtensionName](const VkExtensionProperties& inExtension) -> bool {
+                return std::string_view(inExtension.extensionName) == portabilitySubsetExtensionName;
+            }) != extensions.end()) {
+            enabledExtensions.emplace_back(portabilitySubsetExtensionName.data());
+        }
+#endif
+        deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+        deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
 
         Assert(vkCreateDevice(gpu.GetNative(), &deviceCreateInfo, nullptr, &nativeDevice) == VK_SUCCESS);
     }
@@ -404,7 +426,7 @@ namespace RHI::Vulkan {
                 if (queueMutex == nullptr) {
                     queueMutex = std::make_shared<std::mutex>();
                 }
-                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queue, queueMutex);
+                tempQueues[i] = Common::MakeUnique<VulkanQueue>(*this, queueType, queueFamilyIndex, queue, queueMutex);
             }
             queues[queueType] = std::move(tempQueues);
 

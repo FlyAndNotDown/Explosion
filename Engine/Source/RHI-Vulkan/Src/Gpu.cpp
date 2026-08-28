@@ -23,9 +23,22 @@ namespace RHI::Vulkan {
         vkGetPhysicalDeviceProperties(nativePhysicalDevice, &vkPhysicalDeviceProperties);
 
         GpuProperty property {};
+        property.name = vkPhysicalDeviceProperties.deviceName;
         property.vendorId = vkPhysicalDeviceProperties.vendorID;
         property.deviceId = vkPhysicalDeviceProperties.deviceID;
+        property.driverVersion = vkPhysicalDeviceProperties.driverVersion;
+        property.apiVersion = vkPhysicalDeviceProperties.apiVersion;
         property.type = EnumCast<VkPhysicalDeviceType, GpuType>(vkPhysicalDeviceProperties.deviceType);
+
+        VkPhysicalDeviceMemoryProperties memoryProperties;
+        vkGetPhysicalDeviceMemoryProperties(nativePhysicalDevice, &memoryProperties);
+        for (uint32_t i = 0; i < memoryProperties.memoryHeapCount; i++) {
+            if ((memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
+                property.dedicatedVideoMemorySize += memoryProperties.memoryHeaps[i].size;
+            } else {
+                property.sharedSystemMemorySize += memoryProperties.memoryHeaps[i].size;
+            }
+        }
         return property;
     }
 
@@ -44,6 +57,8 @@ namespace RHI::Vulkan {
         if (features.multiDrawIndirect) { result = result | FeatureBits::multiDrawIndirect; }
         if (features.drawIndirectFirstInstance) { result = result | FeatureBits::drawIndirectFirstInstance; }
         if (features.imageCubeArray) { result = result | FeatureBits::textureCubeArray; }
+        if (features.geometryShader) { result = result | FeatureBits::geometryShader; }
+        if (features.tessellationShader) { result = result | FeatureBits::tessellationShader; }
         return result;
     }
 

@@ -86,14 +86,33 @@ jobs:
           python ThirdParty/ConanRecipes/build_recipes.py --export-only
 
       - name: Configure CMake
-        run: cmake -B ${{github.workspace}}/build -G=Ninja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: cmake -B ${{github.workspace}}/build -G=Ninja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCI=ON
 
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} -j ${{env.MAKE_THREAD_NUM}}
 
+      # Elevated Windows processes ignore VK_DRIVER_FILES, so register SwiftShader in the loader's trusted driver list.
+      - name: Register SwiftShader Vulkan Driver
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $manifest = (Resolve-Path "${{github.workspace}}/build/Dist/Explosion/Binaries/vk_swiftshader_icd.json").Path
+          $driverRegistry = 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers'
+          New-Item -Path $driverRegistry -Force | Out-Null
+          New-ItemProperty -Path $driverRegistry -Name $manifest -PropertyType DWord -Value 0 -Force | Out-Null
+
       - name: Test
         working-directory: ${{github.workspace}}/build
         run: ctest -C ${{env.BUILD_TYPE}} --extra-verbose
+
+      - name: Upload Rendering Test Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-test-${{runner.os}}-${{runner.arch}}
+          path: ${{github.workspace}}/build/Test/Generated/RenderingSample
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Install
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target install -j ${{env.MAKE_THREAD_NUM}}

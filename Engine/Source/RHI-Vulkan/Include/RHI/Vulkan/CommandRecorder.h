@@ -106,7 +106,7 @@ namespace RHI::Vulkan {
         void SetIndexBuffer(BufferView* inBufferView) override;
         void SetVertexBuffer(size_t inSlot, BufferView* inBufferView) override;
         void Draw(size_t inVertexCount, size_t inInstanceCount, size_t inFirstVertex, size_t inFirstInstance) override;
-        void DrawIndexed(size_t inIndexCount, size_t inInstanceCount, size_t inFirstIndex, size_t inBaseVertex, size_t inFirstInstance) override;
+        void DrawIndexed(size_t inIndexCount, size_t inInstanceCount, size_t inFirstIndex, int32_t inBaseVertex, size_t inFirstInstance) override;
         void SetViewport(float inX, float inY, float inWidth, float inHeight, float inMinDepth, float inMaxDepth) override;
         void SetScissor(uint32_t inLeft, uint32_t inTop, uint32_t inRight, uint32_t inBottom) override;
         void SetPrimitiveTopology(PrimitiveTopology inPrimitiveTopology) override;

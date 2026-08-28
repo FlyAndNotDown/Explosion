@@ -2,6 +2,7 @@
 // Created by johnk on 15/1/2022.
 //
 
+#include <algorithm>
 #include <iostream>
 #include <unordered_set>
 
@@ -280,24 +281,36 @@ namespace RHI::DirectX12 {
         return iter != supportedFormats.end() && iter->second.contains(inFormat);
     }
 
-    TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo)
+    TextureSubResourceCopyFootprint DX12Device::GetTextureSubResourceCopyFootprint(const Texture& texture, const TextureSubResourceInfo& subResourceInfo, const Common::UVec3& copyRegion)
     {
         const auto& dx12Texture = static_cast<const DX12Texture&>(texture);
         const auto createInfo = texture.GetCreateInfo();
         const auto nativeResourceDesc = dx12Texture.GetNative()->GetDesc();
 
         const auto arraySize = createInfo.type == TextureType::t3D ? 1 : createInfo.depthOrArraySize;
-        const size_t nativeSubResourceIndex = D3D12CalcSubresource(subResourceInfo.mipLevel, subResourceInfo.arrayLayer, 0, createInfo.mipLevels, arraySize);
+        const auto aspects = GetTextureAspectComponents(subResourceInfo.aspect);
+        const size_t nativeSubResourceIndex = D3D12CalcSubresource(subResourceInfo.mipLevel, subResourceInfo.arrayLayer, GetDX12TexturePlaneSlice(aspects.front()), createInfo.mipLevels, arraySize);
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
         nativeDevice->GetCopyableFootprints(&nativeResourceDesc, nativeSubResourceIndex, 1, 0, &footprint, nullptr, nullptr, nullptr);
 
+        const Common::UVec3 subResourceExtent = { footprint.Footprint.Width, footprint.Footprint.Height, footprint.Footprint.Depth };
+        const auto useFullSubResource = copyRegion == Common::UVec3Consts::zero;
+        const auto extent = useFullSubResource ? subResourceExtent : copyRegion;
+        Assert(extent.x <= subResourceExtent.x && extent.y <= subResourceExtent.y && extent.z <= subResourceExtent.z);
+
         TextureSubResourceCopyFootprint result {};
-        result.extent = { footprint.Footprint.Width, footprint.Footprint.Height, footprint.Footprint.Depth };
-        result.bytesPerPixel = GetBytesPerPixel(createInfo.format);
-        result.rowPitch = footprint.Footprint.RowPitch;
-        result.slicePitch = footprint.Footprint.RowPitch * footprint.Footprint.Height;
-        result.totalBytes = footprint.Footprint.RowPitch * footprint.Footprint.Height * footprint.Footprint.Depth;
+        result.extent = extent;
+        result.bytesPerPixel = 0;
+        for (const auto aspect : aspects) {
+            result.bytesPerPixel = std::max(result.bytesPerPixel, GetTextureAspectBytesPerPixel(createInfo.format, aspect));
+        }
+        result.rowPitch = Common::AlignUp(result.bytesPerPixel * result.extent.x, static_cast<size_t>(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+        result.slicePitch = result.rowPitch * result.extent.y;
+        if (aspects.size() > 1 && result.slicePitch % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT != 0) {
+            result.slicePitch += result.rowPitch;
+        }
+        result.totalBytes = result.slicePitch * result.extent.z * aspects.size();
         return result;
     }
 

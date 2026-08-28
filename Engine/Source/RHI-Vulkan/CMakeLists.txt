@@ -12,7 +12,7 @@ exp_add_library(
     TYPE SHARED
     SRC ${sources} ${platform_sources}
     PUBLIC_INC Include
-    PUBLIC_LIB RHI ${platform_ext_libs} Vulkan::Headers Vulkan::Loader vulkan-validationlayers::vulkan-validationlayers spirv-cross::spirv-cross GPUOpen::VulkanMemoryAllocator
+    PUBLIC_LIB RHI ${platform_ext_libs} swiftshader::swiftshader Vulkan::Headers Vulkan::Loader vulkan-validationlayers::vulkan-validationlayers spirv-cross::spirv-cross GPUOpen::VulkanMemoryAllocator
 )
 
 # .mm files can not perform unity build with .cpp files

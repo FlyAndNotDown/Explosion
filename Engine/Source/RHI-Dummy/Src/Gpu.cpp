@@ -15,7 +15,10 @@ namespace RHI::Dummy {
 
     GpuProperty DummyGpu::GetProperty()
     {
-        return {};
+        GpuProperty result {};
+        result.name = "Dummy GPU";
+        result.type = GpuType::software;
+        return result;
     }
 
     FeatureFlags DummyGpu::GetFeatures()

@@ -18,7 +18,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_OTHER,          GpuType::software)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, GpuType::hardware)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,   GpuType::hardware)
-        ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,    GpuType::software)
+        ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,    GpuType::hardware)
         ECIMPL_ITEM(VK_PHYSICAL_DEVICE_TYPE_CPU,            GpuType::software)
     ECIMPL_END(GpuType)
 
@@ -110,6 +110,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(PrimitiveTopologyType::point,    VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
         ECIMPL_ITEM(PrimitiveTopologyType::line,     VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
         ECIMPL_ITEM(PrimitiveTopologyType::triangle, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+        ECIMPL_ITEM(PrimitiveTopologyType::patch,    VK_PRIMITIVE_TOPOLOGY_PATCH_LIST)
     ECIMPL_END(VkPrimitiveTopology)
 
     ECIMPL_BEGIN(FillMode, VkPolygonMode)
@@ -127,6 +128,7 @@ namespace RHI::Vulkan {
         ECIMPL_ITEM(PrimitiveTopology::lineStripAdj,       VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY)
         ECIMPL_ITEM(PrimitiveTopology::triangleListAdj,    VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY)
         ECIMPL_ITEM(PrimitiveTopology::triangleStripAdj,   VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY)
+        ECIMPL_ITEM(PrimitiveTopology::patchList,           VK_PRIMITIVE_TOPOLOGY_PATCH_LIST)
     ECIMPL_END(VkPrimitiveTopology)
 
     ECIMPL_BEGIN(CullMode, VkCullModeFlagBits)

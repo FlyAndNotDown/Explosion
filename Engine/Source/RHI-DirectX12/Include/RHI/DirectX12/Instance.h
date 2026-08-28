@@ -37,7 +37,6 @@ namespace RHI::DirectX12 {
         RHIType GetRHIType() override;
         uint32_t GetGpuNum() override;
         Gpu* GetGpu(uint32_t index) override;
-        void Destroy() override;
 
         IDXGIFactory4* GetNative() const;
 #if BUILD_CONFIG_DEBUG

@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include <Application.h>
+#include <RenderTarget.h>
 #include <Common/File.h>
 #include <Common/Hash.h>
 #include <Common/Time.h>
@@ -25,6 +26,9 @@ Application::Application(std::string n)
     , windowExtent(1024, 768)
     , rhiType(RHI::RHIType::vulkan)
     , instance(nullptr)
+    , gpu(nullptr)
+    , headless(false)
+    , outputPath()
     , mousePos(FVec2Consts::zero)
     , mouseButtonsStatus()
     , lastTimeSeconds(TimePoint::Now().ToSeconds())
@@ -44,12 +48,16 @@ bool Application::Initialize(int argc, char* argv[])
     Core::Cli::Get().Parse(argc, argv);
 
     std::string rhiString;
+    bool softwareGpu = false;
 #if BUILD_CONFIG_DEBUG
     bool gpuDebug = false;
 #endif
     if (const auto cli = (
             clipp::option("-w").doc("window width, 1024 by default") & clipp::value("width", windowExtent.x),
             clipp::option("-h").doc("window height, 768 by default") & clipp::value("height", windowExtent.y),
+            clipp::option("-headless", "--headless").set(headless).doc("render one frame without creating a window"),
+            clipp::option("-softwareGpu", "--software-gpu").set(softwareGpu).doc("use the software GPU driver"),
+            clipp::option("-output", "--output").doc("headless output image path, including extension") & clipp::value("path", outputPath),
 #if BUILD_CONFIG_DEBUG
             clipp::option("-gpuDebug").set(gpuDebug).doc("enable GPU validation layers"),
 #endif
@@ -60,24 +68,44 @@ bool Application::Initialize(int argc, char* argv[])
         return false;
     }
 
+    if (headless && outputPath.empty()) {
+        std::cerr << "headless mode requires -output with a complete image path" << std::endl;
+        return false;
+    }
+    if (headless && !IsSupportedSampleImageOutputPath(outputPath)) {
+        std::cerr << "unsupported output image extension; expected .png, .bmp, .tga, .jpg, or .jpeg" << std::endl;
+        return false;
+    }
+
     rhiType = RHI::GetRHITypeByAbbrString(rhiString);
     RHI::InstanceCreateInfo instanceCreateInfo;
+    instanceCreateInfo.useSoftwareGpu = softwareGpu;
 #if BUILD_CONFIG_DEBUG
     instanceCreateInfo.gpuDebug = gpuDebug;
 #endif
     instance = RHI::Instance::GetByType(rhiType, instanceCreateInfo);
+    if (instance->GetGpuNum() == 0) {
+        std::cerr << "no compatible GPU was found" << std::endl;
+        return false;
+    }
+    gpu = instance->GetGpu(0);
+    const auto gpuProperty = gpu->GetProperty();
+    std::cout << "Selected GPU: " << gpuProperty.name << " (" << (gpuProperty.type == RHI::GpuType::software ? "software" : "hardware") << ")" << std::endl;
 
     return true;
 }
 
 int Application::RunLoop()
 {
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(static_cast<int>(windowExtent.x), static_cast<int>(windowExtent.y), name.c_str(), nullptr, nullptr);
+    if (!headless) {
+        Assert(glfwInit() == GLFW_TRUE);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        window = glfwCreateWindow(static_cast<int>(windowExtent.x), static_cast<int>(windowExtent.y), name.c_str(), nullptr, nullptr);
+        Assert(window != nullptr);
+    }
     OnCreate();
 
-    if (camera != nullptr) {
+    if (!headless && camera != nullptr) {
         auto keyCallback = [](GLFWwindow* inWindow, int key, int scancode, int action, int mods) -> void {
             const auto* app = static_cast<Application*>(glfwGetWindowUserPointer(inWindow));
             app->OnKeyActionReceived(key, action);
@@ -97,7 +125,13 @@ int Application::RunLoop()
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
     }
 
-    while (!static_cast<bool>(glfwWindowShouldClose(window))) {
+    if (headless) {
+        currentTimeSeconds = 0.0;
+        deltaTimeSeconds = 0.0f;
+        OnDrawFrame();
+    }
+
+    while (!headless && !static_cast<bool>(glfwWindowShouldClose(window))) {
         currentTimeSeconds = TimePoint::Now().ToSeconds();
         deltaTimeSeconds = static_cast<float>(currentTimeSeconds - lastTimeSeconds);
         lastTimeSeconds = currentTimeSeconds;
@@ -109,8 +143,10 @@ int Application::RunLoop()
     }
     OnDestroy();
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    if (!headless) {
+        glfwDestroyWindow(window);
+        glfwTerminate();
+    }
     return 0;
 }
 
@@ -247,6 +283,16 @@ uint32_t Application::GetWindowHeight() const
     return windowExtent.y;
 }
 
+bool Application::IsHeadless() const
+{
+    return headless;
+}
+
+const std::string& Application::GetOutputPath() const
+{
+    return outputPath;
+}
+
 RHI::RHIType Application::GetRHIType() const
 {
     return rhiType;
@@ -257,6 +303,11 @@ RHI::Instance* Application::GetRHIInstance() const
     return instance;
 }
 
+RHI::Gpu* Application::GetGpu() const
+{
+    return gpu;
+}
+
 void Application::SetCamera(Camera* inCamera)
 {
     camera = inCamera;
@@ -265,6 +316,14 @@ void Application::SetCamera(Camera* inCamera)
 Camera& Application::GetCamera() const
 {
     return *camera;
+}
+
+UniquePtr<SampleRenderTarget> Application::CreateRenderTarget(RHI::Device& device) const
+{
+    if (headless) {
+        return new HeadlessRenderTarget(device, windowExtent.x, windowExtent.y, outputPath);
+    }
+    return new SwapChainRenderTarget(device, windowExtent.x, windowExtent.y, GetPlatformWindow());
 }
 
 Application::ShaderCompileOutput Application::CompileShader(const std::string& fileName, const std::string& entryPoint, RHI::ShaderStageBits shaderStage, std::vector<std::string> includePaths) const

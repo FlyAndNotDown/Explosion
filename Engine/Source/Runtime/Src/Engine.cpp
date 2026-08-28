@@ -16,6 +16,15 @@
 #include <Runtime/World.h>
 
 namespace Runtime {
+    EngineInitParams::EngineInitParams()
+        : logToFile(false)
+        , gpuDebug(false)
+        , gameRoot()
+        , rhiType(RHI::GetPlatformDefaultRHIAbbrString())
+        , useSoftwareGpu(false)
+    {
+    }
+
     Engine::Engine(const EngineInitParams& inParams)
     {
         Core::ThreadContext::SetTag(Core::ThreadTag::game);
@@ -28,7 +37,7 @@ namespace Runtime {
         if (inParams.logToFile) {
             AttachLogFile();
         }
-        InitRender(inParams.rhiType, inParams.gpuDebug);
+        InitRender(inParams.rhiType, inParams.gpuDebug, inParams.useSoftwareGpu);
         LoadPlugins();
         LoadConfigs();
     }
@@ -94,18 +103,21 @@ namespace Runtime {
         LogInfo(Core, "logger attached to file {}", logFile);
     }
 
-    void Engine::InitRender(const std::string& inRhiTypeStr, bool inGpuDebug)
+    void Engine::InitRender(const std::string& inRhiTypeStr, bool inGpuDebug, const bool inUseSoftwareGpu)
     {
         renderModule = ::Core::ModuleManager::Get().FindOrLoadTyped<Render::RenderModule>("Render");
         Assert(renderModule != nullptr);
 
         Render::RenderModuleInitParams initParams;
         initParams.rhiType = RHI::GetRHITypeByAbbrString(inRhiTypeStr);
+        initParams.instanceCreateInfo.useSoftwareGpu = inUseSoftwareGpu;
 #if BUILD_CONFIG_DEBUG
         initParams.instanceCreateInfo.gpuDebug = inGpuDebug;
 #endif
         renderModule->Initialize(initParams);
         LogInfo(Render, "RHI type: {}", inRhiTypeStr);
+        const auto gpuProperty = renderModule->GetDevice()->GetGpu().GetProperty();
+        LogInfo(Render, "GPU: {} ({})", gpuProperty.name, gpuProperty.type == RHI::GpuType::software ? "software" : "hardware");
     }
 
     void Engine::LoadPlugins() const // NOLINT
